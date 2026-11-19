@@ -13,6 +13,7 @@ const nets={Instagram:['followers','views','likes','comments'],YouTube:['subscri
 const hosts={Instagram:'instagram.com',YouTube:'youtube.com',Spotify:'open.spotify.com',TikTok:'tiktok.com'};
 export function profileUrl(network,raw){const u=new URL(need(raw,'URL',2000));if(!hosts[network]||u.protocol!=='https:'||u.username||u.password||u.port||![hosts[network],'www.'+hosts[network]].includes(u.hostname))throw Error('URL de perfil inválida');const p=u.pathname.replace(/\/$/,'');if(!p||p==='/')throw Error('Perfil sem identificador');return 'https://'+hosts[network]+p;}
 function evidenceUrl(raw){const u=new URL(need(raw,'evidência',2000));if(u.protocol!=='https:'||u.username||u.password)throw Error('Evidência HTTPS obrigatória');return u.href;}
+export function validateObservation(network,o,fallbackEvidence){if(!o||!nets[network]?.includes(o.metric)||!Number.isSafeInteger(o.value)||o.value<0)throw Error('Métrica inválida');const dt=new Date(o.observed_at);if(!Number.isFinite(+dt)||+dt>Date.now())throw Error('Data inválida');return {metric:o.metric,value:o.value,observed_at:dt.toISOString(),evidence_url:evidenceUrl(o.evidence_url??fallbackEvidence)};}
 export function openDiscovery(path=defaultDiscoveryDb()){ensurePersistentPath(path,'DISCOVERY_DB');if(path!==':memory:')mkdirSync(dirname(path),{recursive:true});const db=new DatabaseSync(path);db.exec(`PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL;
 CREATE TABLE IF NOT EXISTS sources(id TEXT PRIMARY KEY, kind TEXT NOT NULL, authorization TEXT NOT NULL, history_allowed INTEGER NOT NULL CHECK(history_allowed IN(0,1)), enabled INTEGER NOT NULL CHECK(enabled IN(0,1)));
 CREATE TABLE IF NOT EXISTS candidates(id TEXT PRIMARY KEY,name TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN('pending','approved','rejected','published')), created_at TEXT NOT NULL, reviewed_at TEXT, reviewer TEXT, identity_evidence TEXT, radar_id TEXT);
@@ -33,8 +34,64 @@ export function review(db,id,{approve,reviewer,evidence,radarId=null}){if(typeof
 // Chamada externa limitada, URLs fixas, sem expor chaves no log.
 async function getJSON(url,fetcher){let r;try{r=await fetcher(url,{signal:AbortSignal.timeout(15000),redirect:'error'});}catch{throw Error('Falha de conexão externa');}if(!r.ok)throw Error('Fonte retornou HTTP '+r.status);return r.json();}
 export async function discover(db,sourceId,query,{key,fetcher=fetch}={}){const s=source(db,sourceId);query=need(query,'pesquisa',100);if(!key)throw Error('Credencial ausente');if(s.kind==='licensed-file')throw Error('Use ingest para arquivos');const job=randomUUID();db.prepare('INSERT INTO collection_jobs VALUES(?,?,?,?,?)').run(job,sourceId,query,now(),'running');let count=0;try{let rows=[];if(s.kind==='youtube'){const u=new URL('https://www.googleapis.com/youtube/v3/search');u.search=new URLSearchParams({part:'snippet',type:'channel',q:query,relevanceLanguage:'pt',maxResults:'25',key});const result=await getJSON(u,fetcher);if(!Array.isArray(result.items))throw Error('Resposta inválida');const ids=[...new Set(result.items.map(i=>i.id?.channelId).filter(i=>typeof i==='string'&&/^UC[A-Za-z0-9_-]{22}$/.test(i)))];if(ids.length){const c=new URL('https://www.googleapis.com/youtube/v3/channels');c.search=new URLSearchParams({part:'snippet,statistics',id:ids.join(','),key});const data=await getJSON(c,fetcher);if(!Array.isArray(data.items))throw Error('Resposta inválida');rows=data.items.filter(i=>ids.includes(i.id)).map(i=>{const url='https://www.youtube.com/channel/'+i.id;const v=i.statistics?.subscriberCount;return {external_id:i.id,name:i.snippet.title,evidence_url:url,profiles:[{network:'YouTube',url,observations:!i.statistics?.hiddenSubscriberCount&&typeof v==='string'&&/^\d+$/.test(v)&&Number.isSafeInteger(Number(v))?[{metric:'subscribers',value:Number(v),observed_at:now()}]:[]}]};});}}else{const u=new URL('https://app.ticketmaster.com/discovery/v2/events.json');u.search=new URLSearchParams({countryCode:'BR',keyword:query,size:'50',apikey:key});const data=await getJSON(u,fetcher);if(!data.page)throw Error('Resposta inválida');const seen=new Set();for(const e of data._embedded?.events??[])for(const a of e._embedded?.attractions??[]){if(!a.id||!a.name||!e.url||seen.has(a.id))continue;seen.add(a.id);rows.push({external_id:a.id,name:a.name,evidence_url:e.url});}}count=ingest(db,sourceId,rows);db.prepare('UPDATE collection_jobs SET status=? WHERE id=?').run('success',job);db.prepare('INSERT INTO collection_logs VALUES(?,?,?,?,?,?)').run(randomUUID(),job,now(),'success',count,'Primeira página; cobertura parcial');return {newCandidates:count,observed:rows.length,coverage:'partial'};}catch(e){db.prepare('UPDATE collection_jobs SET status=? WHERE id=?').run('failed',job);db.prepare('INSERT INTO collection_logs VALUES(?,?,?,?,?,?)').run(randomUUID(),job,now(),'failed',0,'Falha de coleta; verificar configuração e resposta');throw Error('Coleta falhou; consulte configuração e logs');}}
-// Somente dados de fontes com autorização explícita de histórico comercial.
+// Somente dados de fontes com autorização explícita de histórico comercial, ou vínculo estrutural de perfis homologados sem inventar números.
 export function publish(db,radar,id,importCommercial){const c=detail(db,id);if(!['approved','published'].includes(c.status))throw Error('Aprovação obrigatória');const target=c.radar_id??'discovery-'+id.slice(0,32);const existing=radar.prepare('SELECT id,name,blocked FROM talents WHERE id=?').get(target);if(c.radar_id&&!existing)throw Error('ID Radar informado não existe');if(existing&&(existing.name!==c.name||existing.blocked))throw Error('Talento divergente');if(!existing&&radar.prepare('SELECT id FROM talents WHERE lower(trim(name))=lower(trim(?))').get(c.name))throw Error('Nome já cadastrado; revise e vincule o ID existente');const imported=[];for(const p of c.profiles){const os=c.observations.filter(o=>o.profile_id===p.id);const bySource=new Map();for(const o of os){const s=source(db,o.source_id);if(!s.history_allowed)continue;const old=bySource.get(s.id)??[];old.push(o);bySource.set(s.id,old);}for(const [sid,items] of bySource){const s=source(db,sid);const latest=new Map();for(const o of items){const k=o.metric+'|'+o.observed_at.slice(0,10);if(!latest.has(k))latest.set(k,o);}const acct=radar.prepare('SELECT id,talent_id,url FROM commercial_accounts WHERE network=? AND rtrim(url,\'/\') IN (?,?)').get(p.network,p.url,p.url.replace('https://','https://www.'));if(acct&&acct.talent_id!==target)throw Error('Perfil já associado no Radar');const aid=acct?.id??'discovery-'+p.id.slice(0,32);const snapshots=[...latest.values()].map(o=>({metric:o.metric,value:o.value,observed_on:o.observed_at.slice(0,10),source:sid}));imported.push({authorization_ref:s.authorization,artists:[{id:target,name:c.name,accounts:[{id:aid,network:p.network,url:acct?.url??p.url,identity_source:c.identity_evidence,snapshots}]}]});}}
 if(!imported.length)throw Error('Nenhuma métrica com permissão de histórico comercial');if(new Set(imported.map(b=>b.authorization_ref)).size!==1)throw Error('Autorizações diferentes: publicação conjunta não permitida');const accounts=imported.flatMap(b=>b.artists[0].accounts);if(new Set(accounts.map(a=>a.id)).size!==accounts.length)throw Error('Fontes concorrentes para um perfil: revisão obrigatória');const n=importCommercial(radar,{authorization_ref:imported[0].authorization_ref,artists:[{id:target,name:c.name,accounts}]});db.prepare('INSERT INTO approved_imports VALUES(?,?,?,?) ON CONFLICT(candidate_id) DO UPDATE SET published_at=excluded.published_at,observation_count=approved_imports.observation_count+excluded.observation_count').run(id,target,now(),n);db.prepare('UPDATE candidates SET status=?,radar_id=? WHERE id=?').run('published',target,id);return {radarId:target,inserted:n};}
+
+export function publishIdentityOnly(db,radar,id){
+ const c=detail(db,id);if(!['approved','published'].includes(c.status))throw Error('Aprovação obrigatória');if(!c.profiles.length)throw Error('Sem perfil para publicar');
+ const target=c.radar_id??'discovery-'+id.slice(0,32);const existing=radar.prepare('SELECT id,name,blocked FROM talents WHERE id=?').get(target);
+ if(c.radar_id&&!existing)throw Error('ID Radar informado não existe');if(existing&&(existing.name!==c.name||existing.blocked))throw Error('Talento divergente');
+ if(!existing&&radar.prepare('SELECT id FROM talents WHERE lower(trim(name))=lower(trim(?))').get(c.name))throw Error('Nome já cadastrado; revise e vincule o ID existente');
+ const primaryMetric={Instagram:'followers',YouTube:'subscribers',Spotify:'monthly_listeners',TikTok:'followers'};
+ const fallbackStatus={Instagram:'pending_source',YouTube:'pending_source',Spotify:'pending_source',TikTok:'pending_auth'};
+ const fallbackLabel={Instagram:'Coleta automática restrita · Aguardando observação ou CSV autorizado',YouTube:'Canal vinculado · Aguardando coleta YouTube Data API v3',Spotify:'Fonte pendente · Ouvintes mensais exigem observação ou relatório autorizado',TikTok:'Autorização pendente · Métrica exige observação ou relatório autorizado'};
+ const stamp=now();let linked=0;
+ radar.exec('BEGIN IMMEDIATE');try{
+  if(!existing)radar.prepare('INSERT INTO talents(id,name,entity_type,blocked) VALUES(?,?,?,0)').run(target,c.name,'person');
+  for(const p of c.profiles){
+   const acct=radar.prepare('SELECT id,talent_id,url FROM commercial_accounts WHERE network=? AND rtrim(url,\'/\') IN (?,?)').get(p.network,p.url,p.url.replace('https://','https://www.'));
+   if(acct&&acct.talent_id!==target)throw Error('Perfil já associado no Radar');
+   const aid=acct?.id??'discovery-'+p.id.slice(0,32);const cleanUrl=(acct?.url??p.url).replace(/\/$/,'');
+   const ev=c.identity_evidence||c.evidence[0]?.url||'Identidade homologada';
+   if(!acct){radar.prepare('INSERT INTO commercial_accounts(id,talent_id,network,url,identity_source) VALUES(?,?,?,?,?)').run(aid,target,p.network,cleanUrl,ev);linked++;}
+   if(['Instagram','YouTube','Spotify'].includes(p.network)){
+    const extId=cleanUrl.split('/').filter(Boolean).at(-1)?.replace(/^@/,'')||aid;
+    const prevSoc=radar.prepare('SELECT id,talent_id FROM social_accounts WHERE network=? AND (id=? OR url=? OR external_id=?)').get(p.network,aid,cleanUrl,extId);
+    if(prevSoc&&prevSoc.talent_id!==target)throw Error('Conta social já associada a outro talento');
+    if(!prevSoc)radar.prepare('INSERT INTO social_accounts(id,talent_id,network,external_id,url,identity_confirmed,identity_source,collection_state) VALUES(?,?,?,?,?,1,?,?)').run(aid,target,p.network,extId,cleanUrl,ev,'queued');
+   }
+   const metric=primaryMetric[p.network];
+   const cur=radar.prepare('SELECT value,status FROM metric_current WHERE account_id=? AND metric=?').get(aid,metric);
+   if(!cur){
+    radar.prepare('INSERT INTO metric_current(account_id,talent_id,network,metric,value,observed_on,collected_at,source,status,status_detail) VALUES(?,?,?,?,NULL,NULL,?,?,?,?)').run(aid,target,p.network,metric,stamp,ev,fallbackStatus[p.network],fallbackLabel[p.network]);
+   }
+  }
+  radar.exec('COMMIT');
+ }catch(e){radar.exec('ROLLBACK');throw e;}
+ db.prepare('INSERT INTO approved_imports VALUES(?,?,?,0) ON CONFLICT(candidate_id) DO UPDATE SET published_at=excluded.published_at').run(id,target,stamp);
+ db.prepare('UPDATE candidates SET status=?,radar_id=? WHERE id=?').run('published',target,id);
+ return {radarId:target,inserted:0,accountsLinked:linked,mode:'identity_only',notice:'Perfis oficiais homologados sem métricas inventadas. Indicadores sem coleta automática permanecem sinalizados como pendentes.'};
+}
+
+export function recordAuthorizedObservation(db,id,{network,url,metric,value,observed_at=now(),evidence_url,authorization_ref='Observação autorizada / Relatório do artista',source_id='authorized-observation'}={}){
+ const c=detail(db,id);if(c.status==='rejected')throw Error('Candidato rejeitado');
+ const auth=need(authorization_ref,'referência de autorização',300);
+ configureSource(db,{id:source_id,kind:'licensed-file',authorization:auth,history_allowed:true,enabled:true});
+ const cleanUrl=profileUrl(network,url);
+ const obs=validateObservation(network,{metric,value:Number(value),observed_at,evidence_url},evidence_url);
+ return tx(db,()=>{
+  const pid=hash(network+'\0'+cleanUrl);
+  const old=db.prepare('SELECT candidate_id FROM profiles WHERE id=?').get(pid);
+  if(old&&old.candidate_id!==id)throw Error('Perfil pertence a outro candidato');
+  db.prepare('INSERT OR IGNORE INTO profiles VALUES(?,?,?,?,?)').run(pid,id,network,cleanUrl,source_id);
+  db.prepare('INSERT OR IGNORE INTO evidence VALUES(?,?,?,?,?)').run(hash(id+obs.evidence_url),id,source_id,obs.evidence_url,now());
+  const oid=hash([pid,obs.metric,obs.observed_at,source_id].join('\0'));
+  const prior=db.prepare('SELECT value,evidence_url FROM observations WHERE id=?').get(oid);
+  if(prior&&(prior.value!==obs.value||prior.evidence_url!==obs.evidence_url))throw Error('Observação divergente');
+  db.prepare('INSERT OR IGNORE INTO observations VALUES(?,?,?,?,?,?,?)').run(oid,pid,obs.metric,obs.value,obs.observed_at,source_id,obs.evidence_url);
+  return {profile_id:pid,observation_id:oid,network,url:cleanUrl,metric:obs.metric,value:obs.value,observed_at:obs.observed_at};
+ });
+}
 
 export function enrich(db,id,sourceId,p){const c=detail(db,id);if(c.status==='published'||c.status==='rejected')throw Error('Candidato encerrado; revisão administrativa necessária');source(db,sourceId);const url=profileUrl(p.network,p.url),ev=evidenceUrl(p.evidence_url);return tx(db,()=>{const pid=hash(p.network+'\0'+url);const old=db.prepare('SELECT candidate_id FROM profiles WHERE id=?').get(pid);if(old&&old.candidate_id!==id)throw Error('Perfil pertence a outro candidato');db.prepare('INSERT OR IGNORE INTO profiles VALUES(?,?,?,?,?)').run(pid,id,p.network,url,sourceId);db.prepare('INSERT OR IGNORE INTO evidence VALUES(?,?,?,?,?)').run(hash(id+ev),id,sourceId,ev,now());db.prepare("UPDATE candidates SET status='pending',reviewed_at=NULL,reviewer=NULL,identity_evidence=NULL WHERE id=?").run(id);return pid;});}

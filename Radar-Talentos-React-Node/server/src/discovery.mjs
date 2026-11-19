@@ -16,8 +16,10 @@ export const PLATFORM_POLICIES = {
   Instagram: {
     priority: 'Máxima',
     objective: 'Seguidores e crescimento',
-    mechanism: 'Meta Graph API (Business Discovery para contas Business/Creator)',
-    precision: 'Exata para contas profissionais; contas pessoais não retornam dados'
+    mechanism: 'Wikidata / Brave Search / Sites oficiais (identificação) · Observação, CSV ou Meta Graph API (métricas)',
+    precision: 'Coleta automática limitada sem conta de desenvolvedor; seguidores registrados por observação ou importação autorizada',
+    fallbackStatus: 'pending_source',
+    fallbackLabel: 'Coleta automática limitada · Aguardando observação ou CSV autorizado'
   },
   YouTube: {
     priority: 'Máxima',
@@ -30,7 +32,7 @@ export const PLATFORM_POLICIES = {
   Spotify: {
     priority: 'Alta',
     objective: 'Indicadores de relevância musical',
-    mechanism: 'Spotify Web API / Spotify for Artists',
+    mechanism: 'Wikidata / MusicBrainz / Brave Search (identificação) · Observação, CSV ou Spotify for Artists (métricas)',
     precision: 'Restrições de fev/2026 limitam seguidores/popularidade para apps sem quota estendida; ouvintes mensais exigem fonte autorizada.',
     fallbackStatus: 'pending_source',
     fallbackLabel: 'Fonte pendente · Dados indisponíveis'
@@ -38,12 +40,22 @@ export const PLATFORM_POLICIES = {
   TikTok: {
     priority: 'Alta',
     objective: 'Identificação antecipada de talentos emergentes',
-    mechanism: 'TikTok API / TikTok for Artists mediante autorização do titular',
-    precision: 'Exige autorização OAuth do titular ou fornecedor licenciado.',
+    mechanism: 'Wikidata / Brave Search / Sites oficiais (identificação) · Observação, CSV ou TikTok for Artists (métricas)',
+    precision: 'Exige autorização OAuth do titular, observação verificada ou fornecedor licenciado.',
     fallbackStatus: 'pending_auth',
     fallbackLabel: 'Autorização pendente · Dados indisponíveis'
   }
 };
+
+export const DEVELOPMENT_STRATEGY_7_STEPS = [
+  { step: '01', title: 'Identificação automática das quatro mídias', status: 'active' },
+  { step: '02', title: 'Integração MusicBrainz', status: 'active' },
+  { step: '03', title: 'Busca complementar na internet (Brave Search / Sites oficiais)', status: 'active' },
+  { step: '04', title: 'Aquisição de indicadores públicos permitidos (YouTube API / Observação / CSV)', status: 'active' },
+  { step: '05', title: 'Validação cruzada das informações', status: 'active' },
+  { step: '06', title: 'Atualização periódica', status: 'active' },
+  { step: '07', title: 'Alimentação dos dashboards (Home · Oportunidades · Rankings · Mapas)', status: 'active' }
+];
 
 const MODALITY_TO_CATEGORY = {
   shows: 'Cantores',
@@ -249,6 +261,7 @@ export function discoveryStatus(db) {
       accounts: { socialConfirmed: socialAccounts, commercial: commercialAccounts },
       regional_audience: { records: regionalRecords }
     },
-    platformPolicies: PLATFORM_POLICIES
+    platformPolicies: PLATFORM_POLICIES,
+    developmentStrategy: DEVELOPMENT_STRATEGY_7_STEPS
   };
 }

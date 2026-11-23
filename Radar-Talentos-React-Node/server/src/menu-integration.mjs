@@ -155,7 +155,7 @@ export const VERIFIED_MULTI_SOURCE_PROFILES = {
     description: 'Cantor, compositor e produtor musical brasileiro (Embaixador)',
     profiles: {
       Instagram: 'https://instagram.com/gusttavolima',
-      YouTube: 'https://youtube.com/channel/UC7c8be2t1bdN261603C2R2w',
+      YouTube: 'https://youtube.com/channel/UCXooz9whNJZBRTHi9AqdjPw',
       Spotify: 'https://open.spotify.com/artist/7MiDcPa6UiV3In7lIM71IN',
       TikTok: 'https://tiktok.com/@gusttavolima'
     },
@@ -1234,13 +1234,51 @@ export function getDemographicsSummary(db, params = new URLSearchParams()) {
 }
 
 /**
- * Sincroniza candidatos e observações do discovery.sqlite para o radar.sqlite,
- * além de registrar os perfis oficiais multi-fonte (Wikidata + MusicBrainz),
- * séries históricas (7, 15 e 30 dias) de Instagram, Spotify, YouTube e TikTok,
- * engajamento verificado, repertório e audiência regional por cidade.
+ * Sincroniza candidatos e observações reais do discovery.sqlite para o radar.sqlite,
+ * além de registrar os perfis oficiais multi-fonte (Wikidata + MusicBrainz) e demografia IBGE.
+ * Em produção (includeDemoFixtures = false), NUNCA insere relatórios regionais de demonstração
+ * nem séries sintéticas de Instagram, Spotify, YouTube ou TikTok — apenas promove coletas reais do discoveryDb.
  */
-export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date().toISOString() } = {}) {
+export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date().toISOString(), includeDemoFixtures = false } = {}) {
   if (!radarDb) throw new Error('Banco Radar obrigatório');
+
+  // Em produção (includeDemoFixtures = false), remove eventuais registros de demonstração legados
+  if (!includeDemoFixtures) {
+    radarDb.exec(`
+      DELETE FROM regional_audience WHERE report_ref LIKE 'rep-curr-t-%' OR report_ref LIKE 'rep-prev-t-%';
+      DELETE FROM regional_report_authorizations WHERE report_ref LIKE 'rep-curr-t-%' OR report_ref LIKE 'rep-prev-t-%';
+      DELETE FROM commercial_snapshots WHERE source IN (
+        'Instagram Business Discovery / Relatório Autorizado',
+        'Instagram Business Discovery / Observação Verificada',
+        'Spotify for Artists — Relatório Autorizado',
+        'Observação Pública Verificada / Mídia Kit Oficial'
+      ) OR (source = 'YouTube Data API v3' AND authorization_ref LIKE 'https://www.wikidata.org/wiki/%');
+      DELETE FROM metric_snapshots WHERE source IN (
+        'Instagram Business Discovery / Relatório Autorizado',
+        'Instagram Business Discovery / Observação Verificada',
+        'Spotify for Artists — Relatório Autorizado',
+        'Observação Pública Verificada / Mídia Kit Oficial'
+      ) OR (source = 'YouTube Data API v3' AND observed_on IN ('2026-10-19','2026-11-03','2026-11-11','2026-11-18'));
+      DELETE FROM media_metric_series WHERE source IN (
+        'Instagram Business Discovery / Relatório Autorizado',
+        'Instagram Business Discovery / Observação Verificada',
+        'Spotify for Artists — Relatório Autorizado',
+        'Observação Pública Verificada / Mídia Kit Oficial'
+      ) OR (source = 'YouTube Data API v3' AND observed_on IN ('2026-10-19','2026-11-03','2026-11-11','2026-11-18'));
+      DELETE FROM spotify_repertoire WHERE source = 'Spotify Catalog & MusicBrainz WS/2 (CC0)';
+      UPDATE metric_current
+         SET value = NULL,
+             observed_on = NULL,
+             status = CASE WHEN network = 'TikTok' THEN 'pending_auth' ELSE 'pending_source' END,
+             status_detail = 'Aguardando dados verificados · Perfil oficial identificado'
+       WHERE source IN (
+        'Instagram Business Discovery / Relatório Autorizado',
+        'Instagram Business Discovery / Observação Verificada',
+        'Spotify for Artists — Relatório Autorizado',
+        'Observação Pública Verificada / Mídia Kit Oficial'
+      ) OR (source = 'YouTube Data API v3' AND observed_on = '2026-11-18');
+    `);
+  }
 
   // 1. Garante que os 100 talentos reais estejam cadastrados (sem criar métricas sintéticas para quem não tem fonte)
   const catRows = radarDb.prepare('SELECT id, name FROM categories').all();
@@ -1401,10 +1439,12 @@ export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date()
         }
 
         const hasNetObs =
-          (net === 'Instagram' && verified?.instagram_observed) ||
-          (net === 'YouTube' && verified?.youtube_observed) ||
-          (net === 'Spotify' && verified?.spotify_observed) ||
-          (net === 'TikTok' && verified?.tiktok_observed);
+          includeDemoFixtures && (
+            (net === 'Instagram' && verified?.instagram_observed) ||
+            (net === 'YouTube' && verified?.youtube_observed) ||
+            (net === 'Spotify' && verified?.spotify_observed) ||
+            (net === 'TikTok' && verified?.tiktok_observed)
+          );
 
         if (['Instagram', 'YouTube', 'Spotify'].includes(net)) {
           const extId = cleanUrl.split('/').filter(Boolean).at(-1)?.replace(/^@/, '') || finalAccId;
@@ -1451,7 +1491,7 @@ export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date()
           socialSeriesSynced++;
         };
 
-        if (net === 'Instagram' && verified?.instagram_observed) {
+        if (includeDemoFixtures && net === 'Instagram' && verified?.instagram_observed) {
           const ig = verified.instagram_observed;
           const series = ig.series || [];
           for (const [dayStr, val] of series) {
@@ -1485,7 +1525,7 @@ export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date()
               status_detail: `Coletado via ${ig.source} (${formatCompactPtBr(latestVal)})`
             });
           }
-        } else if (net === 'Spotify' && verified?.spotify_observed) {
+        } else if (includeDemoFixtures && net === 'Spotify' && verified?.spotify_observed) {
           const sp = verified.spotify_observed;
           const series = sp.series || [];
           for (const [dayStr, val] of series) {
@@ -1528,7 +1568,7 @@ export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date()
               status_detail: `Coletado via ${sp.source} (${formatCompactPtBr(latestVal)})`
             });
           }
-        } else if (net === 'YouTube' && verified?.youtube_observed) {
+        } else if (includeDemoFixtures && net === 'YouTube' && verified?.youtube_observed) {
           const yt = verified.youtube_observed;
           const series = yt.series || [
             [yt.baseline_on, yt.baseline_subscribers],
@@ -1553,7 +1593,7 @@ export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date()
             status_detail: `Coletado via ${yt.source} (${formatCompactPtBr(yt.subscribers)})`
           });
           youtubeMetricsSynced++;
-        } else if (net === 'TikTok' && verified?.tiktok_observed) {
+        } else if (includeDemoFixtures && net === 'TikTok' && verified?.tiktok_observed) {
           const tk = verified.tiktok_observed;
           const series = tk.series || [];
           for (const [dayStr, val] of series) {
@@ -1601,8 +1641,8 @@ export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date()
         }
       }
 
-      // Audiência regional verificada por cidade (janelas adjacentes de 30 dias para cálculo real de evolução municipal)
-      if (verified?.regional) {
+      // Audiência regional de demonstração: inserida SOMENTE em ambiente de testes (includeDemoFixtures = true)
+      if (includeDemoFixtures && verified?.regional) {
         for (const [rNet, rCfg] of Object.entries(verified.regional)) {
           const validPrev = (rCfg.prev || []).filter(([code]) => existingMunis.has(code));
           const validCurr = (rCfg.curr || []).filter(([code]) => existingMunis.has(code));

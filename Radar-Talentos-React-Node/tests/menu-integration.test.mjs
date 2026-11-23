@@ -20,12 +20,28 @@ test('Instagram e Spotify (7/15/30 dias, engajamento, repertório, cidades compr
   const disc = openDiscovery(':memory:');
   try {
     seedPilotDatabaseIfEmpty(db);
-    const syncRes = syncAllMenusData(db, disc, { now: '2026-11-19T18:00:00.000Z' });
+
+    // 0. Modo produção (padrão includeDemoFixtures = false): NÃO cria relatórios regionais nem snapshots de demonstração!
+    const prodSync = syncAllMenusData(db, disc, { now: '2026-11-19T18:00:00.000Z' });
+    assert.equal(prodSync.ok, true);
+    assert.equal(prodSync.regionalReportsSynced, 0);
+    assert.equal(db.prepare('SELECT count(*) n FROM regional_audience').get().n, 0);
+    assert.equal(db.prepare('SELECT count(*) n FROM commercial_snapshots').get().n, 0);
+
+    // Modo fixture de teste (includeDemoFixtures = true, exclusivo para testes em memória)
+    const syncRes = syncAllMenusData(db, disc, { now: '2026-11-19T18:00:00.000Z', includeDemoFixtures: true });
     assert.equal(syncRes.ok, true);
     assert.equal(syncRes.executionPlan.length, 8);
     assert.ok(syncRes.demographicsInserted >= 30);
     assert.ok(syncRes.socialSeriesSynced >= 40);
     assert.ok(syncRes.regionalReportsSynced >= 10);
+
+    // E ao voltar para modo produção (includeDemoFixtures = false), limpa registros de demonstração legados
+    syncAllMenusData(db, disc, { now: '2026-11-19T18:00:00.000Z', includeDemoFixtures: false });
+    assert.equal(db.prepare("SELECT count(*) n FROM regional_audience WHERE report_ref LIKE 'rep-curr-t-%'").get().n, 0);
+
+    // Reativa fixtures de teste em memória para validar os cálculos estatísticos das próximas seções
+    syncAllMenusData(db, disc, { now: '2026-11-19T18:00:00.000Z', includeDemoFixtures: true });
 
     // 1. Validar cruzamento inteligente (/api/radar/cross-summary) com séries verificadas para Gusttavo Lima e "Sem coleta" para artistas sem fonte
     const cross = getCrossMenuSummary(db, new URLSearchParams({ q: 'Gusttavo Lima' }));

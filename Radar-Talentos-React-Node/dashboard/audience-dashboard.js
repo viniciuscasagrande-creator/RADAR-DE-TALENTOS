@@ -248,18 +248,80 @@ async function search(keepPage=false){
  }
  const k=$('audience-kpis');
  if(!p){
-  $('message').textContent='Nenhum relatório municipal disponível para esta mídia. Importe uma fonte autorizada.';
+  $('message').textContent='Consultando cruzamento nacional das 4 mídias, eventos publicados e base demográfica IBGE (relatório municipal ainda não selecionado)…';
   k.replaceChildren();
-  const territorial=!!(field('region').value||field('uf').value||selected.size||field('center').value||field('radius').value||field('modality').value||field('submodality').value||field('talent').value);
-  categoryCards(territorial?[]:categoryCatalog,territorial?'Categorias: sem relatório para este recorte':'Cadastro nacional de talentos — não mede audiência nesta mídia ou período',territorial?null:catalogTotal);
+  categoryCards(categoryCatalog,'Cadastro nacional de talentos — indicadores consolidados das 4 mídias e presença territorial',catalogTotal);
   selectionSummary(null);
-  $('growth-period').textContent='Aguardando relatório regional.';
-  table('growth',[],[]);
-  for(const id of ['regions','states','cities','region-artists'])bars(id,[]);
-  table('artists',[],[]);
-  map({byState:[],places:[]});
-  $('page').textContent='Sem dados';
-  $('prev').disabled=$('next').disabled=true;
+  try{
+   const cp=new URLSearchParams({limit:'200'});
+   for(const key of ['talent','category','modality'])if(field(key)?.value)cp.set(key,field(key).value);
+   const qInput=$('artist-quick-search')?.value?.trim()||'';
+   if(qInput&&!field('talent').value)cp.set('q',qInput);
+   const dp=new URLSearchParams();
+   if(field('region')?.value)dp.set('region',field('region').value);
+   if(field('uf')?.value)dp.set('uf',field('uf').value);
+   if(field('center')?.value){dp.set('city',field('center').value);if(field('radius')?.value)dp.set('radius',field('radius').value);}
+   const [cross,demo]=await Promise.all([get('/api/radar/cross-summary?'+cp),get('/api/radar/demographics?'+dp)]);
+   if(n!==request)return;
+   if(field('talent').options.length<=1&&cross.items?.length){
+    options(field('talent'),cross.items.map(t=>({id:t.id,name:t.name})),'Todos com dados');
+    const dl=$('talent-datalist');
+    if(dl)dl.replaceChildren(...cross.items.map(r=>{const o=document.createElement('option');o.value=r.name;return o;}));
+   }
+   for(const [label,value] of [
+    ['Talentos no recorte',cross.total],
+    ['Com coleta (YouTube / 4 Mídias)',cross.counts?.withCollectedMetrics??0],
+    ['Perfis oficiais vinculados',cross.counts?.withOfficialProfiles??0],
+    ['Eventos publicados (Presença)',cross.counts?.events??0],
+    ['Polos com Demografia IBGE',demo.municipalitiesWithDemographics??0]
+   ]){
+    const box=el('div');box.className='kpi';box.append(el('span',label),el('strong',fmt(value)));k.append(box);
+   }
+   const pageItems=(cross.items||[]).slice(offset,offset+100);
+   table('artists',['Artista','Instagram','YouTube','Spotify','TikTok','Eventos publicados','Audiência regional'],pageItems.map(a=>{
+    const b=el('button',a.name);b.type='button';b.className='link';
+    b.addEventListener('click',()=>{location.href='/commercial.html?q='+encodeURIComponent(a.name);});
+    const cellFor=net=>{
+     const m=a.media?.[net];
+     if(!m)return 'Sem coleta';
+     if(m.url){
+      const link=el('a',m.statusLabel);link.href=m.url;link.target='_blank';link.rel='noopener noreferrer';
+      link.title=m.detailLabel||m.url;
+      return link;
+     }
+     return m.statusLabel;
+    };
+    return [b,cellFor('Instagram'),cellFor('YouTube'),cellFor('Spotify'),cellFor('TikTok'),a.events?.statusLabel||'A integrar',a.regionalAudience?.statusLabel||'Sem dados'];
+   }));
+   const growingItems=(cross.items||[]).filter(a=>a.media?.YouTube?.growth!=null);
+   $('growth-period').textContent=growingItems.length?'Evolução nacional verificada (YouTube Data API v3 · janela de 30 dias):':'Aguardando relatório regional ou segunda coleta para cálculo de evolução.';
+   table('growth',['Artista','Mídia','Variação','Atual'],growingItems.map(a=>{
+    const yt=a.media.YouTube;
+    return [a.name,'YouTube',yt.growth_pct!=null?`+${yt.growth_pct.toFixed(1)}% (+${fmt(yt.growth)})`:`+${fmt(yt.growth)}`,yt.formatted];
+   }));
+   const demoPlaces=(demo.topMunicipalities||[]).map(m=>({code:m.code,name:m.name,uf:m.uf,region:m.region,lat:m.lat,lon:m.lon,value:m.population||0}));
+   const byRegMap=new Map(),byUfMap=new Map();
+   for(const m of demoPlaces){
+    byRegMap.set(m.region,(byRegMap.get(m.region)||0)+m.value);
+    byUfMap.set(m.uf,(byUfMap.get(m.uf)||0)+m.value);
+   }
+   const byRegion=[...byRegMap.entries()].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value);
+   const byState=[...byUfMap.entries()].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value);
+   bars('regions',byRegion);
+   bars('states',byState);
+   bars('cities',demoPlaces.slice(0,25).map(x=>({name:`${x.name} / ${x.uf} (Pop. IBGE)`,value:x.value})));
+   bars('region-artists',(cross.counts?.talents?[{name:'Cadastro Nacional (4 Mídias)',value:cross.total}]:[]));
+   total=cross.total||0;
+   $('page').textContent=total?`${offset+1}–${Math.min(offset+100,total)} de ${total}`:'Sem dados';
+   $('prev').disabled=offset===0;
+   $('next').disabled=offset+100>=total;
+   map({byState,places:demoPlaces});
+   $('message').textContent=`Cruzamento multi-fonte ativo (${cross.executionPlan?.label||'8 de 8 etapas concluídas'}). Indicadores sem coleta automática exibem "Sem coleta". Eventos publicados indicam presença territorial, não vendas ou audiência digital. Mapa exibe população oficial dos polos (IBGE) enquanto não há relatório regional selecionado.`;
+  }catch{
+   $('message').textContent='Nenhum relatório municipal disponível para esta mídia. Importe uma fonte autorizada.';
+   table('artists',[],[]);
+   map({byState:[],places:[]});
+  }
   return;
  }
  $('message').textContent='Consultando…';

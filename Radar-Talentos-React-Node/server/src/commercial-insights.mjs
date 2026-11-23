@@ -1,7 +1,9 @@
 import { commercialQuery, metrics } from './commercial.mjs';
 import { PLATFORM_POLICIES } from './discovery.mjs';
 import { radarQuery, FilterError } from './radar.mjs';
+import { formatCompactPtBr } from './menu-integration.mjs';
 const networks=Object.keys(metrics);
+const norm=s=>String(s??'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().trim();
 const regionalPreferred={YouTube:['views','subscribers'],Instagram:['views','reach','followers'],Spotify:['streams','listeners'],TikTok:['views','reach','followers']};
 const primary={YouTube:'subscribers',Instagram:'followers',Spotify:'monthly_listeners',TikTok:'followers'};
 export function commercialInsights(db,p){
@@ -11,14 +13,20 @@ export function commercialInsights(db,p){
  const base=new URLSearchParams({network,days});if(p.get('end'))base.set('end',p.get('end'));const {start,end}=commercialQuery(db,new URLSearchParams({...Object.fromEntries(base),talent:'__period_validation__'}));
  const artist=talent?db.prepare('SELECT id,name FROM talents WHERE id=? AND blocked=0').get(talent):null;if(talent&&!artist)throw new FilterError('Artista não encontrado');
  const findCurrent=db.prepare('SELECT status,status_detail,collected_at,source FROM metric_current WHERE talent_id=? AND network=? AND metric=? LIMIT 1');
+ const findAcct=db.prepare('SELECT url,identity_source FROM commercial_accounts WHERE talent_id=? AND network=? LIMIT 1');
+ const findSoc=db.prepare('SELECT url,identity_source FROM social_accounts WHERE talent_id=? AND network=? LIMIT 1');
  const national=artist?networks.map(n=>{
   const queryWin=d=>commercialQuery(db,new URLSearchParams({network:n,metric:primary[n],days:String(d),end,talent})).items[0]??null;
   const item=queryWin(days);
   const windows={7:Number(days)===7?item:queryWin(7),30:Number(days)===30?item:queryWin(30),90:Number(days)===90?item:queryWin(90)};
   const cur=findCurrent.get(talent,n,primary[n]);
+  const acct=findAcct.get(talent,n)||findSoc.get(talent,n)||null;
   const policy=PLATFORM_POLICIES[n]??{};
-  const currentStatus=cur??(item?{status:'available',status_detail:'Atualizado',collected_at:item.collected_at??item.observed_on,source:item.source}:{status:policy.fallbackStatus??'pending_source',status_detail:policy.fallbackLabel??'Fonte pendente · Dados indisponíveis',collected_at:null,source:null});
-  return {network:n,metric:primary[n],item,windows,currentStatus};
+  const currentStatus=cur??(item?{status:'available',status_detail:'Atualizado',collected_at:item.collected_at??item.observed_on,source:item.source}:{status:policy.fallbackStatus??'pending_source',status_detail:policy.fallbackLabel??'Sem coleta · Aguardando fonte autorizada',collected_at:null,source:acct?.identity_source??null});
+  const profileUrl=item?.url??acct?.url??null;
+  const formatted=item?formatCompactPtBr(item.value):'Sem coleta';
+  const statusLabel=item?formatted:'Sem coleta';
+  return {network:n,metric:primary[n],item,windows,currentStatus,profileUrl,formatted,statusLabel};
  }):[];
  const consolidatedWindows=artist?[7,30,90].reduce((acc,w)=>{
   const comp=national.filter(n=>n.windows?.[w]?.growth_pct!=null).sort((a,b)=>b.windows[w].growth_pct-a.windows[w].growth_pct);
@@ -37,5 +45,20 @@ export function commercialInsights(db,p){
  const topNet=national.filter(x=>x.item?.growth_pct!=null).sort((a,b)=>b.item.growth_pct-a.item.growth_pct)[0]??null;
  const allRising=regional.flatMap(g=>(g.cityGrowth?.leaders??[]).map(c=>({...c,network:g.network}))).sort((a,b)=>(b.growth_pct??0)-(a.growth_pct??0)||b.growth-a.growth);
  const lastCollected=national.map(x=>x.item?.observed_on).filter(Boolean).sort().at(-1)??null;
- return {artist,network,start,end,scope,national,consolidatedWindows,regional,topNetwork:topNet?{network:topNet.network,metric:topNet.metric,growth:topNet.item.growth,growth_pct:topNet.item.growth_pct}:null,risingCity:allRising[0]??null,lastCollected};
+ let eventsPresence=null,regionalSummary=null,catalog=null;
+ if(artist){
+  const aKey=norm(artist.name);
+  const rawEvs=db.prepare(`SELECT e.id,e.title,e.venue,e.event_date,m.name AS city_name,m.uf,m.region,l.platform_id,l.url,a.artist_key FROM event_listing_artists a JOIN event_listings l ON l.platform_id=a.platform_id AND l.external_id=a.external_id JOIN events e ON e.id=l.event_id JOIN municipalities m ON m.code=e.municipality_code WHERE l.status!='cancelled' ORDER BY e.event_date ASC`).all().filter(r=>r.artist_key===aKey||(aKey.length>=4&&(r.artist_key.includes(aKey)||aKey.includes(r.artist_key))));
+  const evs=[...new Map(rawEvs.map(e=>[e.id,e])).values()];
+  const cities=[...new Set(evs.map(e=>`${e.city_name}/${e.uf}`))];
+  const platforms=[...new Set(evs.map(e=>e.platform_id))];
+  eventsPresence={count:evs.length,citiesCount:cities.length,cities,platforms,statusLabel:evs.length>0?`${evs.length} evento(s) em ${cities.length} cidade(s)`:'A integrar',items:evs.slice(0,8),notice:'Os eventos permitem identificar presença territorial do artista, mas não devem ser confundidos com audiência digital ou ingressos vendidos.'};
+  const regWithData=regional.filter(g=>g.report!=null);
+  const maxMunis=regWithData.reduce((m,g)=>Math.max(m,g.municipalities||0),0);
+  regionalSummary={hasData:regWithData.length>0,networksCount:regWithData.length,municipalitiesCount:maxMunis,statusLabel:regWithData.length>0?`${maxMunis} município(s)`:'Sem dados'};
+  const meta=db.prepare('SELECT * FROM talent_metadata WHERE talent_id=?').get(artist.id);
+  let genres=[];try{genres=JSON.parse(meta?.genres||'[]');}catch{}
+  catalog={wikidata_id:meta?.wikidata_id??null,musicbrainz_id:meta?.musicbrainz_id??null,official_website:meta?.official_website??null,agenda_url:meta?.agenda_url??null,genres,description:meta?.description??''};
+ }
+ return {artist,network,start,end,scope,national,consolidatedWindows,regional,eventsPresence,regionalSummary,catalog,topNetwork:topNet?{network:topNet.network,metric:topNet.metric,growth:topNet.item.growth,growth_pct:topNet.item.growth_pct}:null,risingCity:allRising[0]??null,lastCollected};
 }

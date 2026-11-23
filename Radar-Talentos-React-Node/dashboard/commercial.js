@@ -429,7 +429,7 @@ async function loadArtistCards(a,id){
       const x=card(root,n.network),v=n.item,geo=d.regional.find(g=>g.network===n.network);
       const isTop=d.topNetwork?.network===n.network;
       el('small',`${labels[n.metric]} · ${isAll?'Incluído na consulta':(activeParams?.get('network')===n.network?'Mídia selecionada':'Monitorado')}`+(isTop?' · Maior crescimento':''),x);
-      el('strong',number(v?.value),x);
+      el('strong',v?(n.formatted&&n.formatted!==number(v.value)?`${n.formatted} (${number(v.value)})`:number(v.value)):'Sem coleta',x);
       if(v){
         const delta=el('p',v.growth==null?'Sem histórico comparável':signed(v.growth)+' · '+(v.growth_pct==null?'% indisponível':signed(v.growth_pct)+'%'),x);
         delta.className=v.growth>0?'positive':v.growth<0?'negative':'';
@@ -442,10 +442,16 @@ async function loadArtistCards(a,id){
         }
         el('small',v.freshness_label?`${v.baseline_on??'Sem base'} → ${v.freshness_label}`:`${v.baseline_on??'Sem base'} → ${v.observed_on} · ${v.source}`,x);
       }else{
-        const fallbackBadge=n.network==='TikTok'?'Autorização pendente':n.network==='Spotify'?'Fonte pendente':'Coleta pendente';
+        const fallbackBadge=n.network==='TikTok'?'Sem coleta · Autorização pendente':'Sem coleta · Aguardando fonte ou CSV';
         const badgeP=el('p',`${labels[n.metric]} · ${fallbackBadge}`,x);
         badgeP.className='negative';
-        el('small',n.currentStatus?.status_detail||'Dados indisponíveis',x);
+        el('small',n.currentStatus?.status_detail||'Perfil oficial identificado · Sem coleta automática',x);
+      }
+      if(n.profileUrl){
+        try{
+          const u=new URL(n.profileUrl);
+          if(u.protocol==='https:'){const pl=el('a',`Perfil oficial (${n.network}) ↗`,x);pl.href=u.href;pl.target='_blank';pl.rel='noopener noreferrer';}
+        }catch{}
       }
       if(geo?.report){
         const c=geo.cities[0],r=geo.report;
@@ -458,7 +464,25 @@ async function loadArtistCards(a,id){
           growth.className='positive';
         }else el('small',geo.cityGrowth?'Sem aumento nas cidades comparáveis.':'Sem histórico municipal comparável.',x);
         el('small',`${r.period_start} a ${r.period_end} · ${r.quality==='verified'?'Verificado':'Estimado'}`,x);
-      }else el('small','Sem relatório municipal no período.',x);
+      }else el('small','Audiência regional: Sem dados',x);
+    }
+    if(d.eventsPresence||d.regionalSummary||d.catalog){
+      const evCard=card(root,'Eventos publicados');
+      el('small','Presença territorial · Ticketeiras e agendas oficiais',evCard);
+      el('strong',d.eventsPresence?.statusLabel||'A integrar',evCard);
+      if(d.eventsPresence?.cities?.length)el('p',`Praças: ${d.eventsPresence.cities.join(', ')}`,evCard);
+      el('small',d.eventsPresence?.notice||'Os eventos permitem identificar presença territorial do artista, mas não devem ser confundidos com audiência digital ou ingressos vendidos.',evCard);
+
+      const regCard=card(root,'Audiência regional');
+      el('small','Relatórios municipais autorizados',regCard);
+      el('strong',d.regionalSummary?.statusLabel||'Sem dados',regCard);
+      if(d.catalog?.genres?.length)el('p',`Gêneros (MusicBrainz): ${d.catalog.genres.join(', ')}`,regCard);
+      if(d.catalog?.official_website){
+        try{
+          const u=new URL(d.catalog.official_website);
+          if(u.protocol==='https:'){const sl=el('a','Site / Agenda oficial ↗',regCard);sl.href=u.href;sl.target='_blank';sl.rel='noopener noreferrer';}
+        }catch{}
+      }
     }
   }catch{
     if(id===detailToken){root.replaceChildren();el('p','Não foi possível carregar os cards.',root);}
@@ -689,14 +713,23 @@ function renderCompatibilityResult(d){
     const tdNet=el('td',m.network,tr);
     if(neonPalette[m.network])tdNet.style.color=neonPalette[m.network].color;
     tdNet.style.fontWeight='700';
-    el('td',nat?`${number(nat.value)} (${labels[m.nationalMetric]??m.nationalMetric})`:'—',tr);
-    el('td',ca?.present?`${number(ca.value)} (#${ca.rank} · ${ca.sharePct}%)`:'Sem registro',tr);
-    el('td',ra?.totalValue!=null?`${number(ra.totalValue)} (${ra.municipalitiesWithData} cid.)`:'—',tr);
+    el('td',nat?`${nat.formatted||number(nat.value)} (${labels[m.nationalMetric]??m.nationalMetric})`:(m.statusLabel||'Sem coleta'),tr);
+    el('td',ca?.present?`${number(ca.value)} (#${ca.rank} · ${ca.sharePct}%)`:'Sem dados',tr);
+    el('td',ra?.totalValue!=null?`${number(ra.totalValue)} (${ra.municipalitiesWithData} cid.)`:'Sem dados',tr);
     const growthVal=ca?.growthPct??ra?.growthPct??nat?.growth_pct;
     const tdG=el('td',growthVal!=null?`${signed(growthVal)}%`:'—',tr);
     if(growthVal>0)tdG.className='positive';
     else if(growthVal<0)tdG.className='negative';
     if(ra?.cities?.length>topCatchmentCities.length)topCatchmentCities=ra.cities;
+  }
+
+  if(d.city?.demographics||d.territorialPresence){
+    const demoText=[];
+    if(d.city?.demographics?.population)demoText.push(`População ${d.city.name}/${d.city.uf}: ${number(d.city.demographics.population)} hab. (IBGE)`);
+    if(d.city?.demographics?.gdp_per_capita)demoText.push(`PIB per capita: R$ ${number(Math.round(d.city.demographics.gdp_per_capita))}`);
+    if(d.catchment?.knownPopulation)demoText.push(`População polos no raio (${d.radiusKm} km): ${number(d.catchment.knownPopulation)} hab.`);
+    if(d.territorialPresence)demoText.push(`Eventos publicados: ${d.territorialPresence.statusLabel}`);
+    if(demoText.length)el('small',demoText.join(' · '),rightBox);
   }
 
   if(topCatchmentCities.length>1){

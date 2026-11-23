@@ -1,5 +1,6 @@
 import { FilterError, distanceKm } from './radar.mjs';
 import { commercialQuery, metrics } from './commercial.mjs';
+import { formatCompactPtBr, VERIFIED_IBGE_DEMOGRAPHICS } from './menu-integration.mjs';
 
 const networks = Object.keys(metrics);
 const primaryNational = {
@@ -329,11 +330,17 @@ export function commercialCompatibility(db, p) {
       };
     }
 
+    const acctRow = db.prepare('SELECT url, identity_source FROM commercial_accounts WHERE talent_id = ? AND network = ? LIMIT 1').get(artist.id, net)
+      || db.prepare('SELECT url, identity_source FROM social_accounts WHERE talent_id = ? AND network = ? LIMIT 1').get(artist.id, net);
+
     media.push({
       network: net,
       nationalMetric: metric,
+      profileUrl: natItem?.url ?? acctRow?.url ?? null,
+      statusLabel: natItem ? formatCompactPtBr(natItem.value) : 'Sem coleta',
       national: natItem ? {
         value: natItem.value,
+        formatted: formatCompactPtBr(natItem.value),
         observed_on: natItem.observed_on,
         baseline_on: natItem.baseline_on,
         growth: natItem.growth,
@@ -522,6 +529,43 @@ export function commercialCompatibility(db, p) {
         : `Última passagem registrada na região há ${daysSinceLastEvent} dias (${lastArtistEvent.event_date} em ${lastArtistEvent.city_name}/${lastArtistEvent.uf}).`
   );
 
+  // Indicadores demográficos e econômicos oficiais (IBGE) para o município e bacia regional
+  const demoMap = new Map(VERIFIED_IBGE_DEMOGRAPHICS.map(d => [d.code, d]));
+  for (const r of db.prepare('SELECT * FROM municipality_demographics').all()) {
+    demoMap.set(r.municipality_code, r);
+  }
+  const cityDemo = demoMap.get(city.code) || null;
+  let catchmentKnownPop = 0;
+  let catchmentDemoCities = 0;
+  for (const code of catchmentCodes) {
+    const dm = demoMap.get(code);
+    if (dm?.population != null) {
+      catchmentKnownPop += dm.population;
+      catchmentDemoCities++;
+    }
+  }
+  if (cityDemo?.population) {
+    salesPitch.push(
+      `Potencial demográfico oficial (IBGE): ${city.name}/${city.uf} possui ${cityDemo.population.toLocaleString('pt-BR')} habitantes (PIB per capita R$ ${Number(cityDemo.gdp_per_capita || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })})${catchmentKnownPop > cityDemo.population ? ` e bacia regional com ${catchmentKnownPop.toLocaleString('pt-BR')} habitantes nos polos monitorados` : ''}.`
+    );
+  }
+
+  const artistMeta = db.prepare('SELECT * FROM talent_metadata WHERE talent_id = ?').get(artist.id) || null;
+  let artistGenres = [];
+  try { artistGenres = JSON.parse(artistMeta?.genres || '[]'); } catch {}
+
+  const allNationalArtistEvents = db.prepare(
+    `SELECT DISTINCT e.id, e.title, e.event_date, m.name AS city_name, m.uf, l.platform_id
+     FROM event_listing_artists a
+     JOIN event_listings l ON l.platform_id = a.platform_id AND l.external_id = a.external_id
+     JOIN events e ON e.id = l.event_id
+     JOIN municipalities m ON m.code = e.municipality_code
+     WHERE l.status != 'cancelled'`
+  ).all().filter(r => {
+    const tNorm = norm(r.title);
+    return artistEventIds.has(r.id) || (artistNameKey.length >= 4 && tNorm.includes(artistNameKey));
+  });
+
   return {
     artist: {
       id: artist.id,
@@ -529,7 +573,14 @@ export function commercialCompatibility(db, p) {
       entityType: artist.entity_type,
       categories: categories.map(c => c.name),
       modalities: modalities.map(m => m.name),
-      submodalities: submodalities.map(s => s.name)
+      submodalities: submodalities.map(s => s.name),
+      catalog: {
+        wikidata_id: artistMeta?.wikidata_id ?? null,
+        musicbrainz_id: artistMeta?.musicbrainz_id ?? null,
+        official_website: artistMeta?.official_website ?? null,
+        agenda_url: artistMeta?.agenda_url ?? null,
+        genres: artistGenres
+      }
     },
     city: {
       code: city.code,
@@ -537,7 +588,15 @@ export function commercialCompatibility(db, p) {
       uf: city.uf,
       region: city.region,
       lat: city.lat,
-      lon: city.lon
+      lon: city.lon,
+      demographics: cityDemo ? {
+        population: cityDemo.population,
+        gdp_per_capita: cityDemo.gdp_per_capita,
+        avg_income: cityDemo.avg_income,
+        urban_rate: cityDemo.urban_rate,
+        economic_profile: cityDemo.economic_profile,
+        source: cityDemo.demographic_source || 'IBGE — Censo Demográfico / PIB dos Municípios'
+      } : null
     },
     radiusKm: radius,
     days,
@@ -600,7 +659,17 @@ export function commercialCompatibility(db, p) {
       center: { code: city.code, name: city.name, uf: city.uf, region: city.region },
       radiusKm: radius,
       totalMunicipalities: catchmentCodes.size,
+      knownPopulation: catchmentKnownPop > 0 ? catchmentKnownPop : null,
+      municipalitiesWithDemographics: catchmentDemoCities,
       municipalities: [...catchmentMap.values()].sort((a, b) => a.distance_km - b.distance_km).slice(0, 40)
+    },
+    territorialPresence: {
+      nationalEventsCount: allNationalArtistEvents.length,
+      catchmentEventsCount: artistEventsInCatchment.length,
+      statusLabel: allNationalArtistEvents.length > 0
+        ? `${allNationalArtistEvents.length} evento(s) publicado(s)`
+        : 'A integrar',
+      notice: 'Os eventos permitem identificar presença territorial do artista, mas não devem ser confundidos com audiência digital ou ingressos vendidos.'
     },
     competition: {
       cityEventsCount: cityCompetingEvents.length,

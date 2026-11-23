@@ -53,6 +53,35 @@ export function openDatabase(filename = databasePath()) {
       status TEXT NOT NULL DEFAULT 'available' CHECK(status IN ('available','pending_source','pending_auth','error')),
       status_detail TEXT NOT NULL DEFAULT '',
       PRIMARY KEY(account_id, metric)
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS talent_metadata (
+      talent_id TEXT PRIMARY KEY REFERENCES talents(id) ON DELETE CASCADE,
+      wikidata_id TEXT,
+      musicbrainz_id TEXT,
+      official_website TEXT,
+      agenda_url TEXT,
+      genres TEXT NOT NULL DEFAULT '[]',
+      country TEXT DEFAULT 'BR',
+      description TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS municipality_demographics (
+      municipality_code TEXT PRIMARY KEY REFERENCES municipalities(code) ON DELETE CASCADE,
+      population INTEGER CHECK(population IS NULL OR population >= 0),
+      gdp_per_capita REAL CHECK(gdp_per_capita IS NULL OR gdp_per_capita >= 0),
+      avg_income REAL CHECK(avg_income IS NULL OR avg_income >= 0),
+      urban_rate REAL CHECK(urban_rate IS NULL OR (urban_rate >= 0 AND urban_rate <= 100)),
+      economic_profile TEXT NOT NULL DEFAULT '',
+      demographic_source TEXT NOT NULL,
+      reference_year INTEGER NOT NULL,
+      updated_at TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS event_metadata (
+      event_id TEXT PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
+      price_info TEXT,
+      source_type TEXT NOT NULL DEFAULT 'ticketeira' CHECK(source_type IN ('ticketeira','agenda_oficial')),
+      official_agenda_url TEXT,
+      updated_at TEXT NOT NULL
     ) STRICT;`);
     return db;
   } catch (error) {

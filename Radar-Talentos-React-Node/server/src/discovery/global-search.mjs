@@ -88,7 +88,9 @@ function mbProfilesFromRelations(relations){
 export async function searchMusicBrainzLive(query,{fetcher=fetch,includeRelations=true}={}){
  const q=queryText(query);
  const u=new URL('https://musicbrainz.org/ws/2/artist/');
- u.search=new URLSearchParams({query:`artist:"${q}"`,fmt:'json',limit:'8'});
+ const tokens=norm(q).split(/\s+/).filter(Boolean);
+ const mbQuery=tokens.length>1?`artist:"${q}" OR (${tokens.map(t=>`artist:${t}~`).join(' AND ')})`:`artist:"${q}" OR artist:${q}~`;
+ u.search=new URLSearchParams({query:mbQuery,fmt:'json',limit:'8'});
  const headers={'User-Agent':process.env.RADAR_MUSICBRAINZ_USER_AGENT||process.env.RADAR_WIKIDATA_USER_AGENT||'RadarDeTalentos/1.0 (https://radar-de-talentos-nu.vercel.app/)','Accept':'application/json'};
  const r=await fetcher(u,{headers,signal:AbortSignal.timeout(10000),redirect:'error'});
  if(!r.ok)throw Error('MusicBrainz HTTP '+r.status);
@@ -192,7 +194,25 @@ export async function globalSearch(db,radar,query,{fetcher=fetch,includeMusicBra
  const configured=db.prepare('SELECT enabled FROM sources WHERE id=?').get(WIKI);
  if(db.prepare('SELECT 1 FROM sources WHERE id=? AND enabled=1').get(MB))result.sources.musicbrainz='local_index';
  if(configured&&!configured.enabled){result.sources.wikidata='disabled';return result;}
- try{const ids=[];for(const language of ['pt','en']){const d=await api({action:'wbsearchentities',search:q,language,uselang:language,type:'item',limit:'15'},fetcher);if(!Array.isArray(d.search))throw Error('Resposta inválida');ids.push(...d.search.map(x=>x.id).filter(qid));}const list=await entities([...new Set(ids)],fetcher);result.external=list.map(x=>({...x,candidate_id:db.prepare('SELECT id FROM candidates WHERE id=?').get(hash(WIKI,x.external_id))?.id??null}));result.sources.wikidata='ok';}catch{result.sources.wikidata='unavailable';}
+ try{
+  const ids=[];
+  const cleanSearch=q.normalize('NFD').replace(/\p{M}/gu,'');
+  const searchVariants=[...new Set([q,cleanSearch])];
+  for(const language of ['pt','en']){
+   const d=await api({action:'wbsearchentities',search:q,language,uselang:language,type:'item',limit:'15'},fetcher);
+   if(!Array.isArray(d.search))throw Error('Resposta inválida');
+   ids.push(...d.search.map(x=>x.id).filter(qid));
+  }
+  if(!ids.length&&searchVariants.length>1){
+   for(const language of ['pt','en']){
+    const d=await api({action:'wbsearchentities',search:cleanSearch,language,uselang:language,type:'item',limit:'15'},fetcher);
+    if(Array.isArray(d.search))ids.push(...d.search.map(x=>x.id).filter(qid));
+   }
+  }
+  const list=await entities([...new Set(ids)],fetcher);
+  result.external=list.map(x=>({...x,candidate_id:db.prepare('SELECT id FROM candidates WHERE id=?').get(hash(WIKI,x.external_id))?.id??null}));
+  result.sources.wikidata='ok';
+ }catch{result.sources.wikidata='unavailable';}
  if(includeMusicBrainzLive){
   try{
    const mbList=await searchMusicBrainzLive(q,{fetcher});
@@ -209,6 +229,23 @@ export async function globalSearch(db,radar,query,{fetcher=fetch,includeMusicBra
   }catch{
    result.sources.brave='unavailable';
   }
+ }
+ const ytKey=process.env.YOUTUBE_API_KEY;
+ if(ytKey&&typeof ytKey==='string'&&ytKey.trim()&&fetcher===fetch){
+  try{
+   const ytUrl=new URL('https://www.googleapis.com/youtube/v3/search');
+   ytUrl.search=new URLSearchParams({part:'snippet',type:'channel',q,relevanceLanguage:'pt',maxResults:'5',key:ytKey.trim()});
+   const yr=await fetcher(ytUrl,{headers:{'X-Goog-Api-Key':ytKey.trim()},signal:AbortSignal.timeout(8000),redirect:'error'});
+   if(yr.ok){
+    const yd=await yr.json();
+    if(Array.isArray(yd.items)){
+     result.youtubeChannels=yd.items
+      .filter(x=>/^UC[A-Za-z0-9_-]{22}$/.test(x.id?.channelId??''))
+      .map(x=>({network:'YouTube',id:x.id.channelId,title:x.snippet?.title??'',url:'https://youtube.com/channel/'+x.id.channelId,source:'youtube-api-search'}));
+     for(const ch of result.youtubeChannels)localProfiles.push({network:'YouTube',url:ch.url,source:'youtube-api-search'});
+    }
+   }
+  }catch{}
  }
  result.crossValidation=crossValidateIdentity({name:q,wikidata:result.external,musicbrainz:result.musicbrainz,braveProfiles:result.brave.profiles,localProfiles});
  return result;

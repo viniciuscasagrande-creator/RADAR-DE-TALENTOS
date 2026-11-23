@@ -667,3 +667,63 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Ranking Inteligente: Sparklines inline & Comparador de Artistas */
+.commercial-page .mini-spark-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 74px;
+}
+.commercial-page .mini-spark-svg {
+  width: 74px;
+  height: 22px;
+  overflow: visible;
+}
+.commercial-page .spark-empty {
+  font-size: 9.5px;
+  color: #a1a1aa;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #18181c;
+  border: 1px solid #2b2b34;
+}
+.commercial-page .compare-artist-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #d4d4d8;
+}
+.commercial-page .compare-artist-picker select {
+  height: 26px;
+  font-size: 11px;
+  padding: 2px 8px;
+  background: #141418;
+  border: 1px solid #3f3f46;
+  border-radius: 6px;
+  color: #fafafa;
+}
+.commercial-page .artist-comparison-panel {
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(35, 24, 52, 0.88), rgba(20, 18, 28, 0.94));
+  border: 1px solid rgba(168, 85, 247, 0.38);
+}
+.commercial-page .compare-head {
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #e9d5ff;
+}
+.commercial-page .compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.commercial-page .compare-table th,
+.commercial-page .compare-table td {
+  padding: 5px 8px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}

@@ -123,6 +123,7 @@
                 <th>Atual</th>
                 <th>Variação</th>
                 <th>%</th>
+                <th>Curva</th>
               </tr>
             </thead>
             <tbody id="commercial-rows"></tbody>
@@ -131,8 +132,16 @@
       </section>
 
       <section id="profile">
-        <h2>Ficha do artista &amp; Desempenho nas 4 Mídias</h2>
+        <div class="city-header">
+          <h2>Ficha do artista &amp; Desempenho nas 4 Mídias</h2>
+          <label class="compare-artist-picker">Comparar com
+            <select id="compare-artist-select" aria-label="Comparar artista selecionado com outro talento">
+              <option value="">Sem comparação</option>
+            </select>
+          </label>
+        </div>
         <div id="commercial-profile"><p>Selecione uma atração no ranking.</p></div>
+        <div id="artist-comparison-panel" class="artist-comparison-panel" hidden></div>
         <div id="strategic-strip" class="strategic-strip"></div>
         <div id="commercial-chart"></div>
         <h3>Crescimento e praça principal por mídia</h3>

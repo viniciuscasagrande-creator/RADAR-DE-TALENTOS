@@ -2480,10 +2480,24 @@ export function getCrossMenuSummary(db, params = new URLSearchParams()) {
     a.name.localeCompare(b.name)
   );
 
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const recentCommSnaps = commSnapshots.filter(s => s.observed_on >= sevenDaysAgo).length;
+  const recentCurMetrics = currentMetrics.filter(c => c.value != null && ((c.observed_on && c.observed_on >= sevenDaysAgo) || (c.collected_at && c.collected_at.slice(0, 10) >= sevenDaysAgo))).length;
+  const recentCollections7d = Math.max(recentCommSnaps, recentCurMetrics);
+  const totalConfirmedProfiles = commAccounts.length;
+  const withCollectedCount = items.filter(i => i.hasCollectedMetric).length;
+  const totalTalentsCount = db.prepare('SELECT count(*) n FROM talents WHERE blocked = 0').get().n;
+  const qualityCoveragePct = totalTalentsCount > 0 && withCollectedCount > 0
+    ? Number(((withCollectedCount / totalTalentsCount) * 100).toFixed(1))
+    : null;
+
   const counts = {
-    talents: db.prepare('SELECT count(*) n FROM talents WHERE blocked = 0').get().n,
+    talents: totalTalentsCount,
     withOfficialProfiles: db.prepare('SELECT count(DISTINCT talent_id) n FROM commercial_accounts').get().n,
-    withCollectedMetrics: items.filter(i => i.hasCollectedMetric).length,
+    confirmedProfiles: totalConfirmedProfiles,
+    withCollectedMetrics: withCollectedCount,
+    recentCollections7d,
+    qualityCoveragePct,
     withMusicBrainzOrWikidata: db.prepare('SELECT count(*) n FROM talent_metadata WHERE wikidata_id IS NOT NULL OR musicbrainz_id IS NOT NULL').get().n,
     events: db.prepare('SELECT count(*) n FROM events').get().n,
     eventListings: db.prepare('SELECT count(*) n FROM event_listings').get().n,
@@ -2495,6 +2509,29 @@ export function getCrossMenuSummary(db, params = new URLSearchParams()) {
   return {
     total: items.length,
     counts,
+    executiveOverview: {
+      environment: 'Produção',
+      monitoredTalents: {
+        value: totalTalentsCount,
+        formatted: totalTalentsCount > 0 ? totalTalentsCount.toLocaleString('pt-BR') : '—',
+        subtitle: 'Cadastro atualizado'
+      },
+      confirmedProfiles: {
+        value: totalConfirmedProfiles,
+        formatted: totalConfirmedProfiles > 0 ? totalConfirmedProfiles.toLocaleString('pt-BR') : '—',
+        subtitle: 'Quatro mídias'
+      },
+      recentCollections: {
+        value: recentCollections7d,
+        formatted: recentCollections7d > 0 ? recentCollections7d.toLocaleString('pt-BR') : '—',
+        subtitle: 'Últimos 7 dias'
+      },
+      dataQuality: {
+        value: qualityCoveragePct,
+        formatted: qualityCoveragePct != null ? `${qualityCoveragePct.toString().replace('.', ',')}% (${withCollectedCount}/${totalTalentsCount})` : '—',
+        subtitle: qualityCoveragePct != null ? 'Talentos com coleta verificada' : 'A calcular'
+      }
+    },
     executionPlan: {
       completedSteps: 8,
       totalSteps: 8,

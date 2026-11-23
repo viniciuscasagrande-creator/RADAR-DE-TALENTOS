@@ -273,9 +273,16 @@ async function search(keepPage=false){
     const box=el('div');box.className='kpi';box.append(el('span',label),el('strong',fmt(value)));k.append(box);
    }
    const pageItems=(cross.items||[]).slice(offset,offset+100);
+   renderOverview20(cross);
    table('artists',['Artista','Instagram','Spotify','YouTube','TikTok','Audiência por Cidade'],pageItems.map(a=>{
     const b=el('button',a.name);b.type='button';b.className='link';
-    b.addEventListener('click',()=>{location.href='/commercial.html?q='+encodeURIComponent(a.name);});
+    b.addEventListener('click',()=>{
+     if($('artist-360-body')){
+      selectOverviewArtist360(a);
+     }else{
+      location.href='/commercial.html?q='+encodeURIComponent(a.name);
+     }
+    });
     const cellFor=net=>{
      const m=a.media?.[net];
      if(!m||m.value==null)return '—';
@@ -358,6 +365,211 @@ async function search(keepPage=false){
  }catch(e){
   if(n===request)$('message').textContent=e.message+' — resultados anteriores não atualizados.';
  }
+}
+
+let active360Artist=null,active360Stats=null,activeEvoDays=30,evoReqSeq=0;
+const evoPalette={Instagram:'#ff2bd6',Spotify:'#00ff88',YouTube:'#00f0ff',TikTok:'#facc15'};
+const evoClassLabel={oficial:'API Oficial',relatorio_autorizado:'Relatório Autorizado',observado:'Observação Pública',calculado:'Calculado'};
+
+function renderOverview20(cross){
+ if(!$('executive-kpis'))return;
+ const eo=cross?.executiveOverview;
+ if(eo){
+  if($('exec-monitored'))$('exec-monitored').textContent=fmt(eo.monitoredTalents?.value??cross.total??0);
+  if($('exec-monitored-sub'))$('exec-monitored-sub').textContent=eo.monitoredTalents?.subtitle||'Cadastro atualizado';
+  if($('exec-profiles'))$('exec-profiles').textContent=fmt(eo.confirmedProfiles?.value??0);
+  if($('exec-profiles-sub'))$('exec-profiles-sub').textContent=eo.confirmedProfiles?.subtitle||'Quatro mídias';
+  if($('exec-recent'))$('exec-recent').textContent=fmt(eo.recentCollections?.value??0);
+  if($('exec-recent-sub'))$('exec-recent-sub').textContent=eo.recentCollections?.subtitle||'Últimos 7 dias';
+  if($('exec-quality'))$('exec-quality').textContent=eo.dataQuality?.label||'Sem coleta';
+  if($('exec-quality-sub'))$('exec-quality-sub').textContent=eo.dataQuality?.subtitle||'Confiabilidade';
+ }
+ const items=cross?.items||[];
+ const chosenId=field('talent')?.value;
+ const target=items.find(x=>x.id===chosenId)||items.find(x=>active360Artist&&x.id===active360Artist.id)||items.find(x=>Object.values(x.media||{}).some(m=>m?.value!=null))||items[0]||null;
+ if(target)selectOverviewArtist360(target,false);
+}
+
+async function selectOverviewArtist360(artist,scrollInto=false){
+ if(!artist||!$('artist-360-body'))return;
+ active360Artist=artist;
+ const seq=++evoReqSeq;
+ if($('artist-360-comm-link'))$('artist-360-comm-link').href='/commercial.html?q='+encodeURIComponent(artist.name);
+ if($('artist-360-subtitle'))$('artist-360-subtitle').textContent=`${artist.name} — indicadores verificados nas 4 mídias e presença territorial.`;
+ if($('evolution-subtitle'))$('evolution-subtitle').textContent=`${artist.name} — evolução verificada nas mídias (janela de ${activeEvoDays} dias).`;
+ try{
+  const stats=await get('/api/radar/media-stats?talent='+encodeURIComponent(artist.id));
+  if(seq!==evoReqSeq)return;
+  active360Stats=stats;
+  drawArtist360Card(artist,stats);
+  drawOverviewEvolutionChart(artist,stats,activeEvoDays);
+  if(scrollInto)$('artist-360-panel')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+ }catch{
+  if(seq!==evoReqSeq)return;
+  drawArtist360Card(artist,null);
+ }
+}
+
+function drawArtist360Card(artist,stats){
+ const host=$('artist-360-body');
+ if(!host)return;
+ host.replaceChildren();
+ const grid=el('div');grid.className='artist-360-grid';
+ const netDefs=[
+  ['Instagram','followers','Seguidores'],
+  ['Spotify','monthly_listeners','Ouvintes mensais'],
+  ['YouTube','subscribers','Inscritos'],
+  ['TikTok','followers','Seguidores']
+ ];
+ for(const [net,metricKey,metricLabel] of netDefs){
+  const card=el('div');card.className='artist-360-net';
+  const head=el('div');head.className='artist-360-net-head';
+  const titleSpan=el('span',net);
+  titleSpan.style.color=evoPalette[net]||'#e9d5ff';
+  head.append(titleSpan);
+  const netStats=stats?.[net];
+  const primary=netStats?.[metricKey];
+  const crossMedia=artist.media?.[net];
+  const valFormatted=primary?.value!=null?primary.formatted:(crossMedia?.value!=null?crossMedia.formatted:null);
+  const cls=primary?.classification;
+  const badge=el('span',valFormatted?(evoClassLabel[cls]||'Verificado'):'Sem coleta');
+  badge.className='quality-tag';
+  head.append(badge);
+  card.append(head);
+  card.append(el('strong',valFormatted?`${valFormatted} ${metricLabel.toLowerCase()}`:'Sem coleta'));
+  const gKey=`growth_${activeEvoDays}d`;
+  const gObj=netStats?.[gKey]||netStats?.growth_30d;
+  if(gObj?.value!=null){
+   card.append(el('small',`Variação (${gObj.days}d): ${gObj.formatted}`));
+  }else if(valFormatted){
+   card.append(el('small',`Variação (${activeEvoDays}d): aguardando 2ª coleta datada`));
+  }else{
+   card.append(el('small','Perfil aguardando coleta verificada'));
+  }
+  if(net==='Instagram'&&netStats?.engagement?.rate_pct!=null){
+   card.append(el('small',`Engajamento: ${netStats.engagement.formatted}`));
+  }else if(net==='Spotify'&&netStats?.repertoire?.formatted&&netStats.repertoire.formatted!=='—'){
+   card.append(el('small',`Repertório: ${netStats.repertoire.formatted}`));
+  }else if(net==='YouTube'&&netStats?.views?.value!=null){
+   card.append(el('small',`Visualizações: ${netStats.views.formatted}`));
+  }
+  const obsDate=primary?.observed_on||crossMedia?.observed_on;
+  const srcName=primary?.source||crossMedia?.source;
+  if(obsDate||srcName){
+   card.append(el('small',`Fonte: ${srcName||'Observado'} · Ref.: ${obsDate||'—'}`));
+  }
+  const topCities=netStats?.top_cities;
+  if(topCities?.hasData){
+   card.append(el('small',`Cidades: ${topCities.statusLabel}`));
+  }
+  const profileUrl=netStats?.profile_url||crossMedia?.url;
+  if(profileUrl){
+   const a=el('a','Abrir perfil oficial ↗');a.href=profileUrl;a.target='_blank';a.rel='noopener noreferrer';
+   a.style.fontSize='10.5px';
+   card.append(a);
+  }
+  grid.append(card);
+ }
+ host.append(grid);
+}
+
+function drawOverviewEvolutionChart(artist,stats,days=30){
+ const host=$('overview-evolution-chart');
+ if(!host)return;
+ host.replaceChildren();
+ if($('evolution-subtitle')&&artist){
+  $('evolution-subtitle').textContent=`${artist.name} — evolução verificada nas mídias (janela de ${days} dias).`;
+ }
+ const seriesList=[];
+ const singlePointNets=[];
+ for(const net of ['Instagram','Spotify','YouTube','TikTok']){
+  const h=stats?.[net]?.history||[];
+  if(h.length>=2){
+   const latestMs=Date.parse(h.at(-1).date);
+   const cutoffMs=latestMs-(days+5)*86400000;
+   const filtered=h.filter(pt=>Date.parse(pt.date)>=cutoffMs);
+   const usePts=filtered.length>=2?filtered:h.slice(-Math.min(h.length,4));
+   seriesList.push({network:net,history:usePts});
+  }else if(h.length===1){
+   singlePointNets.push(`${net} (${fmt(h[0].value)} em ${h[0].date})`);
+  }
+ }
+ if(!seriesList.length){
+  const msg=singlePointNets.length
+   ?`1ª observação registrada para ${artist?.name||'o artista'}: ${singlePointNets.join(' · ')}. A curva de evolução (${days}d) será exibida a partir da 2ª coleta datada.`
+   :`Sem série histórica com 2 ou mais coletas para ${artist?.name||'este recorte'}. O Radar não interpola curvas sem observações reais.`;
+  host.append(el('p',msg));
+  return;
+ }
+ const legend=el('div');legend.className='evo-legend-row';
+ for(const s of seriesList){
+  const pill=el('span');pill.className='evo-legend-pill';
+  const dot=el('i');dot.className='evo-dot';dot.style.background=evoPalette[s.network];
+  const first=s.history[0].value,last=s.history.at(-1).value;
+  const pct=first>0?((last-first)/first*100):null;
+  const sign=pct>0?'+':'';
+  pill.append(dot,el('span',`${s.network}: ${fmt(last)}${pct!=null?` (${sign}${pct.toFixed(1)}%)`:''}`));
+  legend.append(pill);
+ }
+ host.append(legend);
+ const allDates=[...new Set(seriesList.flatMap(s=>s.history.map(p=>p.date)))].sort();
+ const lo=Date.parse(allDates[0]),hi=Math.max(lo+86400000,Date.parse(allDates.at(-1)));
+ const multi=seriesList.length>1;
+ const mapped=seriesList.map(s=>{
+  const base=Math.max(1,s.history[0].value);
+  return {
+   ...s,
+   pts:s.history.map(p=>({date:p.date,raw:p.value,yVal:multi?((p.value-base)/base*100):p.value}))
+  };
+ });
+ const allY=mapped.flatMap(s=>s.pts.map(p=>p.yVal));
+ const minY=Math.min(multi?0:Infinity,...allY),maxY=Math.max(...allY,minY+1);
+ const W=520,H=155,padL=46,padR=44,padT=14,padB=24,plotW=W-padL-padR,plotH=H-padT-padB;
+ const sEl=svg('svg',{viewBox:`0 0 ${W} ${H}`,role:'img','aria-label':`Evolução das mídias em ${days} dias`});
+ for(let g=0;g<=3;g++){
+  const ratio=g/3,y=padT+plotH*(1-ratio),val=minY+(maxY-minY)*ratio;
+  sEl.append(svg('line',{x1:padL,x2:padL+plotW,y1:y.toFixed(1),y2:y.toFixed(1),stroke:'#27272a','stroke-dasharray':'3 3'}));
+  const t=svg('text',{x:padL-6,y:(y+3).toFixed(1),'text-anchor':'end',fill:'#a1a1aa','font-size':'9.5'});
+  t.textContent=multi?`${val>=0?'+':''}${val.toFixed(1)}%`:fmt(Math.round(val));
+  sEl.append(t);
+ }
+ for(const dStr of allDates){
+  const x=padL+plotW*(Date.parse(dStr)-lo)/(hi-lo);
+  const dt=svg('text',{x:x.toFixed(1),y:H-5,'text-anchor':'middle',fill:'#a1a1aa','font-size':'9.5'});
+  dt.textContent=dStr.slice(8,10)+'/'+dStr.slice(5,7);
+  sEl.append(dt);
+ }
+ for(const s of mapped){
+  const col=evoPalette[s.network]||'#a855f7';
+  const coords=s.pts.map(p=>[
+   padL+plotW*(Date.parse(p.date)-lo)/(hi-lo),
+   padT+plotH*(1-(p.yVal-minY)/Math.max(0.001,maxY-minY)),
+   p
+  ]);
+  const dPath=coords.map((c,i)=>`${i?'L':'M'}${c[0].toFixed(1)},${c[1].toFixed(1)}`).join(' ');
+  sEl.append(svg('path',{d:dPath,fill:'none',stroke:col,'stroke-width':'2.4','stroke-linecap':'round'}));
+  for(const [cx,cy,pt] of coords){
+   const c=svg('circle',{cx:cx.toFixed(1),cy:cy.toFixed(1),r:'3.2',fill:'#fff',stroke:col,'stroke-width':'1.6'});
+   const title=svg('title');
+   title.textContent=`${s.network} · ${pt.date}: ${fmt(pt.raw)}`;
+   c.append(title);
+   sEl.append(c);
+  }
+ }
+ host.append(sEl);
+}
+
+for(const btn of document.querySelectorAll('.win-switch[data-evo-days]')){
+ btn.addEventListener('click',()=>{
+  activeEvoDays=Number(btn.dataset.evoDays)||30;
+  for(const b of document.querySelectorAll('.win-switch[data-evo-days]')){
+   b.setAttribute('aria-pressed',String(b===btn));
+  }
+  if(active360Artist&&active360Stats){
+   drawArtist360Card(active360Artist,active360Stats);
+   drawOverviewEvolutionChart(active360Artist,active360Stats,activeEvoDays);
+  }
+ });
 }
 form.addEventListener('submit',e=>{e.preventDefault();search()});field('network').addEventListener('change',networkChanged);field('report').addEventListener('change',reportChanged);field('days').addEventListener('change',metricChanged);field('metric').addEventListener('change',metricChanged);$('radius-slider').addEventListener('input',()=>{const v=Number($('radius-slider').value);field('radius').value=v>0?String(v):'';});field('radius').addEventListener('input',()=>{const v=Number(field('radius').value);$('radius-slider').value=Number.isFinite(v)&&v>0?String(v):'0';});$('reload').addEventListener('click',()=>loadReports().catch(e=>$('message').textContent=e.message));$('prev').addEventListener('click',()=>{offset=Math.max(0,offset-100);search(true)});$('next').addEventListener('click',()=>{if(offset+100<total){offset+=100;search(true)}});
 (async()=>{try{let cats,municipal;[mods,geo,cats,municipal]=await Promise.all([get('/api/radar/modalities'),get('/api/radar/geography'),get('/api/regional/categories'),get('/api/radar/municipalities')]);categoryCatalog=cats.categories;catalogTotal=cats.total;catalog=municipal.items;options(field('category'),categoryCatalog.map(c=>({id:String(c.id),name:c.name})),'Todas');options(field('modality'),mods,'Todas');subs();filterCities();filterCenters();categoryCards(categoryCatalog,'Cadastro nacional de talentos',catalogTotal);await loadReports()}catch(e){$('message').textContent=e.message}})();

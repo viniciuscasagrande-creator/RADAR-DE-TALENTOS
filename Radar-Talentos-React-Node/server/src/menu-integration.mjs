@@ -1252,7 +1252,10 @@ export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date()
         'Instagram Business Discovery / Observação Verificada',
         'Spotify for Artists — Relatório Autorizado',
         'Observação Pública Verificada / Mídia Kit Oficial'
-      ) OR (source = 'YouTube Data API v3' AND authorization_ref LIKE 'https://www.wikidata.org/wiki/%');
+      ) OR (source = 'YouTube Data API v3' AND observed_on IN ('2026-10-19','2026-11-03','2026-11-11','2026-11-18'));
+      UPDATE commercial_accounts
+         SET url = 'https://youtube.com/channel/UCXooz9whNJZBRTHi9AqdjPw'
+       WHERE id = 't-gusttavo-lima-yo' AND url = 'https://youtube.com/channel/UC7c8be2t1bdN261603C2R2w';
       DELETE FROM metric_snapshots WHERE source IN (
         'Instagram Business Discovery / Relatório Autorizado',
         'Instagram Business Discovery / Observação Verificada',
@@ -1759,7 +1762,7 @@ export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date()
  * Calcula estatísticas detalhadas, séries históricas (7, 15 e 30 dias), engajamento,
  * repertório, cidades principais e metadados de qualidade/validade para a Ficha do Artista.
  */
-export function getArtistMediaStats(db, talentId, { end = '2026-11-18' } = {}) {
+export function getArtistMediaStats(db, talentId, { end = new Date().toISOString().slice(0, 10) } = {}) {
   const artist = db.prepare('SELECT id, name, entity_type FROM talents WHERE id = ? AND blocked = 0').get(talentId);
   if (!artist) return null;
 

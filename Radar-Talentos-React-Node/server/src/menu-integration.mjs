@@ -1762,7 +1762,7 @@ export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date()
  * Calcula estatísticas detalhadas, séries históricas (7, 15 e 30 dias), engajamento,
  * repertório, cidades principais e metadados de qualidade/validade para a Ficha do Artista.
  */
-export function getArtistMediaStats(db, talentId, { end = new Date().toISOString().slice(0, 10) } = {}) {
+export function getArtistMediaStats(db, talentId, { end = new Date().toISOString().slice(0, 10), discoveryDb = null } = {}) {
   const artist = db.prepare('SELECT id, name, entity_type FROM talents WHERE id = ? AND blocked = 0').get(talentId);
   if (!artist) return null;
 
@@ -1771,6 +1771,32 @@ export function getArtistMediaStats(db, talentId, { end = new Date().toISOString
   const accMap = new Map();
   for (const a of commAccs) accMap.set(a.network, a);
   for (const a of socAccs) if (!accMap.has(a.network)) accMap.set(a.network, a);
+
+  let discObsRows = [];
+  if (discoveryDb) {
+    try {
+      const discProfiles = discoveryDb.prepare(
+        `SELECT p.id, p.network, p.url
+         FROM profiles p
+         JOIN candidates c ON c.id = p.candidate_id
+         WHERE c.radar_id = ? AND c.status IN ('approved', 'published')`
+      ).all(talentId);
+      for (const dp of discProfiles) {
+        if (!accMap.has(dp.network)) {
+          accMap.set(dp.network, { id: dp.id, network: dp.network, url: dp.url, identity_source: 'Prospecção confirmada' });
+        }
+      }
+      discObsRows = discoveryDb.prepare(
+        `SELECT p.network, p.url, o.metric, substr(o.observed_at, 1, 10) AS observed_on, o.observed_at, o.value, o.source_id, o.evidence_url
+         FROM observations o
+         JOIN profiles p ON p.id = o.profile_id
+         JOIN candidates c ON c.id = p.candidate_id
+         WHERE c.radar_id = ? AND c.status IN ('approved', 'published')
+           AND substr(o.observed_at, 1, 10) <= ?
+         ORDER BY o.observed_at ASC`
+      ).all(talentId, end);
+    } catch {}
+  }
 
   const snaps = db.prepare(
     `SELECT a.network, a.url, s.metric, s.observed_on, s.value, s.source, s.authorization_ref
@@ -1787,8 +1813,34 @@ export function getArtistMediaStats(db, talentId, { end = new Date().toISOString
      ORDER BY observed_on ASC`
   ).all(talentId, end);
 
+  const currRows = db.prepare(
+    `SELECT network, metric, value, observed_on, collected_at, source, status
+     FROM metric_current
+     WHERE talent_id = ? AND value IS NOT NULL AND observed_on IS NOT NULL AND observed_on <= ?`
+  ).all(talentId, end);
+
   const getMetricSeries = (net, metric) => {
     const byDate = new Map();
+    for (const r of discObsRows.filter(x => x.network === net && x.metric === metric)) {
+      byDate.set(r.observed_on, {
+        date: r.observed_on,
+        value: r.value,
+        source: r.source_id === 'youtube-public-current' ? 'YouTube Data API v3' : r.source_id === 'open-social-current' ? 'Registro autorizado pelo operador' : r.source_id,
+        source_type: r.source_id === 'youtube-public-current' ? 'oficial' : 'observado',
+        evidence_url: r.evidence_url || r.url,
+        collected_at: r.observed_at || r.observed_on
+      });
+    }
+    for (const r of currRows.filter(x => x.network === net && x.metric === metric)) {
+      byDate.set(r.observed_on, {
+        date: r.observed_on,
+        value: r.value,
+        source: r.source,
+        source_type: r.source?.includes('API') ? 'oficial' : 'observado',
+        evidence_url: accMap.get(net)?.url ?? null,
+        collected_at: r.collected_at || r.observed_on
+      });
+    }
     for (const r of snaps.filter(x => x.network === net && x.metric === metric)) {
       byDate.set(r.observed_on, {
         date: r.observed_on,

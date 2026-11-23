@@ -82,6 +82,32 @@ export function openDatabase(filename = databasePath()) {
       source_type TEXT NOT NULL DEFAULT 'ticketeira' CHECK(source_type IN ('ticketeira','agenda_oficial')),
       official_agenda_url TEXT,
       updated_at TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS media_metric_series (
+      talent_id TEXT NOT NULL REFERENCES talents(id) ON DELETE CASCADE,
+      network TEXT NOT NULL CHECK(network IN ('Instagram','YouTube','Spotify','TikTok')),
+      metric TEXT NOT NULL,
+      observed_on TEXT NOT NULL,
+      value INTEGER NOT NULL CHECK(value >= 0),
+      source TEXT NOT NULL,
+      source_type TEXT NOT NULL DEFAULT 'observado' CHECK(source_type IN ('oficial','relatorio_autorizado','observado','calculado')),
+      evidence_url TEXT NOT NULL,
+      collected_at TEXT NOT NULL,
+      methodology TEXT NOT NULL DEFAULT '',
+      PRIMARY KEY(talent_id, network, metric, observed_on, source)
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS spotify_repertoire (
+      talent_id TEXT PRIMARY KEY REFERENCES talents(id) ON DELETE CASCADE,
+      albums_count INTEGER CHECK(albums_count IS NULL OR albums_count >= 0),
+      singles_count INTEGER CHECK(singles_count IS NULL OR singles_count >= 0),
+      latest_release_title TEXT,
+      latest_release_date TEXT,
+      top_tracks_json TEXT NOT NULL DEFAULT '[]',
+      source TEXT NOT NULL,
+      source_type TEXT NOT NULL DEFAULT 'oficial' CHECK(source_type IN ('oficial','relatorio_autorizado','observado')),
+      evidence_url TEXT NOT NULL,
+      observed_on TEXT NOT NULL,
+      collected_at TEXT NOT NULL
     ) STRICT;`);
     return db;
   } catch (error) {

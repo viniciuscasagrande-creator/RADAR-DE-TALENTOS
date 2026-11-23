@@ -39,7 +39,7 @@ function querySingleNetworkItems(db,{network,metric,days,start,end,modality,q,ta
 export function commercialQuery(db,p){
  const rawNet=p.get('network')||'all',isAll=rawNet==='all'||rawNet==='Todas as mídias',network=isAll?'all':rawNet,metric=p.get('metric')||(isAll?'consolidated_growth':primary[network]),days=Number(p.get('days')||30),end=p.get('end')||new Date().toISOString().slice(0,10),order=p.get('order')||'growth_pct',size=p.get('size')||'',modality=p.get('modality')||'',q=(p.get('q')||'').toLowerCase(),talent=p.get('talent')||'',trend=p.get('trend')||'';
  const validMetric=isAll?consolidatedMetrics.includes(metric):Boolean(metrics[network]?.includes(metric));
- if(!validMetric||![7,30,90].includes(days)||!validDate(end)||!['growth_pct','growth','value'].includes(order)||!['','small','medium','large','unknown'].includes(size)||!['','growing','unknown','declining'].includes(trend))throw new FilterError('Filtro comercial inválido');
+ if(!validMetric||![7,15,30,90].includes(days)||!validDate(end)||!['growth_pct','growth','value'].includes(order)||!['','small','medium','large','unknown'].includes(size)||!['','growing','unknown','declining'].includes(trend))throw new FilterError('Filtro comercial inválido');
  const start=shift(end,-days);
  let items;
  if(!isAll){

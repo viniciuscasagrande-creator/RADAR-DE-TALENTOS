@@ -74,7 +74,7 @@ function resolveCity(db, cityParam, cityQueryParam) {
 
 export function commercialCompatibility(db, p) {
   const days = Number(p.get('days') || 30);
-  if (![7, 30, 90].includes(days)) throw new FilterError('Janela inválida (use 7, 30 ou 90 dias)');
+  if (![7, 15, 30, 90].includes(days)) throw new FilterError('Janela inválida (use 7, 15, 30 ou 90 dias)');
 
   const radiusRaw = p.get('radius');
   const radius = radiusRaw === null || radiusRaw === '' ? 80 : Number(radiusRaw);
@@ -423,36 +423,49 @@ export function commercialCompatibility(db, p) {
     ? clamp((categoryAffinityRatios.reduce((a, b) => a + b, 0) / categoryAffinityRatios.length) * 100)
     : null;
 
-  // Oportunidade de agenda: quanto menor a saturação de concorrentes diretos, maior o índice de espaço na agenda
-  const saturationPenalty = Math.min(0.65, cityCompetingEvents.length * 0.14 + Math.max(0, radiusCompetingEvents.length - cityCompetingEvents.length) * 0.05);
-  const v5AgendaOpportunityScore = clamp((1 - saturationPenalty) * 100);
+  // Indicadores demográficos e econômicos oficiais (IBGE) para o município e bacia regional
+  const demoMap = new Map(VERIFIED_IBGE_DEMOGRAPHICS.map(d => [d.code, d]));
+  for (const r of db.prepare('SELECT * FROM municipality_demographics').all()) {
+    demoMap.set(r.municipality_code, r);
+  }
+  const cityDemo = demoMap.get(city.code) || null;
+  let catchmentKnownPop = 0;
+  let catchmentDemoCities = 0;
+  for (const code of catchmentCodes) {
+    const dm = demoMap.get(code);
+    if (dm?.population != null) {
+      catchmentKnownPop += dm.population;
+      catchmentDemoCities++;
+    }
+  }
 
-  const v6RestScore = futureArtistEvents.length > 0
-    ? 45
-    : daysSinceLastEvent == null
-      ? 95
-      : daysSinceLastEvent < 90
-        ? 35
-        : daysSinceLastEvent < 180
-          ? 65
-          : 92;
+  // Potencial socioeconômico IBGE (sem influência de ticketeiras)
+  const popBase = catchmentKnownPop || cityDemo?.population || 0;
+  const gdpBase = cityDemo?.gdp_per_capita || 0;
+  const v5SocioeconomicScore = popBase > 0
+    ? clamp(Math.min(60, Math.log10(Math.max(10000, popBase)) * 10) + Math.min(40, (gdpBase / 65000) * 40))
+    : 75;
+
+  // Presença digital multi-rede e consistência de séries verificadas (sem influência de ticketeiras)
+  const v6DigitalPresenceScore = clamp(((networksWithNational * 0.5 + networksWithRadius * 0.3 + networksWithCity * 0.2) / 4) * 100);
 
   const v7ConfidenceScore = clamp(((networksWithNational * 0.35 + networksWithRadius * 0.40 + networksWithCity * 0.25) / 4) * 100);
 
+  // Regra adotada: Ticketeiras e eventos publicados NÃO entram no cálculo do Score Comercial.
+  // O Score Comercial prioriza exclusivamente audiência comprovada, presença digital, crescimento e dados socioeconômicos.
   let overallScore = null;
   if (hasAnyData && (v1DirectScore != null || v2RadiusScore != null)) {
     const components = [
-      [0.34, v1DirectScore ?? (v2RadiusScore * 0.65)],
-      [0.26, v2RadiusScore ?? v1DirectScore],
-      [0.20, v3GrowthScore],
-      [0.20, v4AffinityScore]
+      [0.36, v1DirectScore ?? (v2RadiusScore * 0.65)],
+      [0.28, v2RadiusScore ?? v1DirectScore],
+      [0.18, v3GrowthScore],
+      [0.18, v4AffinityScore]
     ].filter(([, val]) => val != null);
     const totalWeight = components.reduce((sum, [w]) => sum + w, 0);
     const demandBase = totalWeight > 0
       ? components.reduce((sum, [w, val]) => sum + w * val, 0) / totalWeight
       : 0;
-    const marketFactor = 0.82 + 0.18 * ((v5AgendaOpportunityScore * 0.6 + v6RestScore * 0.4) / 100);
-    overallScore = clamp(demandBase * marketFactor);
+    overallScore = clamp(demandBase);
   }
 
   let verdict;
@@ -466,7 +479,7 @@ export function commercialCompatibility(db, p) {
     verdict = {
       level: 'high',
       label: 'Alta Viabilidade Comercial — Praça Prioritária para Vendas',
-      recommendation: `${artist.name} apresenta forte concentração digital em ${city.name}/${city.uf} e na bacia regional de ${radius} km, com tendência positiva de crescimento e espaço favorável na agenda local.`
+      recommendation: `${artist.name} apresenta forte concentração digital comprovada em ${city.name}/${city.uf} e na bacia regional de ${radius} km, com tendência positiva de crescimento nas mídias e alto potencial socioeconômico.`
     };
   } else if (overallScore >= 60) {
     verdict = {
@@ -488,7 +501,7 @@ export function commercialCompatibility(db, p) {
     };
   }
 
-  // Construção do Argumentário Comercial Auditável (Bullets prontos para Vendas)
+  // Construção do Argumentário Comercial Auditável (Bullets prontos para Vendas, baseados em audiência, presença digital e demografia)
   const salesPitch = [];
   const bestCityMedia = media
     .filter(m => m.cityAudience?.present)
@@ -513,42 +526,17 @@ export function commercialCompatibility(db, p) {
   }
   if (avgGrowthPct != null) {
     salesPitch.push(
-      `Momento de tração (${days} dias): variação média de ${avgGrowthPct >= 0 ? '+' : ''}${avgGrowthPct.toFixed(1)}% nas métricas comparáveis do artista.`
+      `Momento de tração (${days} dias): variação média de ${avgGrowthPct >= 0 ? '+' : ''}${avgGrowthPct.toFixed(1)}% nas métricas verificadas do artista.`
     );
-  }
-  salesPitch.push(
-    cityCompetingEvents.length === 0
-      ? `Agenda local favorável: 0 eventos concorrentes ativos da mesma modalidade em ${city.name}/${city.uf} (${radiusCompetingEvents.length} no raio de ${radius} km).`
-      : `Concorrência monitorada: ${cityCompetingEvents.length} evento(s) da mesma modalidade em ${city.name}/${city.uf} e ${radiusCompetingEvents.length} no raio de ${radius} km.`
-  );
-  salesPitch.push(
-    daysSinceLastEvent == null && futureArtistEvents.length === 0
-      ? `Descanso de praça máximo: nenhum evento recente de ${artist.name} registrado em ${city.name}/${city.uf} ou no raio de ${radius} km (forte demanda reprimida).`
-      : futureArtistEvents.length > 0
-        ? `Atenção comercial: já consta ${futureArtistEvents.length} evento(s) programado(s) do artista na bacia regional.`
-        : `Última passagem registrada na região há ${daysSinceLastEvent} dias (${lastArtistEvent.event_date} em ${lastArtistEvent.city_name}/${lastArtistEvent.uf}).`
-  );
-
-  // Indicadores demográficos e econômicos oficiais (IBGE) para o município e bacia regional
-  const demoMap = new Map(VERIFIED_IBGE_DEMOGRAPHICS.map(d => [d.code, d]));
-  for (const r of db.prepare('SELECT * FROM municipality_demographics').all()) {
-    demoMap.set(r.municipality_code, r);
-  }
-  const cityDemo = demoMap.get(city.code) || null;
-  let catchmentKnownPop = 0;
-  let catchmentDemoCities = 0;
-  for (const code of catchmentCodes) {
-    const dm = demoMap.get(code);
-    if (dm?.population != null) {
-      catchmentKnownPop += dm.population;
-      catchmentDemoCities++;
-    }
   }
   if (cityDemo?.population) {
     salesPitch.push(
       `Potencial demográfico oficial (IBGE): ${city.name}/${city.uf} possui ${cityDemo.population.toLocaleString('pt-BR')} habitantes (PIB per capita R$ ${Number(cityDemo.gdp_per_capita || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })})${catchmentKnownPop > cityDemo.population ? ` e bacia regional com ${catchmentKnownPop.toLocaleString('pt-BR')} habitantes nos polos monitorados` : ''}.`
     );
   }
+  salesPitch.push(
+    `Cobertura e rastreabilidade: ${networksWithNational}/4 mídias com métricas nacionais datadas e ${networksWithRadius}/4 mídias com audiência municipal comprovada na região (ticketeiras excluídas dos cálculos de pontuação).`
+  );
 
   const artistMeta = db.prepare('SELECT * FROM talent_metadata WHERE talent_id = ?').get(artist.id) || null;
   let artistGenres = [];
@@ -632,20 +620,18 @@ export function commercialCompatibility(db, p) {
         summary: `Aderência de ${city.name}/${city.uf} e região a ${(categories.map(c => c.name).concat(modalities.map(m => m.name)))[0] || 'Entretenimento'}`
       },
       {
-        key: 'agenda_saturation',
-        label: '5. Espaço na Agenda / Baixa Saturação',
-        score: v5AgendaOpportunityScore,
-        summary: `${cityCompetingEvents.length} concorrente(s) no município · ${radiusCompetingEvents.length} no raio de ${radius} km`
+        key: 'socioeconomic_potential',
+        label: '5. Potencial Socioeconômico (IBGE)',
+        score: v5SocioeconomicScore,
+        summary: cityDemo?.population
+          ? `${cityDemo.population.toLocaleString('pt-BR')} hab. · PIB per capita R$ ${Number(cityDemo.gdp_per_capita || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`
+          : 'Base demográfica regional monitorada (IBGE)'
       },
       {
-        key: 'market_rest',
-        label: '6. Descanso de Praça (Demanda Reprimida)',
-        score: v6RestScore,
-        summary: futureArtistEvents.length > 0
-          ? `${futureArtistEvents.length} evento(s) do artista já listado(s) na região`
-          : daysSinceLastEvent == null
-            ? 'Sem passagem recente registrada no raio (demanda reprimida)'
-            : `${daysSinceLastEvent} dias desde a última passagem na região`
+        key: 'digital_presence',
+        label: '6. Presença Digital e Engajamento nas Mídias',
+        score: v6DigitalPresenceScore,
+        summary: `${networksWithNational}/4 mídias ativas · Ticketeiras excluídas dos cálculos de pontuação`
       },
       {
         key: 'data_confidence',

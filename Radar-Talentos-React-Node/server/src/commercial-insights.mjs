@@ -1,7 +1,7 @@
 import { commercialQuery, metrics } from './commercial.mjs';
 import { PLATFORM_POLICIES } from './discovery.mjs';
 import { radarQuery, FilterError } from './radar.mjs';
-import { formatCompactPtBr } from './menu-integration.mjs';
+import { formatCompactPtBr, getArtistMediaStats } from './menu-integration.mjs';
 const networks=Object.keys(metrics);
 const norm=s=>String(s??'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().trim();
 const regionalPreferred={YouTube:['views','subscribers'],Instagram:['views','reach','followers'],Spotify:['streams','listeners'],TikTok:['views','reach','followers']};
@@ -18,7 +18,7 @@ export function commercialInsights(db,p){
  const national=artist?networks.map(n=>{
   const queryWin=d=>commercialQuery(db,new URLSearchParams({network:n,metric:primary[n],days:String(d),end,talent})).items[0]??null;
   const item=queryWin(days);
-  const windows={7:Number(days)===7?item:queryWin(7),30:Number(days)===30?item:queryWin(30),90:Number(days)===90?item:queryWin(90)};
+  const windows={7:Number(days)===7?item:queryWin(7),15:Number(days)===15?item:queryWin(15),30:Number(days)===30?item:queryWin(30),90:Number(days)===90?item:queryWin(90)};
   const cur=findCurrent.get(talent,n,primary[n]);
   const acct=findAcct.get(talent,n)||findSoc.get(talent,n)||null;
   const policy=PLATFORM_POLICIES[n]??{};
@@ -28,7 +28,7 @@ export function commercialInsights(db,p){
   const statusLabel=item?formatted:'Sem coleta';
   return {network:n,metric:primary[n],item,windows,currentStatus,profileUrl,formatted,statusLabel};
  }):[];
- const consolidatedWindows=artist?[7,30,90].reduce((acc,w)=>{
+ const consolidatedWindows=artist?[7,15,30,90].reduce((acc,w)=>{
   const comp=national.filter(n=>n.windows?.[w]?.growth_pct!=null).sort((a,b)=>b.windows[w].growth_pct-a.windows[w].growth_pct);
   const avgPct=comp.length?comp.reduce((s,n)=>s+n.windows[w].growth_pct,0)/comp.length:null;
   const topW=comp[0]??null;
@@ -60,5 +60,6 @@ export function commercialInsights(db,p){
   let genres=[];try{genres=JSON.parse(meta?.genres||'[]');}catch{}
   catalog={wikidata_id:meta?.wikidata_id??null,musicbrainz_id:meta?.musicbrainz_id??null,official_website:meta?.official_website??null,agenda_url:meta?.agenda_url??null,genres,description:meta?.description??''};
  }
- return {artist,network,start,end,scope,national,consolidatedWindows,regional,eventsPresence,regionalSummary,catalog,topNetwork:topNet?{network:topNet.network,metric:topNet.metric,growth:topNet.item.growth,growth_pct:topNet.item.growth_pct}:null,risingCity:allRising[0]??null,lastCollected};
+ const mediaStats=artist?getArtistMediaStats(db,artist.id,{end}):null;
+ return {artist,network,start,end,scope,national,consolidatedWindows,regional,eventsPresence,regionalSummary,catalog,mediaStats,topNetwork:topNet?{network:topNet.network,metric:topNet.metric,growth:topNet.item.growth,growth_pct:topNet.item.growth_pct}:null,risingCity:allRising[0]??null,lastCollected};
 }

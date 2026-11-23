@@ -8,8 +8,10 @@ import { syncAllMenusData } from './menu-integration.mjs';
 
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '127.0.0.1';
-const security=productionSecurity();
-if(!security && !['127.0.0.1','::1','localhost'].includes(host))throw Error('Acesso externo exige autenticação');
+const security = process.env.RADAR_REQUIRE_LOGIN === '1' ? productionSecurity() : null;
+if (process.env.RADAR_REQUIRE_LOGIN === '1' && !security && !['127.0.0.1','::1','localhost'].includes(host)) {
+  throw Error('Acesso externo exige autenticação');
+}
 const database = openDatabase();
 seedPilotDatabaseIfEmpty(database);
 let discoveryDb = null;

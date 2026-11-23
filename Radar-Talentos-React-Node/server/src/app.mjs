@@ -1,6 +1,6 @@
 import { currentDashboard } from './discovery/current-dashboard.mjs';
 import { acquisitionStatus } from './acquisition.mjs';
-import { getCrossMenuSummary, getDemographicsSummary } from './menu-integration.mjs';
+import { getCrossMenuSummary, getDemographicsSummary, getArtistMediaStats } from './menu-integration.mjs';
 import { handleDiscovery } from './discovery/http.mjs';
 import { openDiscovery, listCandidates } from './discovery/engine.mjs';
 import {discoveryStatus,discoverTalentsFromSources} from './discovery.mjs';
@@ -93,6 +93,7 @@ export function createRadarServer({ database, security = null, eventsOnly = fals
       if(path==='/api/commercial/insights'){if(!database){res.writeHead(503).end();return;}const result=commercialInsights(database,new URL(req.url,'http://localhost').searchParams);res.writeHead(200,{'Content-Type':'application/json; charset=utf-8'}).end(req.method==='HEAD'?undefined:JSON.stringify(result));return;}
       if(path==='/api/commercial'){if(!database){res.writeHead(503).end();return;}const result=commercialQuery(database,new URL(req.url,'http://localhost').searchParams);res.writeHead(200,{'Content-Type':'application/json; charset=utf-8'}).end(req.method==='HEAD'?undefined:JSON.stringify(result));return;}
       if(path==='/api/radar/cross-summary'){if(!database){res.writeHead(503).end();return;}const result=getCrossMenuSummary(database,new URL(req.url,'http://localhost').searchParams);res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(req.method==='HEAD'?undefined:JSON.stringify(result));return;}
+      if(path==='/api/radar/media-stats'){if(!database){res.writeHead(503).end();return;}const sp=new URL(req.url,'http://localhost').searchParams;const tId=sp.get('talent')||'';if(!tId){res.writeHead(400,{'Content-Type':'application/json; charset=utf-8'}).end(JSON.stringify({error:'Informe o parâmetro talent'}));return;}const result=getArtistMediaStats(database,tId,{end:sp.get('end')||'2026-11-18'});if(!result){res.writeHead(404,{'Content-Type':'application/json; charset=utf-8'}).end(JSON.stringify({error:'Artista não encontrado'}));return;}res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(req.method==='HEAD'?undefined:JSON.stringify(result));return;}
       if(path==='/api/radar/demographics'){if(!database){res.writeHead(503).end();return;}const result=getDemographicsSummary(database,new URL(req.url,'http://localhost').searchParams);res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(req.method==='HEAD'?undefined:JSON.stringify(result));return;}
       if(path.startsWith('/api/regional/')){if(!database){res.writeHead(503).end();return;}const result=regionalDashboard(database,path,new URL(req.url,'http://localhost').searchParams);if(result!==undefined){res.writeHead(200,{'Content-Type':'application/json; charset=utf-8'}).end(req.method==='HEAD'?undefined:JSON.stringify(result));return;}}
       if (path.startsWith('/api/radar/') || path.startsWith('/api/events/')) {

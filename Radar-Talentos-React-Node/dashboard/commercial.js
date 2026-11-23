@@ -254,23 +254,23 @@ function renderStrategicStrip(d,a){
   if(!strategic)return;
   strategic.replaceChildren();
   const isAll=(activeParams?.get('network')||'all')==='all';
-  let w7Text='—',w30Text='—',w90Text='—';
+  let w7Text='—',w15Text='—',w30Text='—';
   if(isAll&&d.consolidatedWindows){
     const fmtC=w=>w&&w.growth_pct!=null?`${signed(w.growth_pct)}% (${w.top_network} ${signed(w.top_growth_pct)}%)`:'—';
     w7Text=fmtC(d.consolidatedWindows[7]);
+    w15Text=fmtC(d.consolidatedWindows[15]);
     w30Text=fmtC(d.consolidatedWindows[30]);
-    w90Text=fmtC(d.consolidatedWindows[90]);
   }else{
     const activeNet=d.national.find(x=>x.network===activeParams?.get('network'))??d.national.find(x=>x.item);
     const fmtWin=w=>w&&w.growth_pct!=null?`${signed(w.growth_pct)}% (${signed(w.growth)})`:w?number(w.value):'—';
     w7Text=fmtWin(activeNet?.windows?.[7]);
+    w15Text=fmtWin(activeNet?.windows?.[15]);
     w30Text=fmtWin(activeNet?.windows?.[30]);
-    w90Text=fmtWin(activeNet?.windows?.[90]);
   }
   const pills=[
     ['Crescimento 7 dias',w7Text],
+    ['Crescimento 15 dias',w15Text],
     ['Crescimento 30 dias',w30Text],
-    ['Crescimento 90 dias',w90Text],
     ['Mídia em destaque',d.topNetwork?`${d.topNetwork.network} (${signed(d.topNetwork.growth_pct)}%)`:'—'],
     ['Cidade em ascensão',d.risingCity?`${d.risingCity.name}/${d.risingCity.uf} (${signed(d.risingCity.growth_pct)}%)`:'—'],
     ['Última coleta',d.lastCollected??a.observed_on??'—']
@@ -425,62 +425,83 @@ async function loadArtistCards(a,id){
     draw(a.history,d.national);
     root.replaceChildren();
     const isAll=(activeParams?.get('network')||'all')==='all';
+    const classBadgeLabel={oficial:'API Oficial',relatorio_autorizado:'Relatório Autorizado',observado:'Observação Pública',calculado:'Calculado (Série Real)'};
+    const ms=d.mediaStats||null;
     for(const n of d.national){
       const x=card(root,n.network),v=n.item,geo=d.regional.find(g=>g.network===n.network);
       const isTop=d.topNetwork?.network===n.network;
+      const netMs=ms?.[n.network]||null;
       el('small',`${labels[n.metric]} · ${isAll?'Incluído na consulta':(activeParams?.get('network')===n.network?'Mídia selecionada':'Monitorado')}`+(isTop?' · Maior crescimento':''),x);
-      el('strong',v?(n.formatted&&n.formatted!==number(v.value)?`${n.formatted} (${number(v.value)})`:number(v.value)):'Sem coleta',x);
+      el('strong',v?(n.formatted&&n.formatted!==number(v.value)?`${n.formatted} (${number(v.value)})`:number(v.value)):'—',x);
       if(v){
-        const delta=el('p',v.growth==null?'Sem histórico comparável':signed(v.growth)+' · '+(v.growth_pct==null?'% indisponível':signed(v.growth_pct)+'%'),x);
+        const delta=el('p',`Crescimento 30 dias: ${v.growth==null?'—':signed(v.growth)+' ('+(v.growth_pct==null?'—':signed(v.growth_pct)+'%')+')'}`,x);
         delta.className=v.growth>0?'positive':v.growth<0?'negative':'';
         if(n.windows){
           const wb=el('div',null,x);wb.className='win-badges';
-          for(const w of [7,30,90]){
+          for(const w of [7,15,30,90]){
             const wi=n.windows[w];
             if(wi&&wi.growth_pct!=null)el('span',`${w}d: ${signed(wi.growth_pct)}%`,wb).className='win-badge';
           }
         }
-        el('small',v.freshness_label?`${v.baseline_on??'Sem base'} → ${v.freshness_label}`:`${v.baseline_on??'Sem base'} → ${v.observed_on} · ${v.source}`,x);
+        if(n.network==='Instagram'&&netMs){
+          el('small','Engajamento médio & Atividade',x);
+          el('p',`Engajamento médio: ${netMs.engagement?.formatted||'—'}`,x);
+          if(netMs.recent_posts?.value!=null||netMs.reels_views?.value!=null){
+            el('small',`Atividade: ${netMs.recent_posts?.formatted||'—'} · Reels: ${netMs.reels_views?.formatted||'—'}`,x);
+          }
+        }else if(n.network==='Spotify'&&netMs){
+          el('small','Lançamentos, Repertório & Seguidores',x);
+          el('p',`Lançamentos: ${netMs.repertoire?.formatted||'—'}`,x);
+          if(netMs.repertoire?.top_tracks_formatted&&netMs.repertoire.top_tracks_formatted!=='—'){
+            el('small',`Músicas em destaque: ${netMs.repertoire.top_tracks_formatted}`,x);
+          }
+          if(netMs.followers?.value!=null){
+            el('small',`Seguidores Spotify: ${netMs.followers.formatted} · Streams (30d): ${netMs.streams_30d?.formatted||'—'}`,x);
+          }
+        }
+        const primaryMeta=netMs?.[n.metric];
+        const clsText=primaryMeta?.classification?`[${classBadgeLabel[primaryMeta.classification]||primaryMeta.classification}] `:'';
+        const valText=primaryMeta?.validity?.label?` · ${primaryMeta.validity.label}`:'';
+        el('small',`${clsText}${v.baseline_on??'Sem base'} → ${v.observed_on} · ${v.source}${valText}`,x);
       }else{
-        const fallbackBadge=n.network==='TikTok'?'Sem coleta · Autorização pendente':'Sem coleta · Aguardando fonte ou CSV';
-        const badgeP=el('p',`${labels[n.metric]} · ${fallbackBadge}`,x);
+        el('p','Crescimento 30 dias: —',x);
+        if(n.network==='Instagram')el('p','Engajamento médio: —',x);
+        if(n.network==='Spotify')el('p','Lançamentos: —',x);
+        el('p','Cidades principais: —',x);
+        const badgeP=el('small','Aguardando dados verificados',x);
         badgeP.className='negative';
-        el('small',n.currentStatus?.status_detail||'Perfil oficial identificado · Sem coleta automática',x);
       }
       if(n.profileUrl){
         try{
           const u=new URL(n.profileUrl);
-          if(u.protocol==='https:'){const pl=el('a',`Perfil oficial (${n.network}) ↗`,x);pl.href=u.href;pl.target='_blank';pl.rel='noopener noreferrer';}
+          if(u.protocol==='https:'){const pl=el('a',`Fonte / Perfil oficial (${n.network}) ↗`,x);pl.href=u.href;pl.target='_blank';pl.rel='noopener noreferrer';}
         }catch{}
       }
       if(geo?.report){
-        const c=geo.cities[0],r=geo.report;
-        el('small','Cidade principal · '+regionalLabels[r.metric],x);
-        if(c)el('p',`${c.name} / ${c.uf} · ${number(c.value)}`,x);
+        const r=geo.report;
+        const top3=geo.cities.slice(0,3).map(c=>`${c.name}/${c.uf} (${number(c.value)})`).join(' · ');
+        el('small','Cidades principais · '+regionalLabels[r.metric],x);
+        if(top3)el('p',top3,x);
         const leader=geo.cityGrowth?.leaders[0];
         if(leader){
-          el('small','Cidade em crescimento',x);
+          el('small','Evolução por cidade',x);
           const growth=el('p',`${leader.name} / ${leader.uf} · ${signed(leader.growth)}`+(leader.growth_pct==null?'':` (${signed(leader.growth_pct)}%)`),x);
           growth.className='positive';
         }else el('small',geo.cityGrowth?'Sem aumento nas cidades comparáveis.':'Sem histórico municipal comparável.',x);
-        el('small',`${r.period_start} a ${r.period_end} · ${r.quality==='verified'?'Verificado':'Estimado'}`,x);
-      }else el('small','Audiência regional: Sem dados',x);
+        el('small',`[Relatório Autorizado] ${r.period_start} a ${r.period_end} · ${r.source}`,x);
+      }else if(v){
+        el('small','Cidades principais: — (Aguardando dados verificados)',x);
+      }
     }
-    if(d.eventsPresence||d.regionalSummary||d.catalog){
-      const evCard=card(root,'Eventos publicados');
-      el('small','Presença territorial · Ticketeiras e agendas oficiais',evCard);
-      el('strong',d.eventsPresence?.statusLabel||'A integrar',evCard);
-      if(d.eventsPresence?.cities?.length)el('p',`Praças: ${d.eventsPresence.cities.join(', ')}`,evCard);
-      el('small',d.eventsPresence?.notice||'Os eventos permitem identificar presença territorial do artista, mas não devem ser confundidos com audiência digital ou ingressos vendidos.',evCard);
-
-      const regCard=card(root,'Audiência regional');
-      el('small','Relatórios municipais autorizados',regCard);
+    if(d.regionalSummary||d.catalog){
+      const regCard=card(root,'Catálogo & Audiência Regional');
+      el('small','Cobertura municipal comprovada e MusicBrainz',regCard);
       el('strong',d.regionalSummary?.statusLabel||'Sem dados',regCard);
       if(d.catalog?.genres?.length)el('p',`Gêneros (MusicBrainz): ${d.catalog.genres.join(', ')}`,regCard);
       if(d.catalog?.official_website){
         try{
           const u=new URL(d.catalog.official_website);
-          if(u.protocol==='https:'){const sl=el('a','Site / Agenda oficial ↗',regCard);sl.href=u.href;sl.target='_blank';sl.rel='noopener noreferrer';}
+          if(u.protocol==='https:'){const sl=el('a','Site oficial ↗',regCard);sl.href=u.href;sl.target='_blank';sl.rel='noopener noreferrer';}
         }catch{}
       }
     }

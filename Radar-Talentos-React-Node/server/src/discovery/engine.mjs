@@ -28,7 +28,36 @@ function tx(db,fn){db.exec('BEGIN IMMEDIATE');try{const r=fn();db.exec('COMMIT')
 export function configureSource(db,s){const id=need(s.id,'fonte');if(!['youtube','ticketmaster','licensed-file'].includes(s.kind))throw Error('Tipo não suportado');const auth=need(s.authorization,'referência de autorização');const old=db.prepare('SELECT * FROM sources WHERE id=?').get(id);if(old&&(old.kind!==s.kind||old.authorization!==auth||old.history_allowed!==Number(s.history_allowed===true)))throw Error('Fonte divergente: use novo identificador');db.prepare('INSERT INTO sources VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET enabled=excluded.enabled').run(id,s.kind,auth,Number(s.history_allowed===true),Number(s.enabled===true));}
 function source(db,id){const s=db.prepare('SELECT * FROM sources WHERE id=? AND enabled=1').get(id);if(!s)throw Error('Fonte não habilitada');return s;}
 export function ingest(db,sourceId,rows){const s=source(db,sourceId);if(!Array.isArray(rows)||rows.length>5000)throw Error('Lote inválido');return tx(db,()=>{let count=0;for(const r of rows){const external=need(r.external_id,'identificador');const name=need(r.name,'nome');const ev=evidenceUrl(r.evidence_url);const id=hash(sourceId+'\0'+external);const at=now();const prev=db.prepare('SELECT * FROM candidates WHERE id=?').get(id);if(prev&&prev.name!==name)throw Error('Nome divergente: revisar identidade');if(prev&&['approved','published'].includes(prev.status)&& (r.profiles??[]).some(p=>!db.prepare('SELECT 1 FROM profiles WHERE candidate_id=? AND network=? AND url=?').get(id,p.network,profileUrl(p.network,p.url))))throw Error('Novo perfil requer revisão antes de associação');if(!prev){db.prepare('INSERT INTO candidates(id,name,created_at) VALUES(?,?,?)').run(id,name,at);count++;}db.prepare('INSERT OR IGNORE INTO evidence VALUES(?,?,?,?,?)').run(hash(id+ev),id,sourceId,ev,at);if(prev?.status==='rejected')continue;for(const p of r.profiles??[]){const url=profileUrl(p.network,p.url);const pid=hash(p.network+'\0'+url);const old=db.prepare('SELECT * FROM profiles WHERE id=?').get(pid);if(old&&old.candidate_id!==id)throw Error('Perfil já vinculado a outro candidato; revisão necessária');db.prepare('INSERT OR IGNORE INTO profiles VALUES(?,?,?,?,?)').run(pid,id,p.network,url,sourceId);for(const o of p.observations??[]){if(!nets[p.network].includes(o.metric)||!Number.isSafeInteger(o.value)||o.value<0)throw Error('Métrica inválida');const dt=new Date(o.observed_at);if(!Number.isFinite(+dt)||+dt>Date.now())throw Error('Data inválida');const stamp=dt.toISOString();const evidence=evidenceUrl(o.evidence_url??ev);const oid=hash([pid,o.metric,stamp,sourceId].join('\0'));const prior=db.prepare('SELECT value,evidence_url FROM observations WHERE id=?').get(oid);if(prior&&(prior.value!==o.value||prior.evidence_url!==evidence))throw Error('Observação divergente');db.prepare('INSERT OR IGNORE INTO observations VALUES(?,?,?,?,?,?,?)').run(oid,pid,o.metric,o.value,stamp,sourceId,evidence);}}}return count;});}
-export function listCandidates(db){return db.prepare('SELECT id,name,status,created_at FROM candidates ORDER BY created_at DESC LIMIT 500').all()}
+export function listCandidates(db){
+ const rows=db.prepare('SELECT id,name,status,created_at,radar_id,identity_evidence FROM candidates ORDER BY created_at DESC LIMIT 500').all();
+ const profStmt=db.prepare('SELECT network,url,source_id FROM profiles WHERE candidate_id=?');
+ const evStmt=db.prepare('SELECT url,source_id FROM evidence WHERE candidate_id=?');
+ const obsStmt=db.prepare('SELECT count(*) n FROM observations o JOIN profiles p ON p.id=o.profile_id WHERE p.candidate_id=?');
+ return rows.map(c=>{
+  const profiles=profStmt.all(c.id);
+  const evidence=evStmt.all(c.id);
+  const obsCount=obsStmt.get(c.id).n;
+  const ytProfiles=profiles.filter(p=>p.network==='YouTube');
+  const nets=[...new Set(profiles.map(p=>p.network))];
+  const sources=[...new Set([...profiles.map(p=>p.source_id),...evidence.map(e=>e.source_id)])];
+  const hasWikidata=sources.includes('wikidata-cc0')||evidence.some(e=>e.url?.includes('wikidata.org'));
+  const hasMusicBrainz=sources.includes('musicbrainz-cc0')||evidence.some(e=>e.url?.includes('musicbrainz.org'));
+  const isAmbiguousYoutube=ytProfiles.length>1;
+  let priority_tier='P2_evidencia_unica',priority_order=2,priority_label='Evidência única — validar perfil';
+  if(c.status==='published'||(c.status==='approved'&&obsCount>0)){
+   priority_tier='P4_coletado_publicado';priority_order=4;priority_label=`Validado (${obsCount} obs.)`;
+  }else if(isAmbiguousYoutube){
+   priority_tier='P1_excecao_ambigua';priority_order=1;priority_label=`Exceção: ${ytProfiles.length} canais YouTube sugeridos`;
+  }else if((hasWikidata||hasMusicBrainz)&&profiles.length>=2){
+   priority_tier='P0_alta_evidencia';priority_order=0;priority_label=`Alta confiança (${nets.join(' + ')})`;
+  }else if(hasWikidata||hasMusicBrainz){
+   priority_tier='P2_evidencia_unica';priority_order=2;priority_label=`Catálogo aberto (${nets.join(', ')||'sem perfil'})`;
+  }else{
+   priority_tier='P3_revisao_manual';priority_order=3;priority_label='Revisão manual obrigatória';
+  }
+  return {...c,profiles_count:profiles.length,youtube_candidates_count:ytProfiles.length,networks:nets,observations_count:obsCount,has_wikidata:hasWikidata,has_musicbrainz:hasMusicBrainz,priority_tier,priority_order,priority_label};
+ });
+}
 export function detail(db,id){const c=db.prepare('SELECT * FROM candidates WHERE id=?').get(id);if(!c)throw Error('Candidato inexistente');return {...c,profiles:db.prepare('SELECT * FROM profiles WHERE candidate_id=?').all(id),evidence:db.prepare('SELECT * FROM evidence WHERE candidate_id=?').all(id),observations:db.prepare('SELECT o.* FROM observations o JOIN profiles p ON p.id=o.profile_id WHERE p.candidate_id=? ORDER BY observed_at DESC').all(id)};}
 export function review(db,id,{approve,reviewer,evidence,radarId=null}){if(typeof approve!=='boolean')throw Error('Decisão inválida');const c=detail(db,id);if(c.status==='published')throw Error('Já publicado');if(approve&&!c.profiles.length)throw Error('Sem perfil para validar');const ev=approve?evidenceUrl(evidence):need(evidence,'motivo');db.prepare('UPDATE candidates SET status=?,reviewer=?,identity_evidence=?,reviewed_at=?,radar_id=? WHERE id=?').run(approve?'approved':'rejected',need(reviewer,'responsável'),ev,now(),radarId===null?null:need(radarId,'ID Radar'),id);}
 // Chamada externa limitada, URLs fixas, sem expor chaves no log.

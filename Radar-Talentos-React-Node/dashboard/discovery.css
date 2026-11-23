@@ -1,1 +1,33 @@
-body.discovery-page{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}.discovery-page main{min-width:0;padding:12px 16px 18px;max-width:1920px}.discovery-page h1{font-size:1.3rem}.discovery-page h2{font-size:1rem}.discovery-page form{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:12px 0}.discovery-page form[hidden],.discovery-page section[hidden]{display:none}.discovery-page label{display:grid;gap:4px;flex:1;min-width:150px}.discovery-page #query{width:100%}.discovery-page section{min-width:0;padding:12px;border:1px solid #303036;border-radius:8px;background:#18181b}.discovery-page #global-results{margin-bottom:12px}.discovery-page #global-list div{padding:10px 0;border-top:1px solid #27272d}.discovery-page .discovery-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:12px;margin-bottom:12px}.discovery-page #candidates{max-height:400px;overflow:auto;display:grid;gap:4px}.discovery-page #candidates button{text-align:left;white-space:normal}.discovery-page #detail{overflow-wrap:anywhere}.discovery-page #detail p,.discovery-page #logs p,.discovery-page #global-list p{font-size:13px;margin:5px 0}.discovery-page #status{font-size:13px;min-height:0;margin:8px 0;overflow-wrap:anywhere}.discovery-page a{color:#c084fc}@media(max-width:900px){body.discovery-page{grid-template-columns:1fr}.discovery-page .discovery-grid{grid-template-columns:minmax(0,1fr)}}
+body.discovery-page{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}
+.discovery-page main{min-width:0;padding:12px 16px 18px;max-width:1920px}
+.discovery-page .disc-top-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.discovery-page .disc-funnel{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:10px 0 14px}
+.discovery-page .disc-funnel-card{padding:13px 15px;border-radius:10px;background:linear-gradient(155deg,#21192e 0%,#15131c 100%);border:1px solid #443558;display:flex;flex-direction:column;gap:4px}
+.discovery-page .disc-funnel-card span{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:#c084fc;font-weight:700}
+.discovery-page .disc-funnel-card strong{font-size:24px;color:#fafafa;line-height:1.1;font-variant-numeric:tabular-nums}
+.discovery-page .disc-funnel-card small{font-size:11px;color:#a1a1aa}
+.discovery-page .disc-queue-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.discovery-page .disc-queue-head select{height:30px;font-size:11px;background:#14131b;border:1px solid #433754;border-radius:6px;color:#f4f4f5;padding:2px 8px}
+.discovery-page h1{font-size:1.3rem}
+.discovery-page h2{font-size:1rem;margin:0}
+.discovery-page form{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:12px 0}
+.discovery-page form[hidden],.discovery-page section[hidden]{display:none}
+.discovery-page label{display:grid;gap:4px;flex:1;min-width:150px}
+.discovery-page #query{width:100%}
+.discovery-page section{min-width:0;padding:12px;border:1px solid #303036;border-radius:8px;background:#18181b}
+.discovery-page #global-results{margin-bottom:12px}
+.discovery-page #global-list div{padding:10px 0;border-top:1px solid #27272d}
+.discovery-page .discovery-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:12px;margin-bottom:12px}
+.discovery-page #candidates{max-height:460px;overflow:auto;display:grid;gap:6px}
+.discovery-page .cand-queue-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;white-space:normal;height:auto;padding:8px 10px;border-radius:7px;background:#131218;border:1px solid #2e2a38}
+.discovery-page .cand-queue-btn strong{font-size:12.5px;color:#fafafa}
+.discovery-page .cand-queue-btn small{font-size:10.5px;color:#a1a1aa}
+.discovery-page .cand-queue-btn[data-tier="P0_alta_evidencia"]{border-left:3px solid #34d399}
+.discovery-page .cand-queue-btn[data-tier="P1_excecao_ambigua"]{border-left:3px solid #f59e0b}
+.discovery-page .cand-queue-btn[data-tier="P2_evidencia_unica"]{border-left:3px solid #a855f7}
+.discovery-page .cand-queue-btn[data-tier="P4_coletado_publicado"]{border-left:3px solid #38bdf8}
+.discovery-page #detail{overflow-wrap:anywhere}
+.discovery-page #detail p,.discovery-page #logs p,.discovery-page #global-list p{font-size:13px;margin:5px 0}
+.discovery-page #status{font-size:13px;min-height:0;margin:8px 0;overflow-wrap:anywhere}
+.discovery-page a{color:#c084fc}
+@media(max-width:900px){body.discovery-page{grid-template-columns:1fr}.discovery-page .discovery-grid,.discovery-page .disc-funnel{grid-template-columns:minmax(0,1fr)}}

@@ -248,7 +248,7 @@ async function search(keepPage=false){
  }
  const k=$('audience-kpis');
  if(!p){
-  $('message').textContent='Consultando cruzamento nacional das 4 mídias, eventos publicados e base demográfica IBGE (relatório municipal ainda não selecionado)…';
+  $('message').textContent='Consultando indicadores nacionais. Audiência por município exige relatório regional verificado…';
   k.replaceChildren();
   categoryCards(categoryCatalog,'Cadastro nacional de talentos — indicadores consolidados das 4 mídias e presença territorial',catalogTotal);
   selectionSummary(null);
@@ -257,11 +257,7 @@ async function search(keepPage=false){
    for(const key of ['talent','category','modality'])if(field(key)?.value)cp.set(key,field(key).value);
    const qInput=$('artist-quick-search')?.value?.trim()||'';
    if(qInput&&!field('talent').value)cp.set('q',qInput);
-   const dp=new URLSearchParams();
-   if(field('region')?.value)dp.set('region',field('region').value);
-   if(field('uf')?.value)dp.set('uf',field('uf').value);
-   if(field('center')?.value){dp.set('city',field('center').value);if(field('radius')?.value)dp.set('radius',field('radius').value);}
-   const [cross,demo]=await Promise.all([get('/api/radar/cross-summary?'+cp),get('/api/radar/demographics?'+dp)]);
+   const cross=await get('/api/radar/cross-summary?'+cp);
    if(n!==request)return;
    if(field('talent').options.length<=1&&cross.items?.length){
     options(field('talent'),cross.items.map(t=>({id:t.id,name:t.name})),'Todos com dados');
@@ -272,8 +268,7 @@ async function search(keepPage=false){
     ['Talentos no recorte',cross.total],
     ['Com estatísticas verificadas',cross.counts?.withCollectedMetrics??0],
     ['Perfis oficiais vinculados',cross.counts?.withOfficialProfiles??0],
-    ['Registros de Audiência por Cidade',cross.counts?.regionalRecords??0],
-    ['Polos com Demografia IBGE',demo.municipalitiesWithDemographics??0]
+    ['Registros de Audiência por Cidade',cross.counts?.regionalRecords??0]
    ]){
     const box=el('div');box.className='kpi';box.append(el('span',label),el('strong',fmt(value)));k.append(box);
    }
@@ -304,16 +299,18 @@ async function search(keepPage=false){
    }
    $('growth-period').textContent=growingRows.length?'Evolução verificada nas mídias (Instagram, Spotify, YouTube e TikTok · janela de 30 dias):':'Aguardando relatório regional ou segunda coleta para cálculo de evolução.';
    table('growth',['Artista','Mídia','Variação (30d)','Atual'],growingRows.slice(0,50));
-   $('regions').replaceChildren(el('p','Sem dados verificados de audiência regional neste recorte.'));
-   $('states').replaceChildren(el('p','Sem dados verificados de audiência por estado neste recorte.'));
-   $('cities').replaceChildren(el('p','Sem dados verificados de audiência por cidade para a mídia/período selecionado. População municipal (IBGE) pertence exclusivamente à Base Geográfica Nacional e não é exibida como audiência.'));
-   $('region-artists').replaceChildren(el('p','Selecione um relatório regional verificado para listar artistas por região.'));
+   // Sem relatório regional selecionado não há base válida para um mapa de audiência.
+   // A demografia IBGE é contexto externo e nunca pode ocupar este gráfico.
+   bars('regions',[]);
+   bars('states',[]);
+   bars('cities',[]);
+   bars('region-artists',[]);
    total=cross.total||0;
    $('page').textContent=total?`${offset+1}–${Math.min(offset+100,total)} de ${total}`:'Sem dados';
    $('prev').disabled=offset===0;
    $('next').disabled=offset+100>=total;
    map({byState:[],places:[]});
-   $('message').textContent='Exibindo indicadores nacionais verificados das 4 mídias. Para o mapa e Cidades com maior concentração, selecione uma mídia/período com relatório regional verificado (Spotify, Instagram ou YouTube). População do IBGE nunca é exibida como audiência.';
+   $('message').textContent='Audiência municipal ainda não disponível neste recorte. Selecione um relatório regional verificado para mostrar cidades, regiões e mapa de audiência. Os indicadores nacionais de mídia acima não representam distribuição municipal. Dados demográficos do IBGE não são audiência.';
   }catch{
    $('message').textContent='Nenhum relatório municipal disponível para esta mídia. Importe uma fonte autorizada.';
    table('artists',[],[]);

@@ -1,0 +1,13 @@
+import {openCurrent,metricsByNetwork} from './open-social.mjs';
+import {confirmedYoutube, youtubeCurrent} from './youtube-current.mjs';
+const norm=s=>String(s??'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().trim();
+export function currentDashboard(db,radar,{q='',talent='',clock=()=>new Date()}={}){
+ if(typeof q!=='string'||q.length>120||typeof talent!=='string'||talent.length>150)throw Error('Filtro inválido');
+ const source=db.prepare("SELECT enabled FROM sources WHERE id='youtube-public-current'").get();
+ const openEnabled=db.prepare("SELECT enabled FROM sources WHERE id='open-social-current'").get()?.enabled;if(!source?.enabled&&!openEnabled)return {items:[],source:'Fontes por perfil',scope:'current',available:false};
+ const rows=db.prepare("SELECT DISTINCT c.id,c.radar_id FROM candidates c JOIN profiles p ON p.candidate_id=c.id JOIN approved_imports a ON a.candidate_id=c.id AND a.radar_id=c.radar_id WHERE c.status IN ('approved','published')  AND c.radar_id IS NOT NULL").all();
+ const items=[];const seen=new Set();
+ for(const c of rows){if(talent&&c.radar_id!==talent)continue;const t=radar.prepare('SELECT id,name FROM talents WHERE id=? AND blocked=0').get(c.radar_id);if(!t||!norm(t.name).includes(norm(q)))continue;
+ for(const p of (source?.enabled?youtubeCurrent(db,c.id,clock):[])){if(!p.confirmed||seen.has(p.url))continue;const match=/^https:\/\/youtube\.com\/channel\/(UC[A-Za-z0-9_-]{22})$/.exec(p.url);if(!match)continue;const metrics={};for(const o of p.metrics){if(!['subscribers','views','video_count'].includes(o.metric)||!Number.isSafeInteger(o.value)||o.value<0||!Number.isFinite(Date.parse(o.observed_at))||Date.parse(o.observed_at)>+clock())continue;if(!metrics[o.metric]||metrics[o.metric].observed_at<o.observed_at)metrics[o.metric]={value:o.value,observed_at:o.observed_at};}if(!Object.keys(metrics).length)continue;seen.add(p.url);items.push({talent_id:t.id,name:t.name,network:'YouTube',url:p.url,metrics});}if(openEnabled)for(const p of openCurrent(db,c.id,clock)){if(!p.confirmed||seen.has(p.url))continue;const metrics={};for(const o of p.metrics){if(!metricsByNetwork[p.network]?.includes(o.metric))continue;metrics[o.metric]={value:o.value,observed_at:o.observed_at,evidence_url:o.evidence_url};}if(Object.keys(metrics).length){seen.add(p.url);items.push({talent_id:t.id,name:t.name,network:p.network,url:p.url,metrics,source:'Registro autorizado pelo operador'});}}}
+ items.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')||a.url.localeCompare(b.url));return {items:items.slice(0,100),truncated:items.length>100,source:'Fontes por perfil',scope:'current',available:true};
+}

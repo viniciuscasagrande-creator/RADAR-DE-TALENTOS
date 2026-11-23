@@ -1,0 +1,89 @@
+name: Radar de Talentos — CI & Deploy Google Cloud
+
+on:
+  push:
+    branches:
+      - main
+      - sincronizacao-google-cloud
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Ação na VM do Google Cloud (deploy ou rollback)"
+        required: false
+        default: "deploy"
+        type: choice
+        options:
+          - deploy
+          - rollback
+      target_backup:
+        description: "Diretório opcional de backup para rollback (ex: /home/develop_diskingressos/radar-backups/release-...)"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: radar-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Testes (112) & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Radar-Talentos-React-Node
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: Radar-Talentos-React-Node/package-lock.json
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Executar suíte completa de testes
+        run: npm test
+
+      - name: Executar build do painel
+        run: npm run build
+
+  deploy-google-cloud:
+    name: Deploy Google Cloud (com Backup e Rollback)
+    needs: validate
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    env:
+      GCP_VM_HOST: ${{ secrets.GCP_VM_HOST }}
+      GCP_VM_USER: ${{ secrets.GCP_VM_USER }}
+      GCP_VM_SSH_KEY: ${{ secrets.GCP_VM_SSH_KEY }}
+    steps:
+      - name: Verificar configuração de credenciais SSH
+        id: check_secrets
+        run: |
+          if [ -z "$GCP_VM_HOST" ] || [ -z "$GCP_VM_USER" ] || [ -z "$GCP_VM_SSH_KEY" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Segredos GCP_VM_HOST / GCP_VM_USER / GCP_VM_SSH_KEY não configurados; etapa de deploy SSH ignorada."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Executar Deploy / Rollback via SSH na VM radar-producao
+        if: steps.check_secrets.outputs.configured == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$GCP_VM_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$GCP_VM_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ACTION="${{ github.event.inputs.action || 'deploy' }}"
+          TARGET_BACKUP="${{ github.event.inputs.target_backup || '' }}"
+          ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=accept-new "$GCP_VM_USER@$GCP_VM_HOST" \
+            "cd ~/radar-github-sync && git fetch origin main && git checkout main && git reset --hard origin/main && bash Radar-Talentos-React-Node/scripts/deploy-gcloud.sh '$ACTION' '$TARGET_BACKUP'"

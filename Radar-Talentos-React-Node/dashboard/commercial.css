@@ -10,12 +10,12 @@
   --accent: #c084fc;
   --blue: #a855f7;
   --danger: #ff9b93;
-  --sidebar: 220px;
-  --radius: 8px;
+  --sidebar: 230px;
+  --radius: 10px;
   --focus: #d8b4fe;
   --success: #22c55e;
   --warning: #eab308;
-  font: 12.5px/1.38 Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font: 13px/1.45 Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--text);
   background: var(--bg);
 }
@@ -71,34 +71,35 @@ button:disabled {
 
 button {
   cursor: pointer;
-  background: #7e22ce;
+  background: linear-gradient(135deg, #7e22ce, #9333ea);
   color: #fafafa;
   border: 1px solid #a855f7;
-  border-radius: 6px;
-  padding: 4px 12px;
-  font-size: 12px;
+  border-radius: 8px;
+  padding: 6px 16px;
+  font-size: 12.5px;
   font-weight: 600;
-  height: 30px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
 button:hover:not(:disabled) {
-  background: #9333ea;
+  background: linear-gradient(135deg, #9333ea, #a855f7);
 }
 
 input,
 select {
   width: 100%;
-  height: 30px;
-  padding: 4px 8px;
+  height: 36px;
+  padding: 6px 10px;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: #101012;
+  border-radius: 8px;
+  background: #101014;
   color: var(--text);
-  font-size: 12px;
+  font-size: 12.5px;
 }
 
 input::placeholder {
@@ -193,11 +194,11 @@ nav a[aria-current] {
 
 main {
   margin-left: var(--sidebar);
-  max-width: 1920px;
-  padding: 10px 14px 16px;
+  max-width: 1760px;
+  padding: 16px 20px 28px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   min-width: 0;
 }
 
@@ -211,34 +212,35 @@ section {
   min-width: 0;
   background: var(--panel);
   border: 1px solid var(--border);
-  padding: 10px 12px;
-  scroll-margin-top: 12px;
+  padding: 16px 18px;
+  scroll-margin-top: 14px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.22);
 }
 
 h1,
 h2,
 h3 {
   margin: 0 0 6px;
-  line-height: 1.2;
+  line-height: 1.25;
 }
 
 h1 {
-  font-size: 16px;
-  font-weight: 750;
+  font-size: 20px;
+  font-weight: 800;
   letter-spacing: -0.02em;
 }
 
 h2 {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   color: #f4f4f5;
 }
 
 h3 {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 650;
   color: #d4d4d8;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
 p {
@@ -275,19 +277,19 @@ small {
 .filter-panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  padding: 8px 10px;
+  padding: 14px 16px;
   margin: 0;
   display: flex;
   align-items: flex-end;
-  gap: 8px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
 .filters {
   flex: 1 1 780px;
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 12px;
   margin: 0;
   align-items: end;
 }
@@ -295,8 +297,8 @@ small {
 label {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  font-size: 10.5px;
+  gap: 4px;
+  font-size: 11px;
   font-weight: 600;
   color: #d4d4d8;
   white-space: nowrap;
@@ -306,21 +308,21 @@ label {
 
 .kpis {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .kpi {
-  padding: 10px 12px;
-  min-height: 82px;
-  max-height: 92px;
-  background: var(--panel);
+  padding: 14px 16px;
+  min-height: 92px;
+  background: linear-gradient(180deg, #1b1b22 0%, #141418 100%);
   border: 1px solid var(--border);
   position: relative;
   min-width: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  gap: 4px;
 }
 
 .kpi::before {

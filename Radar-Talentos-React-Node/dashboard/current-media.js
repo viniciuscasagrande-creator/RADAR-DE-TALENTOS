@@ -3,7 +3,16 @@
 const main=document.querySelector('main');if(!main)return;
 const make=(tag,text,parent)=>{const e=document.createElement(tag);if(text!=null)e.textContent=text;if(parent)parent.append(e);return e;};
 const section=make('section');section.id='current-media';section.setAttribute('aria-label','Indicadores atuais das mídias');
-const anchor=document.querySelector('#overview');anchor?.after(section);if(!section.isConnected)main.prepend(section);
+const isCommercialPage=document.body.classList.contains('commercial-page');
+if(isCommercialPage){
+  const drawer=make('details');drawer.className='cm-drawer';
+  const sum=make('summary','Tabela bruta de indicadores atuais por perfil (consulta auxiliar)',drawer);
+  sum.className='cm-drawer-summary';
+  drawer.append(section);
+  main.append(drawer);
+}else{
+  const anchor=document.querySelector('#overview');anchor?.after(section);if(!section.isConnected)main.prepend(section);
+}
 make('h2','Indicadores atuais — Todas as mídias',section);
 make('p','Dados atuais por perfil confirmado; valores das demais mídias são registros autorizados pelo operador. Não representam audiência brasileira ou municipal, crescimento estimado ou viabilidade comercial. Variações de 7d e 30d só aparecem quando existem duas observações reais no período.',section);
 const form=make('form',null,section);form.className='filter-panel';const label=make('label','Artista',form);const input=make('input',null,label);input.type='search';input.maxLength=120;input.autocomplete='off';const button=make('button','Consultar indicadores',form);button.type='submit';

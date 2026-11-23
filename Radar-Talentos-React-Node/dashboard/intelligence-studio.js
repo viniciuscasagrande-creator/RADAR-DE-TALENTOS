@@ -8,7 +8,7 @@
   const section=el('section','radar-studio');section.id='radar-intelligence-studio';
   section.setAttribute('aria-label','Painel de inteligência das mídias');
   const header=el('header','studio-header');
-  const heading=el('div');heading.append(el('span','studio-eyebrow','PAINEL DE INTELIGÊNCIA'),el('h2',null,'Desempenho das mídias'),el('p',null,'Compare artistas com indicadores observados. Cada valor mantém a fonte e a data da coleta.'));
+  const heading=el('div');heading.append(el('span','studio-eyebrow','PAINEL DE INTELIGÊNCIA'),el('h2',null,'Desempenho das mídias'),el('p',null,'Compare artistas com indicadores observados. Cada valor mantém a fonte, data da coleta e variação 7d/30d quando houver série real.'));
   const toolbar=el('div','studio-toolbar');const network=el('select');network.setAttribute('aria-label','Filtrar por mídia');
   for(const x of ['Todas as mídias','Instagram','Spotify','YouTube','TikTok']){const o=document.createElement('option');o.value=x==='Todas as mídias'?'':x;o.textContent=x;network.append(o)}
   const metric=el('select');metric.setAttribute('aria-label','Selecionar indicador');
@@ -24,7 +24,7 @@
   const chart=el('div','studio-bars');chart.setAttribute('role','region');chart.setAttribute('aria-label','Gráfico de comparação por artista');
   chartCard.append(chartTitle,chartInfo,chart);
   const tableCard=el('article','studio-panel studio-table-panel');
-  const tt=el('div','studio-panel-title');tt.append(el('h3',null,'Perfis e evidências'));
+  const tt=el('div','studio-panel-title');tt.append(el('h3',null,'Perfis, evolução (7d/30d) e evidências'));
   const tableWrap=el('div','studio-table-scroll');tableCard.append(tt,tableWrap);
   content.append(chartCard,tableCard);
   const foot=el('p','studio-footnote','Valores de mídias diferentes não são somados. Instagram, Spotify e TikTok podem depender de registro autorizado; dados municipais exigem relatórios regionais específicos.');
@@ -33,6 +33,8 @@
   const subbar=overview.querySelector('.subbar');if(subbar)subbar.after(section);else overview.prepend(section);
   const displayNames={followers:'Seguidores',subscribers:'Inscritos',monthly_listeners:'Ouvintes mensais',posts:'Publicações',views:'Visualizações',video_count:'Vídeos',likes:'Curtidas'};
   const format=n=>Number(n).toLocaleString('pt-BR');
+  const signed=n=>(n>0?'+':'')+format(n);
+  const fmtDelta=c=>c&&Number.isFinite(c.absolute)?`${signed(c.absolute)}${c.percent!=null?` (${c.percent>0?'+':''}${c.percent.toFixed(1)}%)`:''}`:null;
   const date=s=>{const d=new Date(s);return Number.isFinite(+d)?d.toLocaleDateString('pt-BR',{timeZone:'America/Sao_Paulo'}):'Data indisponível';};
   let items=[],loadingId=0;
   function metricsForNetwork(){const rows=items.filter(x=>!network.value||x.network===network.value);return [...new Set(rows.flatMap(x=>Object.keys(x.metrics||{})))].sort((a,b)=>(displayNames[a]||a).localeCompare(displayNames[b]||b,'pt-BR'));}
@@ -40,7 +42,7 @@
     const subset=items.filter(x=>!network.value||x.network===network.value);
     const keys=metricsForNetwork();const old=metric.value;metric.replaceChildren();for(const k of keys){const o=document.createElement('option');o.value=k;o.textContent=displayNames[k]||k;metric.append(o)}
     if(keys.includes(old))metric.value=old;else if(keys.includes(network.value==='Spotify'?'monthly_listeners':'followers'))metric.value=network.value==='Spotify'?'monthly_listeners':'followers';else if(keys.includes('subscribers'))metric.value='subscribers';
-    const valid=subset.flatMap(a=>Object.entries(a.metrics||{}).map(([key,m])=>({...a,metric:key,value:m.value,observed_at:m.observed_at,metric_source:m.evidence_url||'',collected_source:a.source||'YouTube Data API'}))).filter(x=>Number.isFinite(x.value)&&x.value>=0);
+    const valid=subset.flatMap(a=>Object.entries(a.metrics||{}).map(([key,m])=>({...a,metric:key,value:m.value,observed_at:m.observed_at,change_7d:m.change_7d||null,change_30d:m.change_30d||null,observations:m.observations||1,metric_source:m.evidence_url||'',collected_source:a.source||'YouTube Data API'}))).filter(x=>Number.isFinite(x.value)&&x.value>=0);
     const unique=new Set(valid.map(x=>x.talent_id));const latest=valid.map(x=>Date.parse(x.observed_at)).filter(Number.isFinite);
     statValues.artists.textContent=unique.size?format(unique.size):'—';statValues.profiles.textContent=valid.length?format(new Set(valid.map(x=>x.url)).size):'—';statValues.networks.textContent=valid.length?String(new Set(valid.map(x=>x.network)).size):'—';statValues.latest.textContent=latest.length?date(new Date(Math.max(...latest)).toISOString()):'—';
     chart.replaceChildren();tableWrap.replaceChildren();
@@ -51,19 +53,35 @@
       const max=Math.max(1,...selected.map(x=>x.value));
       for(const x of selected.slice(0,12)){
         const row=el('div','studio-barrow');
-        const label=el('div','studio-bar-label');label.append(el('strong',null,x.name),el('span',null,date(x.observed_at)));
+        const label=el('div','studio-bar-label');
+        const d30=fmtDelta(x.change_30d),d7=fmtDelta(x.change_7d);
+        const subText=d30?`${date(x.observed_at)} · 30d: ${d30}`:(d7?`${date(x.observed_at)} · 7d: ${d7}`:date(x.observed_at));
+        label.append(el('strong',null,x.name),el('span',null,subText));
         const track=el('div','studio-track');const fill=el('span','studio-fill');fill.style.width=Math.max(2,x.value/max*100)+'%';track.append(fill);
-        row.append(label,track,el('b','studio-amount',format(x.value)));chart.append(row);
+        row.append(label,track,el('b','studio-amount',format(x.value)));
+        row.style.cursor='pointer';
+        row.addEventListener('click',()=>{
+          const sel=document.querySelector('select[name="talent"]');
+          if(sel&&x.talent_id){sel.value=x.talent_id;sel.dispatchEvent(new Event('change'));}
+        });
+        chart.append(row);
       }
       if(selected.length>12)chart.append(el('p','studio-note',`Exibindo os 12 primeiros de ${selected.length} registros. Use a busca para refinar.`));
     }
     if(!subset.length){tableWrap.append(el('p','studio-empty','Nenhum perfil com indicadores observados neste recorte.'));}
     else{
       const t=el('table','studio-table'),head=el('thead'),tr=el('tr');
-      for(const h of ['Artista','Mídia','Indicadores','Coleta'])tr.append(el('th',null,h));head.append(tr);t.append(head);
+      for(const h of ['Artista','Mídia','Indicadores & Evolução','Coleta'])tr.append(el('th',null,h));head.append(tr);t.append(head);
       const body=el('tbody');for(const a of subset.slice(0,30)){
         const tr=el('tr');const name=el('td');const link=el('a',null,a.name);link.href=a.url;link.target='_blank';link.rel='noopener noreferrer';name.append(link);tr.append(name,el('td',null,a.network));
-        const vals=el('td');for(const [k,v] of Object.entries(a.metrics||{}))vals.append(el('div',null,`${displayNames[k]||k}: ${format(v.value)}`));tr.append(vals);
+        const vals=el('td');for(const [k,v] of Object.entries(a.metrics||{})){
+          const d7=fmtDelta(v.change_7d),d30=fmtDelta(v.change_30d);
+          const evoParts=[];
+          if(d7)evoParts.push(`7d: ${d7}`);
+          if(d30)evoParts.push(`30d: ${d30}`);
+          const lineText=`${displayNames[k]||k}: ${format(v.value)}`+(evoParts.length?` (${evoParts.join(' · ')})`:'');
+          vals.append(el('div',null,lineText));
+        }tr.append(vals);
         const prov=el('td');for(const v of Object.values(a.metrics||{})){const div=el('div',null,`${date(v.observed_at)} · ${a.source||'YouTube Data API'}`);if(v.evidence_url){const l=el('a',null,' Evidência');l.href=v.evidence_url;l.target='_blank';l.rel='noopener noreferrer';div.append(l)}prov.append(div)}tr.append(prov);body.append(tr);
       }t.append(body);tableWrap.append(t);
     }

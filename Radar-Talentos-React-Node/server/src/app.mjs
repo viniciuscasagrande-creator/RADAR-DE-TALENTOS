@@ -1,4 +1,5 @@
 import { risingDiscoveries } from './rising-discoveries.mjs';
+import { accelerationDiscoveries } from './acceleration-discoveries.mjs';
 import { distributeArtistStats } from './indicator-distribution.mjs';
 import { currentDashboard } from './discovery/current-dashboard.mjs';
 import { acquisitionStatus } from './acquisition.mjs';
@@ -90,6 +91,12 @@ export function createRadarServer({ database, security = null, eventsOnly = fals
         if (!Number.isInteger(limit)||limit<1||limit>100) {res.writeHead(400).end();return;}
         const result=risingDiscoveries(database,{limit});
         res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(req.method==='HEAD'?undefined:JSON.stringify(result));return;
+      }
+      if (path === '/api/discoveries/acceleration') {
+        if(!database){res.writeHead(503).end();return;}
+        const raw=new URL(req.url,'http://localhost').searchParams.get('limit');const limit=raw===null?50:Number(raw);
+        if(!Number.isInteger(limit)||limit<1||limit>100){res.writeHead(400).end();return;}
+        const result=accelerationDiscoveries(database,{limit});res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(req.method==='HEAD'?undefined:JSON.stringify(result));return;
       }
       if (path === '/api/current-media') {
         if(!database){res.writeHead(503).end();return;}

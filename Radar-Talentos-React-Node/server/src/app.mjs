@@ -1,3 +1,4 @@
+import { currentDashboard } from './discovery/current-dashboard.mjs';
 import { acquisitionStatus } from './acquisition.mjs';
 import { handleDiscovery } from './discovery/http.mjs';
 import { openDiscovery, listCandidates } from './discovery/engine.mjs';
@@ -60,6 +61,13 @@ export function createRadarServer({ database, security = null, eventsOnly = fals
         if(syncing){res.writeHead(409).end();return;}syncing=true;lastSync=null;
         res.writeHead(202,{'Content-Type':'application/json'}).end(JSON.stringify({accepted:true}));
         runOperations(database,config,{...syncOptions,ignoreSchedule:true,inbox:syncOptions.inbox??process.env.RADAR_INBOX??'data/inbox',secretsDir:syncOptions.secretsDir??process.env.RADAR_SECRETS_DIR??'data/secrets'}).then(r=>{lastSync={runs:r};}).catch(()=>{lastSync={error:'Falha operacional; verifique banco e configuração'};}).finally(()=>{syncing=false;});return;
+      }
+      if (path === '/api/current-media') {
+        if(!database){res.writeHead(503).end();return;}
+        const params=new URL(req.url,'http://localhost').searchParams;
+        const q=params.get('q')??'',talent=params.get('talent')??'';
+        if(q.length>120||talent.length>150){res.writeHead(400).end();return;}
+        let ddb;try {ddb=openDiscovery();const data=currentDashboard(ddb,database,{q,talent});res.writeHead(200,{'Content-Type':'application/json; charset=utf-8'}).end(req.method==='HEAD'?undefined:JSON.stringify(data));}catch{res.writeHead(503,{'Content-Type':'application/json'}).end(JSON.stringify({error:'Indicadores atuais indisponíveis'}));}finally{ddb?.close();}return;
       }
       if (path === '/api/acquisition/status') {
         if (!database) {res.writeHead(503).end();return;}

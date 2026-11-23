@@ -29,7 +29,7 @@ async function get(params){const r=await fetch('/api/commercial?'+params,{cache:
 function kpis(d,extra={}){
   const root=document.querySelector('#commercial-kpis');root.replaceChildren();
   const rev=d.items.filter(x=>x.size==='small'&&x.growth_pct!=null).sort((a,b)=>b.growth_pct-a.growth_pct)[0]??d.items.find(x=>x.growth_pct!=null);
-  const lastObs=extra.lastCollected??d.items.map(x=>x.observed_on).filter(Boolean).sort().at(-1)??d.end;
+  const lastObs=extra.lastCollected??d.items.map(x=>x.observed_on).filter(Boolean).sort().at(-1)??null;
   const isAll=d.network==='all';
   const leadItem=d.items[0];
   const topNetLabel=extra.topNetwork
@@ -46,7 +46,7 @@ function kpis(d,extra={}){
     ['Artista revelação',rev?rev.name:'—',rev?`${sizes[rev.size]} · ${signed(rev.growth_pct)}%`:'Porte pequeno'],
     ['Mídia em destaque',topNetLabel,topNetSub],
     ['Cidade em ascensão',extra.risingCity?`${extra.risingCity.name}/${extra.risingCity.uf}`:'Selecionar artista',extra.risingCity?`${extra.risingCity.network} · ${signed(extra.risingCity.growth_pct)}%`:'Comparativo municipal'],
-    ['Última coleta',lastObs,'Observação verificada']
+    ['Última coleta',lastObs??'—',lastObs?'Observação do histórico':'Sem histórico disponível']
   ];
   for(const [title,val,sub] of cards){
     const x=el('div',null,root);x.className='kpi';

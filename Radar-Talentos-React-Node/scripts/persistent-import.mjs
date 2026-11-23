@@ -1,5 +1,5 @@
 import {DatabaseSync} from 'node:sqlite';
-import {mkdirSync, existsSync, writeFileSync, unlinkSync, rmdirSync, mkdtempSync, rmSync, linkSync, copyFileSync, constants} from 'node:fs';
+import {mkdirSync, existsSync, writeFileSync, unlinkSync, rmdirSync, mkdtempSync, rmSync, linkSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {backupDatabase} from '../server/src/backup.mjs';
 import {pathToFileURL} from 'node:url';
@@ -16,7 +16,7 @@ export function importPair(source, destination){
       const file=join(src,name);if(!existsSync(file))throw Error('Origem ausente: '+name);
       const db=new DatabaseSync(file,{readOnly:true});try{db.exec('PRAGMA busy_timeout=5000');if(!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table))throw Error('Banco incompatível: '+name);backupDatabase(db,join(stage,name));}finally{db.close();}
     }
-    for(const name of names){const out=join(dest,name);try{linkSync(join(stage,name),out);}catch{copyFileSync(join(stage,name),out,constants.COPYFILE_EXCL);}published.push(out);}
+    for(const name of names){const out=join(dest,name);linkSync(join(stage,name),out);published.push(out);}
     writeFileSync(marker,'radar persistent v1\n',{flag:'wx',mode:0o600});completed=true;
     return names;
   }finally{if(!completed)for(const f of published)unlinkSync(f);if(stage)rmSync(stage,{recursive:true,force:true});rmdirSync(lock);}

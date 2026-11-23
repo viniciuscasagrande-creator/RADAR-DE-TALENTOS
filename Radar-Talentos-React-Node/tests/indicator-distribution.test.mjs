@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {distributeArtistStats} from '../server/src/indicator-distribution.mjs';
+const pt=(date,value,source='fonte A',evidence_url='https://example.org/prova')=>({date,value,source,evidence_url});
+const base=history=>({talent_id:'artista-1',name:'Artista',Instagram:{profile_url:'https://instagram.com/artista',history}});
+test('ausência de fonte não gera métrica',()=>{const r=distributeArtistStats(base([]));assert.equal(r.networks.Instagram.current,null);assert.equal(r.networks.Spotify.current,null)});
+test('propaga valor datado e não inventa histórico',()=>{const r=distributeArtistStats(base([pt('2026-11-20',100)]),{end:'2026-11-23'});assert.equal(r.networks.Instagram.current.value,100);assert.equal(r.networks.Instagram.growth_7d,null)});
+test('crescimento exige fonte e referência comparáveis',()=>{const r=distributeArtistStats(base([pt('2026-11-13',80),pt('2026-11-20',100)]),{end:'2026-11-23'});assert.equal(r.networks.Instagram.growth_7d.absolute,20);assert.equal(r.networks.Instagram.growth_7d.percent,25)});
+test('fontes diferentes bloqueiam crescimento',()=>{const r=distributeArtistStats(base([pt('2026-11-13',80),pt('2026-11-20',100,'fonte B')]),{end:'2026-11-23'});assert.equal(r.networks.Instagram.growth_7d,null)});
+test('divergência na mesma data é excluída',()=>{const r=distributeArtistStats(base([pt('2026-11-20',80),pt('2026-11-20',100)]),{end:'2026-11-23'});assert.equal(r.networks.Instagram.current,null);assert.equal(r.networks.Instagram.conflicts,1)});
+test('dados futuros e inválidos não entram',()=>{const r=distributeArtistStats(base([pt('2026-11-30',100),pt('2026-11-20',-1)]),{end:'2026-11-23'});assert.equal(r.networks.Instagram.current,null)});
+test('não disponibiliza indicador territorial ou ticketeira',()=>{const r=distributeArtistStats(base([pt('2026-11-20',100)]),{end:'2026-11-23'});assert.ok(!('events' in r));assert.ok(!('population' in r));assert.equal(r.regional_audience,'rota_regional_separada_exige_auditoria')});

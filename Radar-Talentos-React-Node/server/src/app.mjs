@@ -1,3 +1,4 @@
+import { distributeArtistStats } from './indicator-distribution.mjs';
 import { currentDashboard } from './discovery/current-dashboard.mjs';
 import { acquisitionStatus } from './acquisition.mjs';
 import { getCrossMenuSummary, getDemographicsSummary, getArtistMediaStats } from './menu-integration.mjs';
@@ -62,6 +63,24 @@ export function createRadarServer({ database, security = null, eventsOnly = fals
         if(syncing){res.writeHead(409).end();return;}syncing=true;lastSync=null;
         res.writeHead(202,{'Content-Type':'application/json'}).end(JSON.stringify({accepted:true}));
         runOperations(database,config,{...syncOptions,ignoreSchedule:true,inbox:syncOptions.inbox??process.env.RADAR_INBOX??'data/inbox',secretsDir:syncOptions.secretsDir??process.env.RADAR_SECRETS_DIR??'data/secrets'}).then(r=>{lastSync={runs:r};}).catch(()=>{lastSync={error:'Falha operacional; verifique banco e configuração'};}).finally(()=>{syncing=false;});return;
+      }
+      if (path === '/api/indicators/artist') {
+        if (!database) { res.writeHead(503).end(); return; }
+        const p = new URL(req.url, 'http://localhost').searchParams;
+        const talent = p.get('talent') || '';
+        const end = p.get('end') || new Date().toISOString().slice(0,10);
+        if (!talent || talent.length > 150 || !/^\d{4}-\d{2}-\d{2}$/.test(end)) {
+          res.writeHead(400, {'Content-Type':'application/json'}).end(JSON.stringify({error:'Parâmetros inválidos'})); return;
+        }
+        let ddb = null;
+        try {
+          try { ddb=openDiscovery(); } catch { /* O motor deve continuar consultável sem Discovery */ }
+          const source=getArtistMediaStats(database,talent,{end,discoveryDb:ddb});
+          if (!source) { res.writeHead(404,{'Content-Type':'application/json'}).end(JSON.stringify({error:'Artista não encontrado'})); return; }
+          const data=distributeArtistStats(source,{end});
+          res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'}).end(req.method==='HEAD'?undefined:JSON.stringify(data));
+        } finally { ddb?.close(); }
+        return;
       }
       if (path === '/api/current-media') {
         if(!database){res.writeHead(503).end();return;}

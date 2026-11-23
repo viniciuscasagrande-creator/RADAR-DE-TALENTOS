@@ -1,3 +1,6 @@
-# Radar de Talentos — versão focada em eventos
+# Radar de Talentos — Plataforma de Inteligência Artística, Geográfica e Comercial
 
-Abra `Radar-Talentos.code-workspace` no VS Code ou a pasta [Radar-Talentos-React-Node](Radar-Talentos-React-Node/README.md). Siga o novo README para iniciar o painel diretamente no Node, configurar a base geográfica e ativar as fontes reais de eventos. Os arquivos históricos em `legado/` e `arquivo/` foram preservados, mas não são a aplicação ativa.
+O diretório ativo da aplicação é [Radar-Talentos-React-Node](Radar-Talentos-React-Node/README.md).
+
+- **Aplicação ativa (`Radar-Talentos-React-Node/`)**: servidor Node.js 22+ (`server/src/`), painéis web nativos servidos por `dashboard/`, regras de domínio em `src/domain/` e dois bancos SQLite persistentes (`data/radar.sqlite` e `data/discovery.sqlite`).
+- **Histórico preservado (`Radar-Talentos-React-Node/legado/`)**: arquivos estáticos e protótipos anteriores mantidos apenas para consulta histórica, sem participação no build ou no container Docker (`Dockerfile`).

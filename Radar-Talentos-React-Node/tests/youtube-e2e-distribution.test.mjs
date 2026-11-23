@@ -5,9 +5,10 @@ import { collectYoutube, confirmYoutube } from '../server/src/discovery/youtube-
 import { suggestRadarId } from '../server/src/discovery/youtube-bulk.mjs';
 import { currentDashboard } from '../server/src/discovery/current-dashboard.mjs';
 import { openDatabase } from '../server/src/database/index.mjs';
-import { distributeVerifiedDiscoveryToRadar, quarantineUnverifiedRadarMetrics, getArtistMediaStats, getCrossMenuSummary } from '../server/src/menu-integration.mjs';
+import { distributeVerifiedDiscoveryToRadar, quarantineUnverifiedRadarMetrics, getArtistMediaStats, getCrossMenuSummary, classifyMetricValidity } from '../server/src/menu-integration.mjs';
 import { distributeArtistStats } from '../server/src/indicator-distribution.mjs';
 import { commercialQuery } from '../server/src/commercial.mjs';
+import { resolveClientIp } from '../server/src/app.mjs';
 
 const GUSTTAVO_ID = 't-gusttavo-lima';
 const GUSTTAVO_NAME = 'Gusttavo Lima';
@@ -371,5 +372,27 @@ test('Consistência de vínculo de identidade e classificação Visão Geral: bl
     discovery.close();
     radar.close();
   }
+});
+
+test('Rate-limit IP atrás de proxy reverso e data de referência dinâmica em classifyMetricValidity', () => {
+  // 1. Proxy reverso local/Docker bridge usa X-Forwarded-For; conexão pública direta ignora header forjado
+  assert.equal(
+    resolveClientIp({ socket: { remoteAddress: '127.0.0.1' }, headers: { 'x-forwarded-for': '177.55.44.33, 10.0.0.1' } }),
+    '177.55.44.33'
+  );
+  assert.equal(
+    resolveClientIp({ socket: { remoteAddress: '::ffff:172.18.0.1' }, headers: { 'x-real-ip': '189.10.20.30' } }),
+    '189.10.20.30'
+  );
+  assert.equal(
+    resolveClientIp({ socket: { remoteAddress: '203.0.113.9' }, headers: { 'x-forwarded-for': '1.2.3.4' } }),
+    '203.0.113.9'
+  );
+
+  // 2. Data padrão dinâmica (hoje) em classifyMetricValidity
+  const today = new Date().toISOString().slice(0, 10);
+  const v = classifyMetricValidity(today);
+  assert.equal(v.code, 'current_7d');
+  assert.equal(v.ageDays, 0);
 });
 

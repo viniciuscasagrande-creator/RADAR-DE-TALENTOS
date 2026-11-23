@@ -123,6 +123,7 @@ done
 
 echo "[5/5] Reconstruindo e reiniciando containers Docker (radar + worker) ..."
 cd "$APP_DIR"
+sudo docker exec -u 0 radar-talentos-radar-1 chown -R node:node /app/data /app/backups 2>/dev/null || true
 sudo docker compose --env-file .env.worker build radar worker
 sudo docker compose --env-file .env.worker up -d radar worker
 

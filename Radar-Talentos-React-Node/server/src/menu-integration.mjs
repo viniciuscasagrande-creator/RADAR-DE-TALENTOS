@@ -29,7 +29,7 @@ export function formatCompactPtBr(value) {
   return n.toLocaleString('pt-BR');
 }
 
-export function classifyMetricValidity(observedOn, referenceDay = '2026-11-18') {
+export function classifyMetricValidity(observedOn, referenceDay = new Date().toISOString().slice(0, 10)) {
   if (!observedOn) {
     return {
       code: 'missing',

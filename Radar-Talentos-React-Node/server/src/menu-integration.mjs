@@ -1778,12 +1778,20 @@ export function distributeVerifiedDiscoveryToRadar(radarDb, discoveryDb) {
     const upsertSeries = radarDb.prepare(
       `INSERT INTO media_metric_series(talent_id, network, metric, observed_on, value, source, source_type, evidence_url, collected_at, methodology)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(talent_id, network, metric, observed_on) DO UPDATE SET
+       ON CONFLICT(talent_id, network, metric, observed_on, source) DO UPDATE SET
          value = excluded.value,
-         source = excluded.source,
          source_type = excluded.source_type,
          evidence_url = COALESCE(excluded.evidence_url, media_metric_series.evidence_url),
-         collected_at = excluded.collected_at`
+         collected_at = excluded.collected_at,
+         methodology = excluded.methodology`
+    );
+    const upsertCommSnap = radarDb.prepare(
+      `INSERT INTO commercial_snapshots(account_id, metric, observed_on, value, source, authorization_ref)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(account_id, metric, observed_on) DO UPDATE SET
+         value = excluded.value,
+         source = excluded.source,
+         authorization_ref = excluded.authorization_ref`
     );
 
     radarDb.exec('BEGIN IMMEDIATE');
@@ -1808,16 +1816,31 @@ export function distributeVerifiedDiscoveryToRadar(radarDb, discoveryDb) {
               );
               profilesUpdated++;
             } catch {}
+          } else if (existingComm.url !== cleanUrl) {
+            try {
+              radarDb.prepare('UPDATE commercial_accounts SET url = ?, identity_source = ? WHERE id = ?').run(
+                cleanUrl,
+                c.identity_evidence || cleanUrl,
+                accId
+              );
+              profilesUpdated++;
+            } catch {}
           }
           const obs = discoveryDb.prepare('SELECT * FROM observations WHERE profile_id = ? ORDER BY observed_at ASC').all(p.id);
           for (const o of obs) {
             const dayStr = o.observed_at.slice(0, 10);
-            const srcLabel = o.source_id === 'youtube-public-current'
-              ? 'YouTube Data API v3'
-              : o.source_id === 'open-social-current'
-                ? 'Registro autorizado pelo operador'
-                : (o.source_id || 'Motor de Dados');
+            const srcLabel = o.source_id || 'Motor de Dados';
             const srcType = o.source_id?.includes('youtube') ? 'oficial' : 'observado';
+            if (['followers', 'views', 'likes', 'comments', 'subscribers', 'monthly_listeners', 'streams'].includes(o.metric)) {
+              upsertCommSnap.run(
+                accId,
+                o.metric,
+                dayStr,
+                o.value,
+                srcLabel,
+                o.evidence_url || cleanUrl
+              );
+            }
             upsertSeries.run(
               talent.id,
               p.network,
@@ -1922,8 +1945,8 @@ export function getArtistMediaStats(db, talentId, { end = new Date().toISOString
       byDate.set(r.observed_on, {
         date: r.observed_on,
         value: r.value,
-        source: r.source_id === 'youtube-public-current' ? 'YouTube Data API v3' : r.source_id === 'open-social-current' ? 'Registro autorizado pelo operador' : r.source_id,
-        source_type: r.source_id === 'youtube-public-current' ? 'oficial' : 'observado',
+        source: r.source_id || 'Motor de Dados',
+        source_type: r.source_id?.includes('youtube') ? 'oficial' : 'observado',
         evidence_url: r.evidence_url || r.url,
         collected_at: r.observed_at || r.observed_on
       });
@@ -1933,7 +1956,7 @@ export function getArtistMediaStats(db, talentId, { end = new Date().toISOString
         date: r.observed_on,
         value: r.value,
         source: r.source,
-        source_type: r.source?.includes('API') ? 'oficial' : 'observado',
+        source_type: r.source?.includes('API') || r.source?.includes('youtube') ? 'oficial' : 'observado',
         evidence_url: accMap.get(net)?.url ?? null,
         collected_at: r.collected_at || r.observed_on
       });
@@ -1943,7 +1966,7 @@ export function getArtistMediaStats(db, talentId, { end = new Date().toISOString
         date: r.observed_on,
         value: r.value,
         source: r.source,
-        source_type: r.source?.includes('API') ? 'oficial' : r.source?.includes('Relatório') || r.source?.includes('Artists') || r.source?.includes('Insights') ? 'relatorio_autorizado' : 'observado',
+        source_type: r.source?.includes('API') || r.source?.includes('youtube') ? 'oficial' : r.source?.includes('Relatório') || r.source?.includes('Artists') || r.source?.includes('Insights') ? 'relatorio_autorizado' : 'observado',
         evidence_url: r.authorization_ref || r.url,
         collected_at: r.observed_on
       });

@@ -10,7 +10,7 @@ export async function acquisitionStatus(db, readConfig) {
  const configured=(config?.jobs??[]).filter(j=>kinds.includes(j.kind));
  const jobs=configured.map(j=>{const r=state.jobs.find(x=>x.id===j.id&&x.kind===j.kind&&x.provider===j.provider);return {id:j.id,kind:j.kind,provider:j.provider,adapter:j.adapter,enabled:j.enabled,runAfter:j.runAfter??null,lastState:r?.state??null,lastRun:r?.finished_at??null,records:r?.records??null,stale:r?.stale??true};});
  const candidates=db.prepare(`SELECT a.name,a.platform_id,a.external_id,a.origin,l.url,e.title,l.first_seen FROM event_listing_artists a JOIN event_listings l ON l.platform_id=a.platform_id AND l.external_id=a.external_id JOIN events e ON e.id=l.event_id ORDER BY l.first_seen DESC,a.name LIMIT 100`).all();
- let discoveryCounts={candidates:0,profiles:0,observations:0,youtubeProfiles:0,youtubeObservations:0,openSocialObservations:0,recent24h:0,verifiedWithEvidence:0};
+ let discoveryCounts={candidates:0,profiles:0,observations:0,youtubeProfiles:0,confirmedYoutubeChannels:0,youtubeObservations:0,openSocialObservations:0,recent24h:0,verifiedWithEvidence:0};
  let recentLogs=[];
  try{
   const ddb=openDiscovery();
@@ -22,6 +22,7 @@ export async function acquisitionStatus(db, readConfig) {
     profiles:dc('profiles'),
     observations:dc('observations'),
     youtubeProfiles:dc('profiles',"WHERE network='YouTube'"),
+    confirmedYoutubeChannels:dc('profiles p JOIN candidates c ON c.id=p.candidate_id',"WHERE p.network='YouTube' AND c.status IN ('approved','published') AND c.radar_id IS NOT NULL AND EXISTS(SELECT 1 FROM evidence e WHERE e.candidate_id=c.id AND e.source_id='youtube-identity-review' AND e.url=p.url)"),
     youtubeObservations:dc('observations o JOIN profiles p ON p.id=o.profile_id',"WHERE p.network='YouTube'"),
     openSocialObservations:dc('observations',"WHERE source_id='open-social-current'"),
     recent24h:dc('observations',`WHERE observed_at >= '${since24h}'`),
@@ -57,6 +58,8 @@ export async function acquisitionStatus(db, readConfig) {
   },
   counts:{
    talents:count('talents','WHERE blocked=0'),
+   talentsWithCollectedMetrics:db.prepare('SELECT count(DISTINCT talent_id) n FROM metric_current WHERE value IS NOT NULL').get().n,
+   confirmedYoutubeChannels:discoveryCounts.confirmedYoutubeChannels,
    socialAccounts:count('social_accounts'),
    confirmedAccounts:count('social_accounts','WHERE identity_confirmed=1'),
    commercialAccounts:count('commercial_accounts'),

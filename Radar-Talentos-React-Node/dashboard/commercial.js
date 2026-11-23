@@ -305,14 +305,14 @@ async function selectArtist(a,userInitiated=false){
   if(isAll&&a.top_network)subParts.push(`Rede em que mais cresceu: ${a.top_network}${a.top_network_growth_pct!=null?` (${signed(a.top_network_growth_pct)}%)`:''}`);
   el('p',subParts.join(' · '),left);
   if(isAll){
-    el('small',`Instagram: Incluído na consulta · YouTube: Incluído na consulta · Spotify: Incluído na consulta · TikTok: Incluído na consulta · Base (${winDays}d): ${a.baseline_on??'indisponível'}`,left);
-    el('strong',`Crescimento consolidado: ${a.growth_pct==null?'—':signed(a.growth_pct)+'%'}`,right);
-    const deltaP=el('p',`Maior alta (${winDays}d): ${a.top_network||'—'} · ${number(a.top_network_value??a.value)} ${labels[a.top_network_metric]||''} (${signed(a.top_network_growth??a.growth)} · ${fmtPct(a.top_network_growth_pct)})`,right);
+    el('small',`Instagram: Incluído na consulta · YouTube: Incluído na consulta · Spotify: Incluído na consulta · TikTok: Incluído na consulta · Base (${winDays}d): ${a.baseline_on??'indisponível (1 coleta)'}`,left);
+    el('strong',a.growth_pct==null?'Crescimento consolidado: Sem histórico comparável (1 coleta)':`Crescimento consolidado: ${signed(a.growth_pct)}%`,right);
+    const deltaP=el('p',a.top_network_growth_pct!=null?`Maior alta (${winDays}d): ${a.top_network||'—'} · ${number(a.top_network_value??a.value)} ${labels[a.top_network_metric]||''} (${signed(a.top_network_growth??a.growth)} · ${fmtPct(a.top_network_growth_pct)})`:`Mídia coletada: ${a.top_network||'—'} · ${number(a.top_network_value??a.value)} ${labels[a.top_network_metric]||''} (aguardando nova coleta para variação de ${winDays}d)`,right);
     deltaP.className=(a.growth_pct??0)>0?'positive':(a.growth_pct??0)<0?'negative':'';
   }else{
-    el('small',a.freshness_label?`${a.freshness_label} · Base (${winDays}d): ${a.baseline_on??'indisponível'}`:`Última coleta: ${a.observed_on} · Base (${winDays}d): ${a.baseline_on??'indisponível'} · Fonte: ${a.source}`,left);
+    el('small',a.freshness_label?`${a.freshness_label} · Base (${winDays}d): ${a.baseline_on??'indisponível (1 coleta)'}`:`Última coleta: ${a.observed_on} · Base (${winDays}d): ${a.baseline_on??'indisponível (1 coleta)'} · Fonte: ${a.source}`,left);
     el('strong',`${number(a.value)} ${labels[activeParams.get('metric')]}`,right);
-    const deltaP=el('p',`Variação (${winDays}d): ${signed(a.growth)} (${a.growth_pct==null?'—':signed(a.growth_pct)+'%'})`,right);
+    const deltaP=el('p',a.growth==null?`Variação (${winDays}d): Sem histórico comparável (1 coleta)`:`Variação (${winDays}d): ${signed(a.growth)} (${a.growth_pct==null?'—':signed(a.growth_pct)+'%'})`,right);
     deltaP.className=a.growth>0?'positive':a.growth<0?'negative':'';
   }
   try{
@@ -474,12 +474,18 @@ async function load(){
       if(isAll){
         const netBreakdown=['Instagram','YouTube','Spotify','TikTok'].map(n=>{
           const tag=n==='Instagram'?'IG':n==='YouTube'?'YT':n==='Spotify'?'SP':'TK';
-          return `${tag} ${fmtPct(a.networks?.[n]?.growth_pct)}`;
+          const netObj=a.networks?.[n];
+          if(netObj?.growth_pct!=null)return `${tag} ${fmtPct(netObj.growth_pct)}`;
+          if(netObj?.value!=null)return `${tag} coletado (1 obs.)`;
+          return `${tag} sem coleta`;
         }).join(' · ');
-        el('small',`${sizes[a.size]} · Maior alta: ${a.top_network||'—'}${a.top_network_growth_pct!=null?` (${signed(a.top_network_growth_pct)}%)`:''} · ${netBreakdown}`,td);
+        const leadLabel=a.top_network_growth_pct!=null
+          ?`Maior alta: ${a.top_network||'—'} (${signed(a.top_network_growth_pct)}%)`
+          :`Mídia coletada: ${a.top_network||'—'} (sem histórico comparável)`;
+        el('small',`${sizes[a.size]} · ${leadLabel} · ${netBreakdown}`,td);
         el('td',a.top_network?`${number(a.value)} (${a.top_network})`:number(a.value),tr);
-        const tdDelta=el('td',a.growth==null?'—':`${signed(a.growth)} (${a.top_network})`,tr);
-        const tdPct=el('td',a.growth_pct==null?'—':signed(a.growth_pct)+'%',tr);
+        const tdDelta=el('td',a.growth==null?'Sem histórico':`${signed(a.growth)} (${a.top_network})`,tr);
+        const tdPct=el('td',a.growth_pct==null?'1 coleta':signed(a.growth_pct)+'%',tr);
         if((a.growth_pct??0)>0){tdDelta.className='positive';tdPct.className='positive';}
         else if((a.growth_pct??0)<0){tdDelta.className='negative';tdPct.className='negative';}
       }else{
@@ -539,9 +545,9 @@ async function loadArtistCards(a,id){
       const isTop=d.topNetwork?.network===n.network;
       const netMs=ms?.[n.network]||null;
       el('small',`${labels[n.metric]} · ${isAll?'Incluído na consulta':(activeParams?.get('network')===n.network?'Mídia selecionada':'Monitorado')}`+(isTop?' · Maior crescimento':''),x);
-      el('strong',v?(n.formatted&&n.formatted!==number(v.value)?`${n.formatted} (${number(v.value)})`:number(v.value)):'—',x);
+      el('strong',v?(n.formatted&&n.formatted!==number(v.value)?`${n.formatted} (${number(v.value)})`:number(v.value)):'Sem coleta',x);
       if(v){
-        const delta=el('p',`Crescimento 30 dias: ${v.growth==null?'—':signed(v.growth)+' ('+(v.growth_pct==null?'—':signed(v.growth_pct)+'%')+')'}`,x);
+        const delta=el('p',v.growth==null?`Crescimento 30 dias: Sem histórico comparável (1 coleta em ${v.observed_on})`:`Crescimento 30 dias: ${signed(v.growth)} (${v.growth_pct==null?'—':signed(v.growth_pct)+'%'})`,x);
         delta.className=v.growth>0?'positive':v.growth<0?'negative':'';
         if(n.windows){
           const wb=el('div',null,x);wb.className='win-badges';
@@ -673,6 +679,7 @@ for(const fieldName of ['metric','days','size','modality','order','trend']){
   if(form.elements[fieldName])form.elements[fieldName].onchange=()=>load();
 }
 form.onsubmit=e=>{e.preventDefault();load();};
+form.addEventListener('radar:sync-filter',()=>load());
 
 let compatToken=0,cachedMunicipalities=null,municipalitiesPromise=null;
 const compatForm=document.querySelector('#compatibility-form');

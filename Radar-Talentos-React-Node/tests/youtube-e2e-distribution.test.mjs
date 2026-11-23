@@ -143,3 +143,33 @@ test('Fluxo aprovado Gusttavo Lima (E2E): Prospecção -> Canal YouTube confirma
     radar.close();
   }
 });
+
+test('Consistência de ranking e filtro comercial: artista com 1 coleta grande precede registro manual menor sem histórico, e filtro q isola o artista pesquisado', () => {
+  const radar = openDatabase(':memory:');
+  try {
+    radar.prepare("INSERT INTO talents(id, name, entity_type, blocked) VALUES ('t-gusttavo-lima', 'Gusttavo Lima', 'person', 0)").run();
+    radar.prepare("INSERT INTO talents(id, name, entity_type, blocked) VALUES ('discovery-bm', 'Bruno & Marrone', 'person', 0)").run();
+
+    radar.prepare("INSERT INTO commercial_accounts(id, talent_id, network, url, identity_source) VALUES ('gl-yt', 't-gusttavo-lima', 'YouTube', 'https://youtube.com/channel/UCXooz9whNJZBRTHi9AqdjPw', 'yt')").run();
+    radar.prepare("INSERT INTO commercial_snapshots(account_id, metric, observed_on, value, source, authorization_ref) VALUES ('gl-yt', 'subscribers', '2026-11-23', 21900000, 'youtube-public-current', 'yt')").run();
+
+    radar.prepare("INSERT INTO commercial_accounts(id, talent_id, network, url, identity_source) VALUES ('bm-ig', 'discovery-bm', 'Instagram', 'https://instagram.com/oficialbrunoemarrone', 'ig')").run();
+    radar.prepare("INSERT INTO commercial_snapshots(account_id, metric, observed_on, value, source, authorization_ref) VALUES ('bm-ig', 'followers', '2026-11-23', 123, 'authorized-observation', 'ig')").run();
+
+    // Sem filtro: ambos têm growth_pct = null (1 coleta), portanto Gusttavo Lima (21,9M) precede Bruno & Marrone (123)
+    const all = commercialQuery(radar, new URLSearchParams({ network: 'all', end: '2026-11-23' }));
+    assert.equal(all.items.length, 2);
+    assert.equal(all.items[0].id, 't-gusttavo-lima');
+    assert.equal(all.items[0].value, 21900000);
+    assert.equal(all.items[1].id, 'discovery-bm');
+    assert.equal(all.items[1].value, 123);
+
+    // Com filtro q=Gusttavo Lima: retorna exclusivamente Gusttavo Lima
+    const filtered = commercialQuery(radar, new URLSearchParams({ network: 'all', q: 'Gusttavo Lima', end: '2026-11-23' }));
+    assert.equal(filtered.items.length, 1);
+    assert.equal(filtered.items[0].id, 't-gusttavo-lima');
+  } finally {
+    radar.close();
+  }
+});
+

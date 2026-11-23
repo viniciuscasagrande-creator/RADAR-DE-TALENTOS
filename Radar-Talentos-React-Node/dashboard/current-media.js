@@ -14,7 +14,17 @@ const signed=v=>v==null?'—':(v>0?'+':'')+num(v);
 const fmtDelta=c=>c&&Number.isFinite(c.absolute)?`${signed(c.absolute)}${c.percent!=null?` (${c.percent>0?'+':''}${c.percent.toFixed(1)}%)`:''}`:null;
 let seq=0;
 async function load(){const id=++seq;status.textContent='Consultando indicadores atuais...';scroll.replaceChildren();try{const p=new URLSearchParams({q:input.value.trim()});const r=await fetch('/api/current-media?'+p,{cache:'no-store'});if(!r.ok)throw Error();const d=await r.json();if(id!==seq)return;if(!d.items.length){status.textContent='Nenhuma coleta atual disponível para esta busca.';return;}status.textContent='Valores atuais por perfil, sem consolidação'+(d.truncated?' · refine a busca para ver outros resultados.':'.');const table=make('table',null,scroll),thead=make('thead',null,table),head=make('tr',null,thead);labels.forEach(h=>make('th',h,head));const body=make('tbody',null,table);for(const a of d.items){const tr=make('tr',null,body),td=make('td',null,tr);make('strong',a.name,td);make('br',null,td);const link=make('a','Abrir perfil',td);link.href=a.url;link.target='_blank';link.rel='noopener noreferrer';make('td',a.network,tr);const vals=make('td',null,tr),src=make('td',null,tr);for(const [key,m] of Object.entries(a.metrics)){const d7=fmtDelta(m.change_7d),d30=fmtDelta(m.change_30d);const evo=[d7?`7d: ${d7}`:null,d30?`30d: ${d30}`:null].filter(Boolean).join(' · ');make('div',(names[key]||key)+': '+num(m.value)+(evo?` (${evo})`:''),vals);const line=make('div',(a.source||'YouTube Data API')+' · '+new Date(m.observed_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}),src);if(m.evidence_url){const l=make('a',' Evidência',line);l.href=m.evidence_url;l.target='_blank';l.rel='noopener noreferrer';}}}}catch{if(id===seq)status.textContent='Não foi possível consultar os indicadores atuais. Tente novamente.';}}
-form.addEventListener('submit',e=>{e.preventDefault();load();});
+const commercial=document.querySelector('#commercial-filters');
+const urlQ=new URLSearchParams(location.search).get('q')||'';
+if(urlQ)input.value=urlQ;
+form.addEventListener('submit',e=>{
+  e.preventDefault();
+  load();
+  if(commercial?.elements?.q){
+    commercial.elements.q.value=input.value.trim();
+    commercial.dispatchEvent(new CustomEvent('radar:sync-filter'));
+  }
+});
 const home=document.querySelector('#artist-quick-search');const homeBtn=document.querySelector('#artist-quick-btn');function fromHome(){if(home){input.value=home.value;load();}}homeBtn?.addEventListener('click',fromHome);home?.addEventListener('keydown',e=>{if(e.key==='Enter')fromHome();});
-const commercial=document.querySelector('#commercial-filters');commercial?.addEventListener('submit',()=>{input.value=commercial.elements.q?.value??'';load();});load();
+commercial?.addEventListener('submit',()=>{input.value=commercial.elements.q?.value??'';load();});load();
 })();

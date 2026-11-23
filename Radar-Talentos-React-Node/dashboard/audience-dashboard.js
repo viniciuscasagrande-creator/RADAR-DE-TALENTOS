@@ -108,7 +108,15 @@ function searchOnChange(){
 }
 
 // Busca rápida de artistas no topo do painel
-function applyQuickArtistSearch(){
+function useArtistMapAutoMode(){
+ // A busca simples do artista deve ignorar a seleção anterior de relatório.
+ const select=field('report');
+ if(![...select.options].some(o=>o.value==='')){
+  select.add(new Option('Automático: relatório por artista',''),0);
+ }
+ select.value='';
+}
+async function applyQuickArtistSearch(){
  const input=$('artist-quick-search');
  if(!input)return;
  const q=normalize(input.value);
@@ -125,9 +133,30 @@ function applyQuickArtistSearch(){
  if(partial){
   field('talent').value=partial.value;
   input.value=partial.textContent;
+  useArtistMapAutoMode();
   search();
- }else{
-  $('message').textContent=`Artista "${input.value.trim()}" sem registros neste relatório; tente outra mídia ou período.`;
+  return;
+ }
+ // A busca global não deve depender de um relatório regional já selecionado.
+ try{
+  const cp=new URLSearchParams({q:input.value.trim(),limit:'200'});
+  const results=await get('/api/radar/cross-summary?'+cp);
+  if(normalize(input.value)!==q)return;
+  const artist=results.items?.find(a=>normalize(a.name)===q||normalize(a.id)===q)
+    ||results.items?.find(a=>normalize(a.name).includes(q));
+  if(!artist){
+   $('message').textContent=`Artista "${input.value.trim()}" não encontrado no cadastro do Radar.`;
+   return;
+  }
+  if(![...field('talent').options].some(o=>o.value===artist.id)){
+   field('talent').add(new Option(artist.name,artist.id));
+  }
+  field('talent').value=artist.id;
+  input.value=artist.name;
+  useArtistMapAutoMode();
+  search();
+ }catch(e){
+  $('message').textContent='Não foi possível pesquisar o artista: '+e.message;
  }
 }
 $('artist-quick-btn')?.addEventListener('click',applyQuickArtistSearch);
@@ -306,18 +335,50 @@ async function search(keepPage=false){
    }
    $('growth-period').textContent=growingRows.length?'Evolução verificada nas mídias (Instagram, Spotify, YouTube e TikTok · janela de 30 dias):':'Aguardando relatório regional ou segunda coleta para cálculo de evolução.';
    table('growth',['Artista','Mídia','Variação (30d)','Atual'],growingRows.slice(0,50));
-   // Sem relatório regional selecionado não há base válida para um mapa de audiência.
-   // A demografia IBGE é contexto externo e nunca pode ocupar este gráfico.
-   bars('regions',[]);
-   bars('states',[]);
-   bars('cities',[]);
-   bars('region-artists',[]);
+   // Se o artista foi escolhido, localizar automaticamente seu relatório municipal
+   // verificado mais recente. Nunca inferir localização a partir de seguidores nacionais.
+   let artistMap=null,artistReport=null;
+   const selectedId=field('talent').value;
+   const selectedArtist=(cross.items||[]).find(a=>a.id===selectedId);
+   if(selectedArtist?.regionalAudience?.hasData){
+    const entries=selectedArtist.regionalAudience.reports||[];
+    const choices=reports.filter(rep=>rep.quality==='verified'&&entries.some(e=>
+      e.network===rep.network&&e.metric===rep.metric&&e.source===rep.source&&
+      e.quality===rep.quality&&e.latest_end===rep.period_end
+    ));
+    // Prioriza mídia selecionada e depois o relatório mais recente; mantém métricas separadas.
+    const chosenNetwork=field('network').value;
+    choices.sort((a,b)=>
+      Number(b.network===chosenNetwork)-Number(a.network===chosenNetwork)||
+      b.period_end.localeCompare(a.period_end)||
+      a.network.localeCompare(b.network)
+    );
+    for(const rep of choices){
+     const rp=new URLSearchParams({network:rep.network,metric:rep.metric,
+       start:rep.period_start,end:rep.period_end,source:rep.source,
+       quality:rep.quality,talent:selectedArtist.id});
+     let candidate;
+     try{candidate=await get('/api/regional/ranking?'+rp);}catch{continue;}
+     if(n!==request)return;
+     if(candidate.items?.some(item=>item.id===selectedArtist.id)&&candidate.places?.length){
+      artistMap=candidate;artistReport=rep;break;
+     }
+    }
+   }
+   bars('regions',artistMap?.byRegion||[]);
+   bars('states',artistMap?.byState||[]);
+   bars('cities',(artistMap?.places||[]).slice(0,30).map(x=>({name:x.name+' / '+x.uf,value:x.value})));
+   bars('region-artists',artistMap?.byRegionTalent||[]);
    total=cross.total||0;
    $('page').textContent=total?`${offset+1}–${Math.min(offset+100,total)} de ${total}`:'Sem dados';
    $('prev').disabled=offset===0;
    $('next').disabled=offset+100>=total;
-   map({byState:[],places:[]});
-   $('message').textContent='Audiência municipal ainda não disponível neste recorte. Selecione um relatório regional verificado para mostrar cidades, regiões e mapa de audiência. Os indicadores nacionais de mídia acima não representam distribuição municipal. Dados demográficos do IBGE não são audiência.';
+   map(artistMap||{byState:[],places:[]});
+   $('message').textContent=artistMap
+     ?`Bolinhas amarelas: audiência por município de ${selectedArtist.name}. ${artistReport.network} / ${artistReport.metric}, relatório verificado de ${artistReport.period_start} a ${artistReport.period_end}. Círculos maiores = maior volume observado.`
+     :selectedArtist
+       ?`Sem audiência municipal verificada para ${selectedArtist.name}. Os números nacionais não identificam em que cidades estão seus espectadores. O mapa permanece sem bolinhas amarelas até existir relatório regional.`
+       :'Selecione um artista para destacar automaticamente suas cidades com audiência verificada. Sem relatório regional, o mapa não inventa localização de público.';
   }catch{
    $('message').textContent='Nenhum relatório municipal disponível para esta mídia. Importe uma fonte autorizada.';
    table('artists',[],[]);

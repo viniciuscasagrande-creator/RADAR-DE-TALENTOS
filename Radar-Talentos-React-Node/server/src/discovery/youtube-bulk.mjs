@@ -41,7 +41,16 @@ async function fallback(db,t,{fetcher,key}){
  ingest(db,DIRECT,[{external_id:t.id,name:t.name,evidence_url:profiles[0].url,profiles}]);
  return {count:1,message:`YouTube: ${profiles.length} canal(is) sugerido(s); confirmar identidade e canal individualmente`};
 }
-export function suggestRadarId(radar,name){const matches=radar.prepare('SELECT id,name FROM talents WHERE blocked=0 ORDER BY id').all().filter(t=>t.name===name);return matches.length===1?matches[0].id:null;}
+export function suggestRadarId(radar,name){
+ const all=radar.prepare('SELECT id,name FROM talents WHERE blocked=0 ORDER BY id').all();
+ const exact=all.filter(t=>t.name===name);
+ if(exact.length===1)return exact[0].id;
+ const canon=s=>norm(String(s??'').replace(/&/g,' e ')).replace(/^(pastor|padre)\s+/,'').trim();
+ const target=canon(name);
+ if(!target)return null;
+ const relaxed=all.filter(t=>canon(t.name)===target);
+ return relaxed.length===1?relaxed[0].id:null;
+}
 export async function prospectYoutubeBulk(db,radar,{limit=10,dailyLimit=20,fetcher=fetch,key=process.env.YOUTUBE_API_KEY,clock=()=>new Date(),progress=()=>{}}={}){
  if(!Number.isInteger(limit)||limit<1||limit>100||!Number.isInteger(dailyLimit)||dailyLimit<1||dailyLimit>100)throw Error('Limite inválido');
  purgeBulkSuggestions(db,clock);

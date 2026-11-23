@@ -65,7 +65,8 @@
 
   function metricsForNetwork(){const rows=items.filter(x=>!network.value||x.network===network.value);return [...new Set(rows.flatMap(x=>Object.keys(x.metrics||{})))].sort((a,b)=>(displayNames[a]||a).localeCompare(displayNames[b]||b,'pt-BR'));}
 
-  function populateArtistPickers(){
+  const normQ=s=>String(s??'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().trim();
+  function populateArtistPickers(searchQuery=''){
     const byId=new Map();
     for(const a of items)if(a.talent_id&&a.name)byId.set(a.talent_id,{id:a.talent_id,name:a.name,hasCurrent:true});
     for(const t of catalogTalents)if(t.id&&t.name&&!byId.has(t.id))byId.set(t.id,{id:t.id,name:t.name,hasCurrent:false});
@@ -80,7 +81,10 @@
       const oa=document.createElement('option');oa.value=item.id;oa.textContent=item.hasCurrent?`★ ${item.name} (com coleta)`:item.name;artistPicker.append(oa);
       const oc=document.createElement('option');oc.value=item.id;oc.textContent=item.hasCurrent?`★ ${item.name}`:item.name;comparePicker.append(oc);
     }
-    if(prevA&&byId.has(prevA))artistPicker.value=prevA;
+    const qNorm=normQ(searchQuery);
+    const matchedByQuery=qNorm?(items[0]?.talent_id||list.find(x=>normQ(x.name).includes(qNorm)||normQ(x.id).includes(qNorm))?.id||''):'';
+    if(matchedByQuery&&byId.has(matchedByQuery))artistPicker.value=matchedByQuery;
+    else if(prevA&&byId.has(prevA))artistPicker.value=prevA;
     else if(items[0]?.talent_id)artistPicker.value=items[0].talent_id;
     else if(list[0]?.id)artistPicker.value=list[0].id;
     if(prevC&&byId.has(prevC))comparePicker.value=prevC;
@@ -290,7 +294,7 @@
     const subset=items.filter(x=>!network.value||x.network===network.value);
     const keys=metricsForNetwork();const old=metric.value;metric.replaceChildren();for(const k of keys){const o=document.createElement('option');o.value=k;o.textContent=displayNames[k]||k;metric.append(o)}
     if(keys.includes(old))metric.value=old;else if(keys.includes(network.value==='Spotify'?'monthly_listeners':'followers'))metric.value=network.value==='Spotify'?'monthly_listeners':'followers';else if(keys.includes('subscribers'))metric.value='subscribers';
-    const valid=subset.flatMap(a=>Object.entries(a.metrics||{}).map(([key,m])=>({...a,metric:key,value:m.value,observed_at:m.observed_at,change_7d:m.change_7d||null,change_30d:m.change_30d||null,observations:m.observations||1,metric_source:m.evidence_url||'',collected_source:a.source||'YouTube Data API'}))).filter(x=>Number.isFinite(x.value)&&x.value>=0);
+    const valid=subset.flatMap(a=>Object.entries(a.metrics||{}).map(([key,m])=>({...a,metric:key,value:m.value,observed_at:m.observed_at,change_7d:m.change_7d||null,change_30d:m.change_30d||null,observations:m.observations||1,metric_source:m.evidence_url||'',collected_source:a.source||'youtube-public-current'}))).filter(x=>Number.isFinite(x.value)&&x.value>=0);
     const unique=new Set(valid.map(x=>x.talent_id));const latest=valid.map(x=>Date.parse(x.observed_at)).filter(Number.isFinite);
     statValues.artists.textContent=unique.size?format(unique.size):'—';statValues.profiles.textContent=valid.length?format(new Set(valid.map(x=>x.url)).size):'—';statValues.networks.textContent=valid.length?String(new Set(valid.map(x=>x.network)).size):'—';statValues.latest.textContent=latest.length?date(new Date(Math.max(...latest)).toISOString()):'—';
     chart.replaceChildren();tableWrap.replaceChildren();
@@ -336,7 +340,7 @@
           const lineText=`${displayNames[k]||k}: ${format(v.value)}`+(evoParts.length?` (${evoParts.join(' · ')})`:'');
           vals.append(el('div',null,lineText));
         }tr.append(vals);
-        const prov=el('td');for(const v of Object.values(a.metrics||{})){const div=el('div',null,`${date(v.observed_at)} · ${a.source||'YouTube Data API'}`);if(v.evidence_url){const l=el('a',null,' Evidência');l.href=v.evidence_url;l.target='_blank';l.rel='noopener noreferrer';div.append(l)}prov.append(div)}tr.append(prov);body.append(tr);
+        const prov=el('td');for(const v of Object.values(a.metrics||{})){const div=el('div',null,`${date(v.observed_at)} · ${a.source||'youtube-public-current'}`);if(v.evidence_url){const l=el('a',null,' Evidência');l.href=v.evidence_url;l.target='_blank';l.rel='noopener noreferrer';div.append(l)}prov.append(div)}tr.append(prov);body.append(tr);
       }t.append(body);tableWrap.append(t);
     }
     chartInfo.textContent=network.value?`${displayNames[metric.value]||metric.value||'Sem indicador'} · ${network.value} · última observação disponível`:'Selecione uma mídia: unidades diferentes não são comparáveis.';
@@ -358,7 +362,7 @@
       }
       if(id!==loadingId)return;
       items=Array.isArray(data.items)?data.items.filter(x=>x&&typeof x.name==='string'&&typeof x.network==='string'&&typeof x.url==='string'):[];
-      populateArtistPickers();
+      populateArtistPickers(q);
       render();
       loadFicha360();
       if(data.truncated)status.textContent+=' A consulta foi limitada no servidor: refine a pesquisa.';

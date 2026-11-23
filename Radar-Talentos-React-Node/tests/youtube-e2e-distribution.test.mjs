@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { openDiscovery, configureSource, ingest, listCandidates, detail, review, publishIdentityOnly, recordAuthorizedObservation } from '../server/src/discovery/engine.mjs';
 import { collectYoutube, confirmYoutube } from '../server/src/discovery/youtube-current.mjs';
+import { suggestRadarId } from '../server/src/discovery/youtube-bulk.mjs';
 import { currentDashboard } from '../server/src/discovery/current-dashboard.mjs';
 import { openDatabase } from '../server/src/database/index.mjs';
 import { distributeVerifiedDiscoveryToRadar, quarantineUnverifiedRadarMetrics, getArtistMediaStats, getCrossMenuSummary } from '../server/src/menu-integration.mjs';
@@ -316,6 +317,56 @@ test('Validação de procedência e quarentena auditável: bloqueia 123 seguidor
 
     const glStats = distributeArtistStats(getArtistMediaStats(radar, GUSTTAVO_ID, { end: '2026-11-23', discoveryDb: discovery }), { end: '2026-11-23' });
     assert.equal(glStats.networks.YouTube.current.value, 21900000);
+  } finally {
+    discovery.close();
+    radar.close();
+  }
+});
+
+test('Consistência de vínculo de identidade e classificação Visão Geral: bloqueia URL como radar_id, repara vínculo legado e padroniza classificação oficial do YouTube', () => {
+  const discovery = openDiscovery(':memory:');
+  const radar = openDatabase(':memory:');
+  try {
+    radar.prepare("INSERT INTO talents(id, name, entity_type, blocked) VALUES ('t-pastor-claudio-duarte', 'Pastor Cláudio Duarte', 'person', 0)").run();
+    radar.prepare("INSERT INTO talents(id, name, entity_type, blocked) VALUES ('t-bruno-e-marrone', 'Bruno e Marrone', 'organization', 0)").run();
+
+    // 1. suggestRadarId resolve variações canônicas (& <-> e, prefixo Pastor)
+    assert.equal(suggestRadarId(radar, 'Bruno & Marrone'), 't-bruno-e-marrone');
+    assert.equal(suggestRadarId(radar, 'Cláudio Duarte'), 't-pastor-claudio-duarte');
+
+    configureSource(discovery, {
+      id: 'wikidata-cc0',
+      kind: 'licensed-file',
+      authorization: 'https://www.wikidata.org/wiki/Wikidata:Licensing',
+      history_allowed: false,
+      enabled: true
+    });
+    ingest(discovery, 'wikidata-cc0', [
+      {
+        name: 'Cláudio Duarte',
+        external_id: 'Q113486349',
+        evidence_url: 'https://www.wikidata.org/wiki/Q113486349',
+        profiles: [{ network: 'Spotify', url: 'https://open.spotify.com/artist/1234567890123456789012' }]
+      }
+    ]);
+    const cdId = listCandidates(discovery)[0].id;
+
+    // 2. review rejeita URL colada acidentalmente no campo radarId
+    assert.throws(
+      () =>
+        review(discovery, cdId, {
+          approve: true,
+          reviewer: 'admin',
+          evidence: 'https://www.wikidata.org/wiki/Q113486349',
+          radarId: 'https://www.wikidata.org/wiki/Q113486349'
+        }),
+      /ID Radar inválido/
+    );
+
+    // 3. Simula registro legado em que uma URL estava gravada em radar_id e verifica reparo automático
+    discovery.prepare("UPDATE candidates SET status = 'approved', radar_id = 'https://www.wikidata.org/wiki/Q113486349' WHERE id = ?").run(cdId);
+    quarantineUnverifiedRadarMetrics(radar, discovery);
+    assert.equal(detail(discovery, cdId).radar_id, 't-pastor-claudio-duarte');
   } finally {
     discovery.close();
     radar.close();

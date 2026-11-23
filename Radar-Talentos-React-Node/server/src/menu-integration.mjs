@@ -5,6 +5,7 @@ import { importEvents } from './events.mjs';
 import { distanceKm, FilterError } from './radar.mjs';
 import { isIdentityCatalogUrl } from './discovery/engine.mjs';
 import { confirmedYoutube } from './discovery/youtube-current.mjs';
+import { suggestRadarId } from './discovery/youtube-bulk.mjs';
 import { openConfirmed } from './discovery/open-social.mjs';
 
 const norm = s =>
@@ -1752,6 +1753,12 @@ export function quarantineUnverifiedRadarMetrics(radarDb, discoveryDb = null) {
   const invalidDiscoveryObs = [];
   if (discoveryDb) {
     try {
+      // Corrige candidatos que tenham recebido acidentalmente uma URL no campo radar_id (ex.: Cláudio Duarte)
+      const urlLinked = discoveryDb.prepare("SELECT id, name, radar_id FROM candidates WHERE radar_id LIKE 'http%'").all();
+      for (const c of urlLinked) {
+        const canonicalId = suggestRadarId(radarDb, c.name);
+        discoveryDb.prepare('UPDATE candidates SET radar_id = ? WHERE id = ?').run(canonicalId, c.id);
+      }
       const candidates = discoveryDb.prepare("SELECT id, name, status, radar_id, identity_evidence FROM candidates WHERE radar_id IS NOT NULL").all();
       for (const c of candidates) {
         const profiles = discoveryDb.prepare('SELECT * FROM profiles WHERE candidate_id = ?').all(c.id);
@@ -2724,7 +2731,7 @@ export function getCrossMenuSummary(db, params = new URLSearchParams()) {
       const validity = classifyMetricValidity(observed_on);
       const classification = value == null
         ? null
-        : source?.includes('API')
+        : source?.includes('API') || source?.includes('youtube')
           ? 'oficial'
           : source?.includes('Relatório') || source?.includes('Artists') || source?.includes('Insights')
             ? 'relatorio_autorizado'
@@ -2871,7 +2878,7 @@ export function getCrossMenuSummary(db, params = new URLSearchParams()) {
       confirmedProfiles: {
         value: totalConfirmedProfiles,
         formatted: totalConfirmedProfiles > 0 ? totalConfirmedProfiles.toLocaleString('pt-BR') : '—',
-        subtitle: 'Quatro mídias'
+        subtitle: 'Contas pré-cadastradas (4 mídias)'
       },
       recentCollections: {
         value: recentCollections7d,

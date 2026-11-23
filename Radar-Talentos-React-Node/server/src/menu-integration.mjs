@@ -1759,6 +1759,103 @@ export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date()
 }
 
 /**
+ * Camada Central de Distribuição de Indicadores (Motor de Dados 3.0):
+ * Propaga observações verificadas e perfis confirmados de discovery.sqlite para as tabelas
+ * operacionais de radar.sqlite (metric_current e media_metric_series) sem tocar em commercial_snapshots
+ * quando a fonte não possuir history_allowed=1, garantindo que Visão Geral, Ficha 360° e os demais menus
+ * consultem dados consistentes imediatamente após cada coleta ou confirmação.
+ */
+export function distributeVerifiedDiscoveryToRadar(radarDb, discoveryDb) {
+  if (!radarDb || !discoveryDb) return { distributed: 0, profilesUpdated: 0 };
+  let distributed = 0;
+  let profilesUpdated = 0;
+  try {
+    const candidates = discoveryDb.prepare(
+      "SELECT id, name, status, radar_id, identity_evidence FROM candidates WHERE status IN ('approved', 'published') AND radar_id IS NOT NULL"
+    ).all();
+    if (!candidates.length) return { distributed: 0, profilesUpdated: 0 };
+
+    const upsertSeries = radarDb.prepare(
+      `INSERT INTO media_metric_series(talent_id, network, metric, observed_on, value, source, source_type, evidence_url, collected_at, methodology)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(talent_id, network, metric, observed_on) DO UPDATE SET
+         value = excluded.value,
+         source = excluded.source,
+         source_type = excluded.source_type,
+         evidence_url = COALESCE(excluded.evidence_url, media_metric_series.evidence_url),
+         collected_at = excluded.collected_at`
+    );
+
+    radarDb.exec('BEGIN IMMEDIATE');
+    try {
+      for (const c of candidates) {
+        const talent = radarDb.prepare('SELECT id, name FROM talents WHERE id = ? AND blocked = 0').get(c.radar_id);
+        if (!talent) continue;
+        const profiles = discoveryDb.prepare('SELECT * FROM profiles WHERE candidate_id = ?').all(c.id);
+        for (const p of profiles) {
+          if (!['Instagram', 'YouTube', 'Spotify', 'TikTok'].includes(p.network)) continue;
+          const cleanUrl = p.url.replace(/\/$/, '');
+          const existingComm = radarDb.prepare('SELECT id, url FROM commercial_accounts WHERE talent_id = ? AND network = ?').get(talent.id, p.network);
+          const accId = existingComm?.id ?? `${talent.id}-${p.network.toLowerCase().slice(0, 2)}`;
+          if (!existingComm) {
+            try {
+              radarDb.prepare('INSERT OR IGNORE INTO commercial_accounts(id, talent_id, network, url, identity_source) VALUES (?, ?, ?, ?, ?)').run(
+                accId,
+                talent.id,
+                p.network,
+                cleanUrl,
+                c.identity_evidence || cleanUrl
+              );
+              profilesUpdated++;
+            } catch {}
+          }
+          const obs = discoveryDb.prepare('SELECT * FROM observations WHERE profile_id = ? ORDER BY observed_at ASC').all(p.id);
+          for (const o of obs) {
+            const dayStr = o.observed_at.slice(0, 10);
+            const srcLabel = o.source_id === 'youtube-public-current'
+              ? 'YouTube Data API v3'
+              : o.source_id === 'open-social-current'
+                ? 'Registro autorizado pelo operador'
+                : (o.source_id || 'Motor de Dados');
+            const srcType = o.source_id?.includes('youtube') ? 'oficial' : 'observado';
+            upsertSeries.run(
+              talent.id,
+              p.network,
+              o.metric,
+              dayStr,
+              o.value,
+              srcLabel,
+              srcType,
+              o.evidence_url || cleanUrl,
+              o.observed_at,
+              'Camada Central de Indicadores — Motor de Dados 3.0'
+            );
+            upsertMetricCurrent(radarDb, {
+              account_id: accId,
+              talent_id: talent.id,
+              network: p.network,
+              metric: o.metric,
+              value: o.value,
+              observed_on: dayStr,
+              collected_at: o.observed_at,
+              source: srcLabel,
+              status: 'available',
+              status_detail: `${srcLabel} (${formatCompactPtBr(o.value)})`
+            });
+            distributed++;
+          }
+        }
+      }
+      radarDb.exec('COMMIT');
+    } catch (err) {
+      radarDb.exec('ROLLBACK');
+      throw err;
+    }
+  } catch {}
+  return { distributed, profilesUpdated };
+}
+
+/**
  * Calcula estatísticas detalhadas, séries históricas (7, 15 e 30 dias), engajamento,
  * repertório, cidades principais e metadados de qualidade/validade para a Ficha do Artista.
  */

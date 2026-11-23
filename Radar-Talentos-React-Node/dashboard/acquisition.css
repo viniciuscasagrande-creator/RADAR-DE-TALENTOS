@@ -1,1 +1,50 @@
-body.acquisition{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}.acquisition main{min-width:0;padding:12px 16px 18px;max-width:1920px}.acquisition .ac-top-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px}.acquisition .ac-sec-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}.acquisition .ac-badge{padding:4px 10px;border-radius:999px;font-size:11.5px;font-weight:700;background:rgba(16,185,129,0.16);color:#34d399;border:1px solid rgba(52,211,153,0.35)}.acquisition .ac-pipeline-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr auto 1fr;gap:8px;align-items:center;margin:10px 0 14px}.acquisition .ac-step-node{padding:10px 12px;border-radius:8px;background:linear-gradient(180deg,rgba(36,30,52,0.88),rgba(20,18,28,0.95));border:1px solid rgba(168,85,247,0.35);display:flex;flex-direction:column;gap:3px;min-width:0}.acquisition .ac-step-num{font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#c084fc;font-weight:700}.acquisition .ac-step-node strong{font-size:13.5px;color:#fafafa}.acquisition .ac-step-node small{font-size:11px;color:#a1a1aa}.acquisition .ac-step-arrow{font-size:16px;color:#a855f7;font-weight:800;text-align:center}.acquisition .ac-connectors-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:8px}.acquisition .ac-conn-card{padding:10px 12px;border-radius:8px;background:#141418;border:1px solid #2b2b34;display:flex;flex-direction:column;gap:4px}.acquisition .ac-conn-card.is-ok{border-left:3px solid #34d399}.acquisition .ac-conn-head{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}.acquisition .ac-conn-head strong{font-size:12.5px;color:#fafafa}.acquisition .ac-conn-pill{font-size:10px;padding:2px 7px;border-radius:999px;background:#1f1f27;color:#d4d4d8;border:1px solid #343442}.acquisition .ac-conn-card.is-ok .ac-conn-pill{background:rgba(16,185,129,0.14);color:#34d399;border-color:rgba(52,211,153,0.35)}.acquisition .ac-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:12px 0}.acquisition .ac-kpi{padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);min-width:0}.acquisition .ac-kpi strong{display:block;font-size:22px}.acquisition .ac-kpi small{color:var(--muted)}.acquisition .ac-actions{display:flex;gap:8px;flex-wrap:wrap}.acquisition #ac-status{font-size:12px;padding:6px 10px;border-left:3px solid var(--accent);background:transparent;min-height:0}.acquisition section{margin:12px 0;padding:14px;min-width:0;border:1px solid var(--border);border-radius:8px;background:var(--panel)}.acquisition .ac-scroll{overflow:auto;max-height:320px}.acquisition #candidate-search{max-width:360px;margin:6px 0}.acquisition td,.acquisition th{padding:7px 10px;text-align:left;border-bottom:1px solid #27272a}.acquisition table{width:100%;border-collapse:collapse}.acquisition th{position:sticky;top:0;background:#27272a}@media(max-width:1100px){.acquisition .ac-grid,.acquisition .ac-connectors-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.acquisition .ac-pipeline-flow{grid-template-columns:1fr}.acquisition .ac-step-arrow{display:none}}@media(max-width:768px){body.acquisition{grid-template-columns:1fr}}
+body.acquisition{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}
+.acquisition main{min-width:0;padding:12px 16px 18px;max-width:1920px}
+.acquisition .ac-top-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.acquisition .ac-exec-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:10px 0 14px}
+.acquisition .ac-exec-card{padding:14px 16px;border-radius:10px;background:linear-gradient(155deg,#21192e 0%,#15131c 100%);border:1px solid #443558;display:flex;flex-direction:column;gap:4px}
+.acquisition .ac-exec-card span{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:#c084fc;font-weight:700}
+.acquisition .ac-exec-card strong{font-size:25px;color:#fafafa;line-height:1.1;font-variant-numeric:tabular-nums}
+.acquisition .ac-exec-card small{font-size:11px;color:#a1a1aa}
+.acquisition .ac-sec-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.acquisition .ac-badge{padding:4px 10px;border-radius:999px;font-size:11.5px;font-weight:700;background:rgba(16,185,129,0.16);color:#34d399;border:1px solid rgba(52,211,153,0.35)}
+.acquisition .ac-link-button{font-size:11.5px;padding:6px 12px;border-radius:8px;background:#261b38;border:1px solid #59417a;color:#e9d5ff;text-decoration:none;font-weight:600}
+.acquisition .ac-link-button:hover{background:#34244d}
+.acquisition .ac-pipeline-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr auto 1fr auto 1fr;gap:8px;align-items:center;margin:10px 0 14px}
+.acquisition .ac-step-node{padding:10px 12px;border-radius:8px;background:linear-gradient(180deg,rgba(36,30,52,0.88),rgba(20,18,28,0.95));border:1px solid rgba(168,85,247,0.35);display:flex;flex-direction:column;gap:3px;min-width:0}
+.acquisition .ac-step-num{font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#c084fc;font-weight:700}
+.acquisition .ac-step-node strong{font-size:13.5px;color:#fafafa}
+.acquisition .ac-step-node small{font-size:11px;color:#a1a1aa}
+.acquisition .ac-step-arrow{font-size:16px;color:#a855f7;font-weight:800;text-align:center}
+.acquisition .ac-connectors-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:8px}
+.acquisition .ac-conn-card{padding:10px 12px;border-radius:8px;background:#141418;border:1px solid #2b2b34;display:flex;flex-direction:column;gap:4px}
+.acquisition .ac-conn-card.is-ok{border-left:3px solid #34d399}
+.acquisition .ac-conn-head{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}
+.acquisition .ac-conn-head strong{font-size:12.5px;color:#fafafa}
+.acquisition .ac-conn-pill{font-size:10px;padding:2px 7px;border-radius:999px;background:#1f1f27;color:#d4d4d8;border:1px solid #343442}
+.acquisition .ac-conn-card.is-ok .ac-conn-pill{background:rgba(16,185,129,0.14);color:#34d399;border-color:rgba(52,211,153,0.35)}
+.acquisition .ac-search-form{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.acquisition .ac-search-form input[type="search"]{min-width:280px}
+.acquisition .ac-search-results{margin-top:12px;padding:12px;border-radius:8px;background:#13121a;border:1px solid #382e47}
+.acquisition .ac-search-summary{margin:0 0 10px;font-size:12px;color:#e9d5ff;font-weight:600}
+.acquisition .ac-cv-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.acquisition .ac-cv-card{padding:9px 10px;border-radius:7px;background:#181720;border:1px solid #2e2b3b;display:flex;flex-direction:column;gap:4px;font-size:11px}
+.acquisition .ac-cv-card.is-found{border-color:#7e22ce;background:#1f182c}
+.acquisition .ac-cv-card a{color:#d8b4fe;word-break:break-all;font-size:10.5px}
+.acquisition .ac-search-actions{display:flex;gap:8px;flex-wrap:wrap}
+.acquisition .ac-optional-events{margin:12px 0;padding:10px 14px;border:1px solid #2f2b3a;border-radius:8px;background:#14131a}
+.acquisition .ac-optional-events summary{cursor:pointer;color:#c4b5fd;font-size:12.5px}
+.acquisition .ac-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:12px 0}
+.acquisition .ac-kpi{padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);min-width:0}
+.acquisition .ac-kpi strong{display:block;font-size:22px}
+.acquisition .ac-kpi small{color:var(--muted)}
+.acquisition .ac-actions{display:flex;gap:8px;flex-wrap:wrap}
+.acquisition #ac-status{font-size:12px;padding:6px 10px;border-left:3px solid var(--accent);background:transparent;min-height:0}
+.acquisition section{margin:12px 0;padding:14px;min-width:0;border:1px solid var(--border);border-radius:8px;background:var(--panel)}
+.acquisition .ac-scroll{overflow:auto;max-height:320px}
+.acquisition #candidate-search{max-width:360px;margin:6px 0}
+.acquisition td,.acquisition th{padding:7px 10px;text-align:left;border-bottom:1px solid #27272a}
+.acquisition table{width:100%;border-collapse:collapse}
+.acquisition th{position:sticky;top:0;background:#27272a}
+@media(max-width:1100px){.acquisition .ac-grid,.acquisition .ac-connectors-grid,.acquisition .ac-exec-kpis,.acquisition .ac-cv-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.acquisition .ac-pipeline-flow{grid-template-columns:1fr}.acquisition .ac-step-arrow{display:none}}
+@media(max-width:768px){body.acquisition{grid-template-columns:1fr}}

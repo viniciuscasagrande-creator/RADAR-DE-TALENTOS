@@ -3,6 +3,9 @@ import { attachTalentCategories } from './talent-taxonomy.mjs';
 import { upsertMetricCurrent } from './registry.mjs';
 import { importEvents } from './events.mjs';
 import { distanceKm, FilterError } from './radar.mjs';
+import { isIdentityCatalogUrl } from './discovery/engine.mjs';
+import { confirmedYoutube } from './discovery/youtube-current.mjs';
+import { openConfirmed } from './discovery/open-social.mjs';
 
 const norm = s =>
   String(s ?? '')
@@ -1672,77 +1675,16 @@ export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date()
     throw err;
   }
 
-  // 4. Se o banco discovery.sqlite for fornecido, promove automaticamente observações reais já coletadas no Motor de Dados
+  // 4. Se o banco discovery.sqlite for fornecido, promove apenas observações com procedência de métrica validada e coloca registros suspeitos em revisão
   let discoverySynced = 0;
+  let quarantinedCount = 0;
   if (discoveryDb) {
-    try {
-      const candidates = discoveryDb.prepare("SELECT * FROM candidates WHERE status != 'rejected'").all();
-      const allTalents = radarDb.prepare('SELECT id, name FROM talents WHERE blocked = 0').all();
-      const talentByNorm = new Map(allTalents.map(t => [norm(t.name), t]));
-
-      radarDb.exec('BEGIN IMMEDIATE');
-      try {
-        for (const c of candidates) {
-          const matched = (c.radar_id && allTalents.find(t => t.id === c.radar_id)) || talentByNorm.get(norm(c.name));
-          const targetId = matched?.id ?? (`discovery-${c.id.slice(0, 24)}`);
-          if (!matched) {
-            radarDb.prepare('INSERT OR IGNORE INTO talents(id, name, entity_type, blocked) VALUES (?, ?, \'person\', 0)').run(targetId, c.name);
-          }
-          const profiles = discoveryDb.prepare('SELECT * FROM profiles WHERE candidate_id = ?').all(c.id);
-          for (const p of profiles) {
-            if (!['Instagram', 'YouTube', 'Spotify', 'TikTok'].includes(p.network)) continue;
-            const cleanUrl = p.url.replace(/\/$/, '');
-            const accId = `${targetId}-${p.network.toLowerCase().slice(0, 2)}`;
-            radarDb.prepare('INSERT OR IGNORE INTO commercial_accounts(id, talent_id, network, url, identity_source) VALUES (?, ?, ?, ?, ?)').run(
-              accId,
-              targetId,
-              p.network,
-              cleanUrl,
-              c.identity_evidence || cleanUrl
-            );
-            const obs = discoveryDb.prepare('SELECT * FROM observations WHERE profile_id = ? ORDER BY observed_at DESC').all(p.id);
-            for (const o of obs) {
-              const dayStr = o.observed_at.slice(0, 10);
-              if (['followers', 'views', 'likes', 'comments', 'subscribers', 'monthly_listeners', 'streams'].includes(o.metric)) {
-                radarDb.prepare(
-                  `INSERT OR IGNORE INTO commercial_snapshots(account_id, metric, observed_on, value, source, authorization_ref)
-                   VALUES (?, ?, ?, ?, ?, ?)`
-                ).run(accId, o.metric, dayStr, o.value, o.source_id || 'Motor de Dados', o.evidence_url || cleanUrl);
-              }
-              upsertSeries.run(
-                targetId,
-                p.network,
-                o.metric,
-                dayStr,
-                o.value,
-                o.source_id || 'Motor de Dados',
-                o.source_id?.includes('youtube') ? 'oficial' : 'observado',
-                o.evidence_url || cleanUrl,
-                o.observed_at,
-                'Coleta registrada pelo Motor de Dados'
-              );
-              upsertMetricCurrent(radarDb, {
-                account_id: accId,
-                talent_id: targetId,
-                network: p.network,
-                metric: o.metric,
-                value: o.value,
-                observed_on: dayStr,
-                collected_at: o.observed_at,
-                source: o.source_id || 'Motor de Dados',
-                status: 'available',
-                status_detail: `Coletado (${formatCompactPtBr(o.value)})`
-              });
-              discoverySynced++;
-            }
-          }
-        }
-        radarDb.exec('COMMIT');
-      } catch (err) {
-        radarDb.exec('ROLLBACK');
-        throw err;
-      }
-    } catch {}
+    const distRes = distributeVerifiedDiscoveryToRadar(radarDb, discoveryDb);
+    discoverySynced = distRes.distributed;
+    quarantinedCount = distRes.quarantined ?? 0;
+  } else {
+    const qRes = quarantineUnverifiedRadarMetrics(radarDb, null);
+    quarantinedCount = qRes.quarantined;
   }
 
   return {
@@ -1754,26 +1696,214 @@ export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date()
     socialSeriesSynced,
     regionalReportsSynced,
     discoverySynced,
+    quarantinedCount,
     executionPlan: EXECUTION_PLAN_8_STEPS
   };
 }
 
 /**
+ * Valida se uma observação do Discovery possui procedência suficiente da métrica (e não apenas evidência de identidade/catálogo).
+ */
+export function hasValidMetricProvenance(discoveryDb, candidate, profile, obs) {
+  if (!obs || !profile || !Number.isSafeInteger(obs.value) || obs.value < 0) return false;
+  const evUrl = obs.evidence_url || '';
+  try {
+    const u = new URL(evUrl);
+    if (u.protocol !== 'https:' || u.username || u.password) return false;
+  } catch {
+    return false;
+  }
+  // Catálogos de identidade (Wikidata, MusicBrainz, Wikipedia) comprovam quem é o artista, não a métrica de seguidores/ouvintes
+  if (isIdentityCatalogUrl(evUrl)) return false;
+
+  if (!discoveryDb) return true;
+
+  // Coleta oficial do YouTube Data API v3 exige canal YouTube confirmado individualmente (youtube-identity-review)
+  if (obs.source_id === 'youtube-public-current') {
+    return profile.network === 'YouTube' && confirmedYoutube(discoveryDb, profile);
+  }
+
+  // Observações manuais/operador (authorized-observation / open-social-current) exigem perfil confirmado individualmente
+  if (obs.source_id === 'authorized-observation' || obs.source_id === 'open-social-current') {
+    const isProfConfirmed = profile.network === 'YouTube'
+      ? confirmedYoutube(discoveryDb, profile)
+      : openConfirmed(discoveryDb, profile);
+    if (!isProfConfirmed) return false;
+    if (candidate?.identity_evidence && evUrl === candidate.identity_evidence && isIdentityCatalogUrl(candidate.identity_evidence)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Coloca em revisão (metric_review_quarantine + status pending_source em metric_current) registros já distribuídos
+ * nas tabelas operacionais do Radar que não possuam comprovação válida da métrica (ex.: 123 seguidores com URL do Wikidata),
+ * preservando o histórico integral para auditoria sem apagar registros do Discovery.
+ */
+export function quarantineUnverifiedRadarMetrics(radarDb, discoveryDb = null) {
+  if (!radarDb) return { quarantined: 0 };
+  let quarantined = 0;
+  const nowIso = new Date().toISOString();
+
+  // Mapeia observações válidas do Discovery por (talent_id|network|metric|observed_on)
+  const validDiscoveryKeys = new Set();
+  const invalidDiscoveryObs = [];
+  if (discoveryDb) {
+    try {
+      const candidates = discoveryDb.prepare("SELECT id, name, status, radar_id, identity_evidence FROM candidates WHERE radar_id IS NOT NULL").all();
+      for (const c of candidates) {
+        const profiles = discoveryDb.prepare('SELECT * FROM profiles WHERE candidate_id = ?').all(c.id);
+        for (const p of profiles) {
+          const obsList = discoveryDb.prepare('SELECT * FROM observations WHERE profile_id = ?').all(p.id);
+          for (const o of obsList) {
+            const dayStr = String(o.observed_at || '').slice(0, 10);
+            if (hasValidMetricProvenance(discoveryDb, c, p, o)) {
+              validDiscoveryKeys.add(`${c.radar_id}|${p.network}|${o.metric}|${dayStr}`);
+            } else {
+              invalidDiscoveryObs.push({ candidate: c, profile: p, obs: o, dayStr });
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  const insQuarantine = radarDb.prepare(
+    `INSERT OR REPLACE INTO metric_review_quarantine(
+       id, talent_id, account_id, network, metric, observed_on, value, source, evidence_ref, origin_table, reason, quarantined_at
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+
+  radarDb.exec('BEGIN IMMEDIATE');
+  try {
+    // 1. Audita commercial_snapshots
+    const commSnaps = radarDb.prepare(
+      `SELECT s.account_id, a.talent_id, a.network, s.metric, s.observed_on, s.value, s.source, s.authorization_ref
+       FROM commercial_snapshots s
+       JOIN commercial_accounts a ON a.id = s.account_id`
+    ).all();
+    for (const row of commSnaps) {
+      const key = `${row.talent_id}|${row.network}|${row.metric}|${row.observed_on}`;
+      const isCatalogEv = isIdentityCatalogUrl(row.authorization_ref);
+      const isUnverifiedAuthObs = row.source === 'authorized-observation' && (isCatalogEv || (discoveryDb && !validDiscoveryKeys.has(key)));
+      if (isCatalogEv || isUnverifiedAuthObs) {
+        insQuarantine.run(
+          `comm:${row.account_id}:${row.metric}:${row.observed_on}`,
+          row.talent_id,
+          row.account_id,
+          row.network,
+          row.metric,
+          row.observed_on,
+          row.value,
+          row.source,
+          row.authorization_ref,
+          'commercial_snapshots',
+          'Em revisão: evidência de identidade/catálogo ou observação sem comprovação individual da métrica',
+          nowIso
+        );
+        radarDb.prepare('DELETE FROM commercial_snapshots WHERE account_id = ? AND metric = ? AND observed_on = ?').run(
+          row.account_id,
+          row.metric,
+          row.observed_on
+        );
+        quarantined++;
+      }
+    }
+
+    // 2. Audita media_metric_series
+    const seriesRows = radarDb.prepare(
+      'SELECT talent_id, network, metric, observed_on, value, source, evidence_url FROM media_metric_series'
+    ).all();
+    for (const row of seriesRows) {
+      const key = `${row.talent_id}|${row.network}|${row.metric}|${row.observed_on}`;
+      const isCatalogEv = isIdentityCatalogUrl(row.evidence_url);
+      const isUnverifiedAuthObs = row.source === 'authorized-observation' && (isCatalogEv || (discoveryDb && !validDiscoveryKeys.has(key)));
+      if (isCatalogEv || isUnverifiedAuthObs) {
+        insQuarantine.run(
+          `series:${row.talent_id}:${row.network}:${row.metric}:${row.observed_on}:${row.source}`,
+          row.talent_id,
+          null,
+          row.network,
+          row.metric,
+          row.observed_on,
+          row.value,
+          row.source,
+          row.evidence_url,
+          'media_metric_series',
+          'Em revisão: evidência de identidade/catálogo ou observação sem comprovação individual da métrica',
+          nowIso
+        );
+        radarDb.prepare(
+          'DELETE FROM media_metric_series WHERE talent_id = ? AND network = ? AND metric = ? AND observed_on = ? AND source = ?'
+        ).run(row.talent_id, row.network, row.metric, row.observed_on, row.source);
+        quarantined++;
+      }
+    }
+
+    // 3. Audita metric_current: coloca em pending_source (sem apagar a linha da conta)
+    const currRows = radarDb.prepare(
+      'SELECT account_id, talent_id, network, metric, value, observed_on, source, status FROM metric_current WHERE value IS NOT NULL'
+    ).all();
+    for (const row of currRows) {
+      const key = `${row.talent_id}|${row.network}|${row.metric}|${row.observed_on || ''}`;
+      const isUnverifiedAuthObs = row.source === 'authorized-observation' && (!discoveryDb || !validDiscoveryKeys.has(key));
+      const isInvalidDiscMatch = invalidDiscoveryObs.some(
+        x => x.candidate.radar_id === row.talent_id && x.profile.network === row.network && x.obs.metric === row.metric && x.obs.value === row.value
+      );
+      if (isUnverifiedAuthObs || isInvalidDiscMatch) {
+        insQuarantine.run(
+          `current:${row.account_id}:${row.metric}:${row.observed_on || 'current'}`,
+          row.talent_id,
+          row.account_id,
+          row.network,
+          row.metric,
+          row.observed_on,
+          row.value,
+          row.source,
+          null,
+          'metric_current',
+          'Em revisão: indicador retornado para pending_source até comprovação da métrica',
+          nowIso
+        );
+        radarDb.prepare(
+          `UPDATE metric_current
+              SET value = NULL,
+                  observed_on = NULL,
+                  status = 'pending_source',
+                  status_detail = 'Em revisão: indicador sem comprovação de procedência da métrica (histórico preservado)'
+            WHERE account_id = ? AND metric = ?`
+        ).run(row.account_id, row.metric);
+        quarantined++;
+      }
+    }
+
+    radarDb.exec('COMMIT');
+  } catch (err) {
+    radarDb.exec('ROLLBACK');
+    throw err;
+  }
+
+  return { quarantined };
+}
+
+/**
  * Camada Central de Distribuição de Indicadores (Motor de Dados 3.0):
- * Propaga observações verificadas e perfis confirmados de discovery.sqlite para as tabelas
- * operacionais de radar.sqlite (metric_current e media_metric_series) sem tocar em commercial_snapshots
- * quando a fonte não possuir history_allowed=1, garantindo que Visão Geral, Ficha 360° e os demais menus
- * consultem dados consistentes imediatamente após cada coleta ou confirmação.
+ * Propaga apenas observações com procedência da métrica comprovada de discovery.sqlite para as tabelas
+ * operacionais de radar.sqlite e coloca observações sem comprovação em revisão (metric_review_quarantine).
  */
 export function distributeVerifiedDiscoveryToRadar(radarDb, discoveryDb) {
-  if (!radarDb || !discoveryDb) return { distributed: 0, profilesUpdated: 0 };
+  if (!radarDb || !discoveryDb) return { distributed: 0, profilesUpdated: 0, quarantined: 0 };
   let distributed = 0;
   let profilesUpdated = 0;
+  const qRes = quarantineUnverifiedRadarMetrics(radarDb, discoveryDb);
+  let quarantined = qRes.quarantined;
   try {
     const candidates = discoveryDb.prepare(
       "SELECT id, name, status, radar_id, identity_evidence FROM candidates WHERE status IN ('approved', 'published') AND radar_id IS NOT NULL"
     ).all();
-    if (!candidates.length) return { distributed: 0, profilesUpdated: 0 };
+    if (!candidates.length) return { distributed: 0, profilesUpdated: 0, quarantined };
 
     const upsertSeries = radarDb.prepare(
       `INSERT INTO media_metric_series(talent_id, network, metric, observed_on, value, source, source_type, evidence_url, collected_at, methodology)
@@ -1792,6 +1922,11 @@ export function distributeVerifiedDiscoveryToRadar(radarDb, discoveryDb) {
          value = excluded.value,
          source = excluded.source,
          authorization_ref = excluded.authorization_ref`
+    );
+    const insQuarantine = radarDb.prepare(
+      `INSERT OR REPLACE INTO metric_review_quarantine(
+         id, talent_id, account_id, network, metric, observed_on, value, source, evidence_ref, origin_table, reason, quarantined_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
 
     radarDb.exec('BEGIN IMMEDIATE');
@@ -1830,8 +1965,44 @@ export function distributeVerifiedDiscoveryToRadar(radarDb, discoveryDb) {
           for (const o of obs) {
             const dayStr = o.observed_at.slice(0, 10);
             const srcLabel = o.source_id || 'Motor de Dados';
+            if (!hasValidMetricProvenance(discoveryDb, c, p, o)) {
+              insQuarantine.run(
+                `disc:${o.id}`,
+                talent.id,
+                accId,
+                p.network,
+                o.metric,
+                dayStr,
+                o.value,
+                srcLabel,
+                o.evidence_url || cleanUrl,
+                'discovery.observations',
+                'Bloqueado na distribuição: evidência de identidade ou perfil sem confirmação individual da métrica',
+                new Date().toISOString()
+              );
+              const existingCurr = radarDb.prepare('SELECT value, status FROM metric_current WHERE account_id = ? AND metric = ?').get(accId, o.metric);
+              if (!existingCurr || existingCurr.value == null) {
+                upsertMetricCurrent(radarDb, {
+                  account_id: accId,
+                  talent_id: talent.id,
+                  network: p.network,
+                  metric: o.metric,
+                  value: null,
+                  observed_on: null,
+                  collected_at: o.observed_at,
+                  source: srcLabel,
+                  status: 'pending_source',
+                  status_detail: 'Em revisão: evidência não comprova a métrica informada'
+                });
+              }
+              quarantined++;
+              continue;
+            }
             const srcType = o.source_id?.includes('youtube') ? 'oficial' : 'observado';
-            if (['followers', 'views', 'likes', 'comments', 'subscribers', 'monthly_listeners', 'streams'].includes(o.metric)) {
+            // Respeita history_allowed: open-social-current (history_allowed=0) atualiza apenas metric_current e media_metric_series
+            const srcRow = discoveryDb.prepare('SELECT history_allowed FROM sources WHERE id = ?').get(o.source_id);
+            const allowCommSnapshot = o.source_id === 'youtube-public-current' || Boolean(srcRow?.history_allowed);
+            if (allowCommSnapshot && ['followers', 'views', 'likes', 'comments', 'subscribers', 'monthly_listeners', 'streams'].includes(o.metric)) {
               upsertCommSnap.run(
                 accId,
                 o.metric,
@@ -1875,7 +2046,7 @@ export function distributeVerifiedDiscoveryToRadar(radarDb, discoveryDb) {
       throw err;
     }
   } catch {}
-  return { distributed, profilesUpdated };
+  return { distributed, profilesUpdated, quarantined };
 }
 
 /**
@@ -1906,8 +2077,9 @@ export function getArtistMediaStats(db, talentId, { end = new Date().toISOString
           accMap.set(dp.network, { id: dp.id, network: dp.network, url: dp.url, identity_source: 'Prospecção confirmada' });
         }
       }
-      discObsRows = discoveryDb.prepare(
-        `SELECT p.network, p.url, o.metric, substr(o.observed_at, 1, 10) AS observed_on, o.observed_at, o.value, o.source_id, o.evidence_url
+      const rawDiscObsRows = discoveryDb.prepare(
+        `SELECT p.id AS profile_id, p.candidate_id, p.network, p.url, c.identity_evidence,
+                o.id, o.metric, substr(o.observed_at, 1, 10) AS observed_on, o.observed_at, o.value, o.source_id, o.evidence_url
          FROM observations o
          JOIN profiles p ON p.id = o.profile_id
          JOIN candidates c ON c.id = p.candidate_id
@@ -1915,6 +2087,14 @@ export function getArtistMediaStats(db, talentId, { end = new Date().toISOString
            AND substr(o.observed_at, 1, 10) <= ?
          ORDER BY o.observed_at ASC`
       ).all(talentId, end);
+      discObsRows = rawDiscObsRows.filter(r =>
+        hasValidMetricProvenance(
+          discoveryDb,
+          { id: r.candidate_id, identity_evidence: r.identity_evidence },
+          { id: r.profile_id, candidate_id: r.candidate_id, network: r.network, url: r.url },
+          r
+        )
+      );
     } catch {}
   }
 

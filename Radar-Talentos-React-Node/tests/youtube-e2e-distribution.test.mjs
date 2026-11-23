@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { openDiscovery, configureSource, ingest, listCandidates, detail, review, publishIdentityOnly } from '../server/src/discovery/engine.mjs';
+import { openDiscovery, configureSource, ingest, listCandidates, detail, review, publishIdentityOnly, recordAuthorizedObservation } from '../server/src/discovery/engine.mjs';
 import { collectYoutube, confirmYoutube } from '../server/src/discovery/youtube-current.mjs';
 import { currentDashboard } from '../server/src/discovery/current-dashboard.mjs';
 import { openDatabase } from '../server/src/database/index.mjs';
-import { distributeVerifiedDiscoveryToRadar, getArtistMediaStats, getCrossMenuSummary } from '../server/src/menu-integration.mjs';
+import { distributeVerifiedDiscoveryToRadar, quarantineUnverifiedRadarMetrics, getArtistMediaStats, getCrossMenuSummary } from '../server/src/menu-integration.mjs';
 import { distributeArtistStats } from '../server/src/indicator-distribution.mjs';
 import { commercialQuery } from '../server/src/commercial.mjs';
 
@@ -169,6 +169,155 @@ test('Consistência de ranking e filtro comercial: artista com 1 coleta grande p
     assert.equal(filtered.items.length, 1);
     assert.equal(filtered.items[0].id, 't-gusttavo-lima');
   } finally {
+    radar.close();
+  }
+});
+
+test('Validação de procedência e quarentena auditável: bloqueia 123 seguidores de Bruno & Marrone sem comprovação, coloca registros existentes em revisão e preserva YouTube oficial de Gusttavo Lima', async () => {
+  const discovery = openDiscovery(':memory:');
+  const radar = openDatabase(':memory:');
+  try {
+    const BM_RADAR_ID = 'discovery-609c291a13f0f61a466767ceb83418a6';
+    radar.prepare("INSERT INTO talents(id, name, entity_type, blocked) VALUES (?, ?, 'person', 0)").run(GUSTTAVO_ID, GUSTTAVO_NAME);
+    radar.prepare("INSERT INTO talents(id, name, entity_type, blocked) VALUES (?, 'Bruno & Marrone', 'person', 0)").run(BM_RADAR_ID);
+
+    configureSource(discovery, {
+      id: 'wikidata-cc0',
+      kind: 'licensed-file',
+      authorization: 'https://www.wikidata.org/wiki/Wikidata:Licensing',
+      history_allowed: false,
+      enabled: true
+    });
+
+    // 1. Cadastra Gusttavo Lima (YouTube oficial confirmado) e Bruno & Marrone (Instagram com evidência apenas do Wikidata)
+    ingest(discovery, 'wikidata-cc0', [
+      {
+        name: GUSTTAVO_NAME,
+        external_id: 'Q5621275',
+        evidence_url: 'https://www.wikidata.org/wiki/Q5621275',
+        profiles: [{ network: 'YouTube', url: CHANNEL_URL }]
+      },
+      {
+        name: 'Bruno & Marrone',
+        external_id: 'Q3645985',
+        evidence_url: 'https://www.wikidata.org/wiki/Q3645985',
+        profiles: [{ network: 'Instagram', url: 'https://instagram.com/oficialbrunoemarrone' }]
+      }
+    ]);
+
+    const cands = listCandidates(discovery);
+    const glCand = cands.find(c => c.name === GUSTTAVO_NAME);
+    const bmCand = cands.find(c => c.name === 'Bruno & Marrone');
+
+    review(discovery, glCand.id, {
+      approve: true,
+      reviewer: 'admin',
+      evidence: 'https://www.wikidata.org/wiki/Q5621275',
+      radarId: GUSTTAVO_ID
+    });
+    publishIdentityOnly(discovery, radar, glCand.id);
+    const glProfId = detail(discovery, glCand.id).profiles[0].id;
+    confirmYoutube(discovery, glCand.id, glProfId, {
+      evidence: CHANNEL_URL,
+      reviewer: 'admin'
+    });
+
+    review(discovery, bmCand.id, {
+      approve: true,
+      reviewer: 'admin',
+      evidence: 'https://www.wikidata.org/wiki/Q3645985',
+      radarId: BM_RADAR_ID
+    });
+    publishIdentityOnly(discovery, radar, bmCand.id);
+
+    // 2. Bloqueio na origem: recordAuthorizedObservation rejeita URL de catálogo de identidade (Wikidata) como prova de métrica
+    assert.throws(
+      () =>
+        recordAuthorizedObservation(discovery, bmCand.id, {
+          network: 'Instagram',
+          url: 'https://instagram.com/oficialbrunoemarrone',
+          metric: 'followers',
+          value: 123,
+          observed_at: '2026-11-23T17:22:11.938Z',
+          evidence_url: 'https://www.wikidata.org/wiki/Q3645985'
+        }),
+      /Evidência de identidade/
+    );
+
+    // 3. Simula o estado exato de produção (onde 123 seguidores já havia sido gravado antes da trava em discovery.observations, commercial_snapshots e metric_current)
+    configureSource(discovery, {
+      id: 'authorized-observation',
+      kind: 'licensed-file',
+      authorization: 'Observação autorizada / Relatório do artista',
+      history_allowed: true,
+      enabled: true
+    });
+    const bmProfId = detail(discovery, bmCand.id).profiles[0].id;
+    discovery.prepare('INSERT INTO observations VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+      'ba5905c9c8003b187463cba94add1e561369dd7d532e771a6d15c3467aa0946a',
+      bmProfId,
+      'followers',
+      123,
+      '2026-11-23T17:22:11.938Z',
+      'authorized-observation',
+      'https://www.wikidata.org/wiki/Q3645985'
+    );
+    const bmAcc = radar.prepare("SELECT id FROM commercial_accounts WHERE talent_id = ? AND network = 'Instagram'").get(BM_RADAR_ID);
+    radar.prepare('INSERT INTO commercial_snapshots(account_id, metric, observed_on, value, source, authorization_ref) VALUES (?, ?, ?, ?, ?, ?)').run(
+      bmAcc.id,
+      'followers',
+      '2026-11-23',
+      123,
+      'authorized-observation',
+      'https://www.wikidata.org/wiki/Q3645985'
+    );
+    radar.prepare("UPDATE metric_current SET value = 123, observed_on = '2026-11-23', source = 'authorized-observation', status = 'available' WHERE account_id = ? AND metric = 'followers'").run(
+      bmAcc.id
+    );
+
+    // Coleta oficial do YouTube para Gusttavo Lima
+    const dayClock = () => new Date('2026-11-23T17:56:25.637Z');
+    await collectYoutube(discovery, {
+      key: 'test-yt-key',
+      fetcher: mockYoutubeApi({ subscribers: '21900000', views: '19536857880', videos: '1008' }),
+      clock: dayClock
+    });
+
+    // 4. Executa distribuição central (que audita registros existentes e bloqueia novas distribuições sem comprovação)
+    const dist = distributeVerifiedDiscoveryToRadar(radar, discovery);
+    assert.ok(dist.quarantined >= 2);
+    assert.equal(dist.distributed, 3); // Apenas as 3 métricas oficiais do YouTube de Gusttavo Lima
+
+    // 5. Verifica que o registro original em discovery.observations foi preservado para auditoria (não apagado)
+    const rawObs = discovery.prepare("SELECT value, source_id FROM observations WHERE id = 'ba5905c9c8003b187463cba94add1e561369dd7d532e771a6d15c3467aa0946a'").get();
+    assert.equal(rawObs.value, 123);
+
+    // 6. Verifica que o histórico também foi arquivado em metric_review_quarantine no radar.sqlite
+    const qRows = radar.prepare('SELECT * FROM metric_review_quarantine WHERE talent_id = ?').all(BM_RADAR_ID);
+    assert.ok(qRows.length >= 2);
+    assert.ok(qRows.every(r => r.value === 123));
+
+    // 7. Verifica que metric_current de Bruno & Marrone voltou para revisão (pending_source, value = null) e commercial_snapshots não tem mais 123
+    const bmCurr = radar.prepare("SELECT value, status FROM metric_current WHERE account_id = ? AND metric = 'followers'").get(bmAcc.id);
+    assert.equal(bmCurr.value, null);
+    assert.equal(bmCurr.status, 'pending_source');
+    const bmSnapCount = radar.prepare('SELECT count(*) n FROM commercial_snapshots WHERE account_id = ?').get(bmAcc.id).n;
+    assert.equal(bmSnapCount, 0);
+
+    // 8. Verifica que Oportunidade Comercial, Visão Geral e Camada Central não exibem mais 123 para Bruno & Marrone, mas mantêm Gusttavo Lima intacto
+    const comm = commercialQuery(radar, new URLSearchParams({ network: 'all', end: '2026-11-23' }));
+    assert.equal(comm.items.length, 1);
+    assert.equal(comm.items[0].id, GUSTTAVO_ID);
+    assert.equal(comm.items[0].value, 21900000);
+
+    const bmStats = distributeArtistStats(getArtistMediaStats(radar, BM_RADAR_ID, { end: '2026-11-23', discoveryDb: discovery }), { end: '2026-11-23' });
+    assert.equal(bmStats.networks.Instagram.current, null);
+    assert.equal(bmStats.networks.Instagram.status, 'perfil_sem_coleta');
+
+    const glStats = distributeArtistStats(getArtistMediaStats(radar, GUSTTAVO_ID, { end: '2026-11-23', discoveryDb: discovery }), { end: '2026-11-23' });
+    assert.equal(glStats.networks.YouTube.current.value, 21900000);
+  } finally {
+    discovery.close();
     radar.close();
   }
 });

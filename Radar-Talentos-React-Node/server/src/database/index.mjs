@@ -108,6 +108,20 @@ export function openDatabase(filename = databasePath()) {
       evidence_url TEXT NOT NULL,
       observed_on TEXT NOT NULL,
       collected_at TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS metric_review_quarantine (
+      id TEXT PRIMARY KEY,
+      talent_id TEXT NOT NULL,
+      account_id TEXT,
+      network TEXT NOT NULL,
+      metric TEXT NOT NULL,
+      observed_on TEXT,
+      value INTEGER,
+      source TEXT NOT NULL,
+      evidence_ref TEXT,
+      origin_table TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      quarantined_at TEXT NOT NULL
     ) STRICT;`);
     return db;
   } catch (error) {

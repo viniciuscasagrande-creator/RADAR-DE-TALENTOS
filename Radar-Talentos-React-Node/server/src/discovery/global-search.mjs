@@ -14,13 +14,40 @@ const qid=id=>typeof id==='string'&&/^Q[1-9]\d{0,14}$/.test(id);
 const mbid=id=>typeof id==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 function source(db,id){const old=db.prepare('SELECT * FROM sources WHERE id=?').get(id);if(old){if(!old.enabled||old.kind!=='licensed-file'||old.authorization!==license[id]||old.history_allowed)throw Error('Fonte aberta desabilitada ou divergente');return;}configureSource(db,{id,kind:'licensed-file',authorization:license[id],enabled:true,history_allowed:false});}
 function queryText(q){if(typeof q!=='string'||q.trim().length<2||q.length>100||!norm(q))throw Error('Informe um nome entre 2 e 100 caracteres');return q.trim();}
-function rank(name,q){const n=norm(name),s=norm(q);return n===s?0:n.startsWith(s)?1:n.includes(s)?2:99;}
+function editDistance(a,b){
+ if(a===b)return 0;
+ if(!a.length)return b.length;
+ if(!b.length)return a.length;
+ if(Math.abs(a.length-b.length)>2)return 99;
+ const dp=Array.from({length:a.length+1},(_,i)=>i);
+ for(let j=1;j<=b.length;j++){
+  let prev=dp[0];dp[0]=j;
+  for(let i=1;i<=a.length;i++){
+   const tmp=dp[i];
+   dp[i]=a[i-1]===b[j-1]?prev:1+Math.min(prev,dp[i],dp[i-1]);
+   prev=tmp;
+  }
+ }
+ return dp[a.length];
+}
+function rank(name,q){
+ const n=norm(name),s=norm(q);
+ if(!n||!s)return 99;
+ if(n===s)return 0;
+ if(n.startsWith(s))return 1;
+ if(n.includes(s))return 2;
+ const qTokens=s.split(/\s+/).filter(Boolean);
+ const nTokens=n.split(/\s+/).filter(Boolean);
+ if(qTokens.length>1&&qTokens.every(qt=>nTokens.some(nt=>nt.includes(qt))))return 3;
+ if(qTokens.every(qt=>qt.length>=4&&nTokens.some(nt=>editDistance(qt,nt)<=Math.min(2,Math.floor(qt.length/3)))))return 4;
+ return 99;
+}
 function local(db,sql,q){if(!db)return [];let results=[];for(const r of db.prepare(sql).iterate()){const score=rank(r.name,q);if(score<99){results.push({...r,score});if(results.length>100)results.sort((a,b)=>a.score-b.score||a.name.localeCompare(b.name)).splice(40);}}return results.sort((a,b)=>a.score-b.score||a.name.localeCompare(b.name)).slice(0,40).map(({score,...r})=>r);}
 async function api(params,fetcher){const u=new URL('https://www.wikidata.org/w/api.php');u.search=new URLSearchParams({format:'json',formatversion:'2',...params});const r=await fetcher(u,{headers:{'User-Agent':process.env.RADAR_WIKIDATA_USER_AGENT||'RadarDeTalentos/1.0 (https://radar-de-talentos-nu.vercel.app/)','Accept':'application/json'},signal:AbortSignal.timeout(10000),redirect:'error'});if(!r.ok)throw Error('Wikidata HTTP '+r.status);const data=await r.json();if(data.error)throw Error('Wikidata indisponível');return data;}
 function vals(e,p){return (e.claims?.[p]??[]).filter(c=>c.rank!=='deprecated'&&c.mainsnak?.snaktype==='value').map(c=>c.mainsnak.datavalue?.value);}
 function profileHints(e){const out=[];const fields=[['Instagram','P2003',/^[A-Za-z0-9_.]{1,30}$/,'https://instagram.com/'],['YouTube','P2397',/^UC[A-Za-z0-9_-]{22}$/,'https://youtube.com/channel/'],['Spotify','P1902',/^[A-Za-z0-9]{22}$/,'https://open.spotify.com/artist/'],['TikTok','P7085',/^[A-Za-z0-9_.]{1,24}$/,'https://tiktok.com/@']];for(const [network,p,re,base] of fields){for(const v of vals(e,p)){if(typeof v==='string'&&re.test(v))out.push({network,url:base+v,observations:[]});}}return [...new Map(out.map(x=>[x.url,x])).values()];}
 function officialWebsite(e){for(const v of vals(e,'P856')){if(typeof v==='string'){try{const u=new URL(v);if(u.protocol==='https:'&&!u.username&&!u.password)return u.href;}catch{}}}return null;}
-function entity(e){if(!e||e.missing||!qid(e.id))return null;const types=vals(e,'P31').map(x=>x?.id);const occupations=vals(e,'P106');if(!types.some(x=>['Q5','Q215380','Q2088357','Q5741069','Q216337','Q43229'].includes(x))||types.includes('Q5')&&!occupations.length)return null;const name=e.labels?.pt?.value??e.labels?.en?.value??Object.values(e.labels??{})[0]?.value;if(typeof name!=='string'||!name.trim()||name.length>500)return null;const site=officialWebsite(e);const mbids=vals(e,'P434').filter(mbid);return {external_id:e.id,name,description:e.descriptions?.pt?.value??e.descriptions?.en?.value??'',evidence_url:'https://www.wikidata.org/wiki/'+e.id,official_website:site,musicbrainz_id:mbids[0]??null,profiles:profileHints(e),state:'pending_identity',source:WIKI};}
+function entity(e){if(!e||e.missing||!qid(e.id))return null;const types=vals(e,'P31').map(x=>x?.id);const occupations=vals(e,'P106');const profiles=profileHints(e);const site=officialWebsite(e);if(!types.some(x=>['Q5','Q215380','Q2088357','Q5741069','Q216337','Q43229'].includes(x))||types.includes('Q5')&&!occupations.length&&!profiles.length&&!site)return null;const name=e.labels?.pt?.value??e.labels?.en?.value??Object.values(e.labels??{})[0]?.value;if(typeof name!=='string'||!name.trim()||name.length>500)return null;const mbids=vals(e,'P434').filter(mbid);return {external_id:e.id,name,description:e.descriptions?.pt?.value??e.descriptions?.en?.value??'',evidence_url:'https://www.wikidata.org/wiki/'+e.id,official_website:site,musicbrainz_id:mbids[0]??null,profiles,state:'pending_identity',source:WIKI};}
 async function entities(ids,fetcher){if(!ids.length)return [];const data=await api({action:'wbgetentities',ids:ids.join('|'),props:'labels|descriptions|claims',languages:'pt|en',languagefallback:'1'},fetcher);if(!data.entities||typeof data.entities!=='object')throw Error('Resposta inválida');return ids.map(id=>entity(data.entities[id])).filter(Boolean);}
 
 export function extractSocialProfileFromUrl(rawUrl){
@@ -120,19 +147,20 @@ export async function searchBraveProfiles(query,{key=process.env.BRAVE_SEARCH_AP
  return {status:'ok',profiles:[...new Map(profiles.map(x=>[x.url,x])).values()],web_results:items.slice(0,8)};
 }
 
-export function crossValidateIdentity({name,wikidata=[],musicbrainz=[],braveProfiles=[]}={}){
+export function crossValidateIdentity({name,wikidata=[],musicbrainz=[],braveProfiles=[],localProfiles=[]}={}){
  const byNet=new Map();
  const add=(network,url,origin)=>{
   const k=`${network}|${url.toLowerCase()}`;
   const cur=byNet.get(k)??{network,url,sources:[],confidence:'single_source',verified_cross_source:false};
   if(!cur.sources.includes(origin))cur.sources.push(origin);
   cur.verified_cross_source=cur.sources.length>=2;
-  cur.confidence=cur.sources.length>=2?'high_cross_validated':origin==='wikidata-cc0'||origin==='musicbrainz-cc0'?'catalog_indexed':'search_indexed';
+  cur.confidence=cur.sources.length>=2?'high_cross_validated':origin==='wikidata-cc0'||origin==='musicbrainz-cc0'||origin==='radar-catalog'?'catalog_indexed':'search_indexed';
   byNet.set(k,cur);
  };
  for(const w of wikidata)for(const p of w.profiles??[])add(p.network,p.url,WIKI);
  for(const m of musicbrainz)for(const p of m.profiles??[])add(p.network,p.url,MB);
  for(const b of braveProfiles)add(b.network,b.url,BRAVE);
+ for(const lp of localProfiles)if(lp?.network&&lp?.url)add(lp.network,lp.url,lp.source||'radar-catalog');
  const profiles=[...byNet.values()];
  const networksCovered=['Instagram','YouTube','Spotify','TikTok'].map(net=>({
   network:net,
@@ -145,6 +173,21 @@ export function crossValidateIdentity({name,wikidata=[],musicbrainz=[],braveProf
 
 export async function globalSearch(db,radar,query,{fetcher=fetch,includeMusicBrainzLive=false,braveKey=process.env.BRAVE_SEARCH_API_KEY}={}){
  const q=queryText(query);const candidates=local(db,"SELECT id,name,status FROM candidates WHERE status!='rejected'",q);const registered=local(radar,'SELECT id,name FROM talents WHERE blocked=0',q);
+ const localProfiles=[];
+ if(radar&&registered.length){
+  try{
+   for(const reg of registered.slice(0,5)){
+    for(const row of radar.prepare('SELECT network,url FROM commercial_accounts WHERE talent_id=?').all(reg.id))localProfiles.push({...row,source:'radar-catalog'});
+   }
+  }catch{}
+ }
+ if(db&&candidates.length){
+  try{
+   for(const cand of candidates.slice(0,5)){
+    for(const row of db.prepare('SELECT network,url FROM profiles WHERE candidate_id=?').all(cand.id))localProfiles.push({...row,source:'discovery-candidate'});
+   }
+  }catch{}
+ }
  const result={query:q,registered,candidates,external:[],musicbrainz:[],brave:{status:'not_configured',profiles:[],web_results:[]},crossValidation:null,capabilities:FREE_MOTOR_CAPABILITIES,sources:{local:'ok',wikidata:'not_run',musicbrainz:'not_imported',brave:'not_configured'},coverage:'partial'};
  const configured=db.prepare('SELECT enabled FROM sources WHERE id=?').get(WIKI);
  if(db.prepare('SELECT 1 FROM sources WHERE id=? AND enabled=1').get(MB))result.sources.musicbrainz='local_index';
@@ -167,7 +210,7 @@ export async function globalSearch(db,radar,query,{fetcher=fetch,includeMusicBra
    result.sources.brave='unavailable';
   }
  }
- result.crossValidation=crossValidateIdentity({name:q,wikidata:result.external,musicbrainz:result.musicbrainz,braveProfiles:result.brave.profiles});
+ result.crossValidation=crossValidateIdentity({name:q,wikidata:result.external,musicbrainz:result.musicbrainz,braveProfiles:result.brave.profiles,localProfiles});
  return result;
 }
 export async function saveWikidata(db,id,{fetcher=fetch}={}){if(!qid(id))throw Error('Identificador Wikidata inválido');const [row]=await entities([id],fetcher);if(!row)throw Error('Entidade não elegível');source(db,WIKI);const candidateId=hash(WIKI,id);const prior=db.prepare('SELECT id FROM candidates WHERE id=?').get(candidateId);if(prior)return detail(db,candidateId); // não alterar perfil anterior sem revisão

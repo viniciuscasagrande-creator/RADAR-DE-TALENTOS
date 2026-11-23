@@ -213,7 +213,7 @@ async function reportChanged(){
  if(seq===reportSeq)await search();
 }
 function metricChanged(){activeReports=reports.filter(r=>r.network===field('network').value&&(!field('metric').value||r.metric===field('metric').value)&&(!field('days').value||(Date.parse(r.period_end)-Date.parse(r.period_start))/86400000+1===Number(field('days').value)));field('report').replaceChildren(...activeReports.map((r,i)=>new Option(`${names[r.metric]??r.metric} · ${r.period_start} a ${r.period_end} · ${r.source} · ${r.quality==='verified'?'Verificado':'Estimado'}`,String(i))));if(!activeReports.length)field('report').append(new Option('Nenhum relatório disponível',''));return reportChanged();}
-function networkChanged(){const keys=[...new Set(reports.filter(r=>r.network===field('network').value).map(r=>r.metric))];options(field('metric'),keys.map(id=>({id,name:names[id]??id})),'Todos disponíveis');if(keys.includes('views'))field('metric').value='views';else if(field('network').value==='Spotify'&&keys.includes('streams'))field('metric').value='streams';return metricChanged();}
+function networkChanged(){const keys=[...new Set(reports.filter(r=>r.network===field('network').value).map(r=>r.metric))];options(field('metric'),keys.map(id=>({id,name:names[id]??id})),'Todos disponíveis');if(keys.includes('views'))field('metric').value='views';else if(field('network').value==='Spotify'&&keys.includes('listeners'))field('metric').value='listeners';else if(field('network').value==='Spotify'&&keys.includes('streams'))field('metric').value='streams';else if(field('network').value==='Instagram'&&keys.includes('followers'))field('metric').value='followers';else if(keys[0])field('metric').value=keys[0];return metricChanged();}
 async function loadReports(){reports=await get('/api/regional/reports');table('coverage',['Mídia','Métrica','Início','Fim','Fonte','Qualidade','Registros','Artistas'],reports.map(r=>[r.network,names[r.metric]??r.metric,r.period_start,r.period_end,r.source,r.quality==='verified'?'Verificado':'Estimado',r.records,r.talents]));await networkChanged();}
 
 async function search(keepPage=false){
@@ -304,24 +304,16 @@ async function search(keepPage=false){
    }
    $('growth-period').textContent=growingRows.length?'Evolução verificada nas mídias (Instagram, Spotify, YouTube e TikTok · janela de 30 dias):':'Aguardando relatório regional ou segunda coleta para cálculo de evolução.';
    table('growth',['Artista','Mídia','Variação (30d)','Atual'],growingRows.slice(0,50));
-   const demoPlaces=(demo.topMunicipalities||[]).map(m=>({code:m.code,name:m.name,uf:m.uf,region:m.region,lat:m.lat,lon:m.lon,value:m.population||0}));
-   const byRegMap=new Map(),byUfMap=new Map();
-   for(const m of demoPlaces){
-    byRegMap.set(m.region,(byRegMap.get(m.region)||0)+m.value);
-    byUfMap.set(m.uf,(byUfMap.get(m.uf)||0)+m.value);
-   }
-   const byRegion=[...byRegMap.entries()].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value);
-   const byState=[...byUfMap.entries()].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value);
-   bars('regions',byRegion);
-   bars('states',byState);
-   bars('cities',demoPlaces.slice(0,25).map(x=>({name:`${x.name} / ${x.uf} (Pop. IBGE)`,value:x.value})));
-   bars('region-artists',(cross.counts?.talents?[{name:'Cadastro Nacional (4 Mídias)',value:cross.total}]:[]));
+   $('regions').replaceChildren(el('p','Sem dados verificados de audiência regional neste recorte.'));
+   $('states').replaceChildren(el('p','Sem dados verificados de audiência por estado neste recorte.'));
+   $('cities').replaceChildren(el('p','Sem dados verificados de audiência por cidade para a mídia/período selecionado. População municipal (IBGE) pertence exclusivamente à Base Geográfica Nacional e não é exibida como audiência.'));
+   $('region-artists').replaceChildren(el('p','Selecione um relatório regional verificado para listar artistas por região.'));
    total=cross.total||0;
    $('page').textContent=total?`${offset+1}–${Math.min(offset+100,total)} de ${total}`:'Sem dados';
    $('prev').disabled=offset===0;
    $('next').disabled=offset+100>=total;
-   map({byState,places:demoPlaces});
-   $('message').textContent=`Cruzamento multi-fonte ativo (${cross.executionPlan?.label||'8 de 8 etapas concluídas'}). Indicadores sem coleta automática exibem "Sem coleta". Eventos publicados indicam presença territorial, não vendas ou audiência digital. Mapa exibe população oficial dos polos (IBGE) enquanto não há relatório regional selecionado.`;
+   map({byState:[],places:[]});
+   $('message').textContent='Exibindo indicadores nacionais verificados das 4 mídias. Para o mapa e Cidades com maior concentração, selecione uma mídia/período com relatório regional verificado (Spotify, Instagram ou YouTube). População do IBGE nunca é exibida como audiência.';
   }catch{
    $('message').textContent='Nenhum relatório municipal disponível para esta mídia. Importe uma fonte autorizada.';
    table('artists',[],[]);

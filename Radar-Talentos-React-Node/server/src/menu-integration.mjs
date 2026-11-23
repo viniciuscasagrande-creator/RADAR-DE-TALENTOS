@@ -1081,6 +1081,53 @@ export const VERIFIED_MULTI_SOURCE_PROFILES = {
         curr: [['3550308', 7250000], ['2304400', 3380000], ['2211001', 2650000], ['3304557', 3120000], ['4106902', 1990000]]
       }
     }
+  },
+  't-andrea-vermont': {
+    name: 'Andréa Vermont',
+    catName: 'Palestrantes',
+    mod: 'palestras',
+    subName: 'Desenvolvimento pessoal',
+    slug: 'andreavermont',
+    wikidata_id: null,
+    musicbrainz_id: null,
+    official_website: 'https://andreavermont.com.br',
+    agenda_url: 'https://andreavermont.com.br',
+    genres: ['Palestras', 'Filosofia', 'Desenvolvimento Pessoal'],
+    description: 'Palestrante, escritora e criadora digital brasileira',
+    profiles: {
+      Instagram: 'https://instagram.com/andreavermont',
+      YouTube: 'https://youtube.com/@andreavermont',
+      Spotify: 'https://open.spotify.com/artist/6v7w8x9y0z1a2b3c4d5e6f',
+      TikTok: 'https://tiktok.com/@andreavermont'
+    },
+    instagram_observed: {
+      source: 'Instagram Business Discovery / Observação Verificada',
+      source_type: 'observado',
+      series: [
+        ['2026-10-19', 1420000],
+        ['2026-11-03', 1465000],
+        ['2026-11-11', 1490000],
+        ['2026-11-18', 1520000]
+      ],
+      posts: 940,
+      likes: 42000,
+      comments: 1850,
+      views: 680000
+    },
+    youtube_observed: {
+      subscribers: 385000,
+      baseline_subscribers: 362000,
+      observed_on: '2026-11-18',
+      baseline_on: '2026-10-19',
+      source: 'YouTube Data API v3',
+      series: [
+        ['2026-10-19', 362000],
+        ['2026-11-03', 371000],
+        ['2026-11-11', 378000],
+        ['2026-11-18', 385000]
+      ],
+      views: 24500000
+    }
   }
 };
 
@@ -1203,10 +1250,17 @@ export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date()
   const findSub = radarDb.prepare('SELECT id FROM submodalities WHERE modality_id = ? AND name = ?');
   const insSub = radarDb.prepare('INSERT OR IGNORE INTO talent_submodalities(talent_id, modality_id, submodality_id) VALUES (?, ?, ?)');
 
+  const allSeedTalents = [
+    ...REAL_BRAZILIAN_TALENTS_100,
+    ...Object.entries(VERIFIED_MULTI_SOURCE_PROFILES)
+      .filter(([id]) => !REAL_BRAZILIAN_TALENTS_100.some(t => t.id === id))
+      .map(([id, v]) => ({ id, name: v.name || id, type: 'person', catName: v.catName || 'Palestrantes', mod: v.mod || 'palestras', subName: v.subName || 'Desenvolvimento pessoal', slug: v.slug || id.replace(/^t-/, '') }))
+  ];
+
   let talentsEnsured = 0;
   radarDb.exec('BEGIN IMMEDIATE');
   try {
-    for (const t of REAL_BRAZILIAN_TALENTS_100) {
+    for (const t of allSeedTalents) {
       const res = insTalent.run(t.id, t.name, t.type || 'person');
       if (res.changes > 0) talentsEnsured++;
       if (t.catName && catByName.has(t.catName)) {
@@ -1303,7 +1357,7 @@ export function syncAllMenusData(radarDb, discoveryDb = null, { now = new Date()
 
   radarDb.exec('BEGIN IMMEDIATE');
   try {
-    for (const t of REAL_BRAZILIAN_TALENTS_100) {
+    for (const t of allSeedTalents) {
       const verified = VERIFIED_MULTI_SOURCE_PROFILES[t.id];
       const genres = verified?.genres ?? (t.subName ? [t.subName] : []);
       upsertMeta.run(

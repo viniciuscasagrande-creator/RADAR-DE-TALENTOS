@@ -33,9 +33,19 @@ export async function acquisitionStatus(db, readConfig) {
  const youtubeConfigured=Boolean(process.env.YOUTUBE_API_KEY&&String(process.env.YOUTUBE_API_KEY).trim());
  const braveConfigured=Boolean(process.env.BRAVE_SEARCH_API_KEY&&String(process.env.BRAVE_SEARCH_API_KEY).trim());
  const connectedSourcesCount=[youtubeConfigured,braveConfigured,true,true,true].filter(Boolean).length;
- const day24h=new Date(Date.now()-86400000).toISOString().slice(0,10);
- const radarRecent24h=count('metric_current',`WHERE value IS NOT NULL AND (collected_at >= '${day24h}' OR observed_on >= '${day24h}')`);
+ const since24h=new Date(Date.now()-86400000).toISOString();
+ // Execuções, não snapshots ou registros históricos. Fontes sem logs não são presumidas.
+ // Contagem independente no banco Discovery, sem truncamento nos últimos 20 logs.
+ let discoveryRunsAll24h=null;
+ try {
+  const ddb=openDiscovery();
+  try {discoveryRunsAll24h=ddb.prepare('SELECT count(*) n FROM collection_logs WHERE at>=?').get(since24h).n;}
+  finally {ddb.close();}
+ } catch {}
+ const radarRuns24h=db.prepare('SELECT count(*) n FROM operation_runs WHERE started_at>=?').get(since24h).n;
  const radarEvidenceCount=count('media_metric_series',"WHERE evidence_url LIKE 'https://%'");
+ const evidenceBreakdown={discovery:discoveryCounts.verifiedWithEvidence,radar_series:radarEvidenceCount};
+ const completedRuns24h=(discoveryRunsAll24h??0)+radarRuns24h;
  return {
   configAvailable:!!config,
   canSync:jobs.some(j=>j.enabled),
@@ -62,14 +72,18 @@ export async function acquisitionStatus(db, readConfig) {
    discovery_profiles:discoveryCounts.profiles,
    open_social_observations:discoveryCounts.openSocialObservations,
    connected_sources:connectedSourcesCount,
-   collections_24h:Math.max(discoveryCounts.recent24h,radarRecent24h),
-   evidence_records:Math.max(discoveryCounts.verifiedWithEvidence,radarEvidenceCount)
+   collections_24h:discoveryRunsAll24h===null?null:completedRuns24h,
+   collection_runs_discovery_24h:discoveryRunsAll24h,
+   collection_runs_radar_24h:radarRuns24h,
+   observations_discovery_24h:discoveryCounts.recent24h,
+   evidence_records:null,
+   evidence_breakdown:evidenceBreakdown
   },
   discoveryLogs:recentLogs,
   executionPlan:EXECUTION_PLAN_8_STEPS,
   jobs,
   candidates,
   history:state.history.filter(r=>configured.some(j=>j.id===r.job_id)).map(({job_id,day,state,records,finished_at})=>({job_id,day,state,records,finished_at})),
-  notice:'Contagens de registros, não certificação de origem. Atrações observadas não são identidades homologadas.'
+  notice:'Execuções e observações são contadas separadamente. Evidência HTTPS registrada não comprova autenticidade. Valores ausentes são indisponíveis, não zero.'
  };
 }

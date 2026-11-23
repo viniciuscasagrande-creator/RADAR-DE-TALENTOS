@@ -7,30 +7,27 @@ function renderVisualPipeline(d,disc){
   const c=d?.counts||{};
   const ytObs=c.youtube_observations??disc?.counts?.youtube_observations??c.nationalRecords??0;
   const totalObs=(Number(c.commercialRecords)||0)+(Number(c.discovery_observations??disc?.counts?.observations)||0);
-  const evidenceCount=c.evidence_records??totalObs;
+  const evidenceCount=c.evidence_records;
+  const evidenceBreakdown=c.evidence_breakdown||{};
 
-  if($('kpi-connected-sources'))$('kpi-connected-sources').textContent=fmt(c.connected_sources??3);
+  if($('kpi-connected-sources'))$('kpi-connected-sources').textContent=fmt(c.connected_sources);
   if($('kpi-connected-sub'))$('kpi-connected-sub').textContent=d?.providers?.youtube?.configured?'YouTube API v3 + Wikidata + MusicBrainz + IBGE':'Wikidata + MusicBrainz + IBGE';
-  if($('kpi-collections-24h'))$('kpi-collections-24h').textContent=fmt(c.collections_24h??ytObs??0);
-  if($('kpi-collections-sub'))$('kpi-collections-sub').textContent='Execuções comprovadas nas últimas 24h';
+  if($('kpi-collections-24h'))$('kpi-collections-24h').textContent=fmt(c.collections_24h);
+  if($('kpi-collections-sub'))$('kpi-collections-sub').textContent='Execuções registradas em 24h (não número de indicadores)';
   if($('kpi-confirmed-profiles'))$('kpi-confirmed-profiles').textContent=fmt(c.confirmedAccounts??0);
   if($('kpi-confirmed-sub'))$('kpi-confirmed-sub').textContent=`Em ${fmt(c.talents??0)} talentos monitorados`;
   if($('kpi-evidence-records'))$('kpi-evidence-records').textContent=fmt(evidenceCount);
-  if($('kpi-evidence-sub'))$('kpi-evidence-sub').textContent='Com fonte, data e evidência HTTPS';
+  if($('kpi-evidence-sub'))$('kpi-evidence-sub').textContent=`Discovery: ${fmt(evidenceBreakdown.discovery)} · Radar: ${fmt(evidenceBreakdown.radar_series)} referências HTTPS (sem auditoria externa)`;
 
   if($('step-1-detail'))$('step-1-detail').textContent=`${fmt(c.catalogedTalents??0)} de ${fmt(c.talents??0)} catalogados`;
   if($('step-2-detail'))$('step-2-detail').textContent=`${fmt(c.confirmedAccounts??0)} identidades confirmadas`;
   if($('step-3-detail'))$('step-3-detail').textContent=`${fmt(totalObs)} observações datadas`;
-  if($('step-4-detail'))$('step-4-detail').textContent=`${fmt(evidenceCount)} com evidência auditável`;
-  if($('step-5-detail'))$('step-5-detail').textContent=`4 menus alimentados · ${fmt(c.demographicsMunicipalities??0)} polos IBGE isolados`;
+  if($('step-4-detail'))$('step-4-detail').textContent=`${fmt(evidenceBreakdown.discovery)} referências Discovery · ${fmt(evidenceBreakdown.radar_series)} referências Radar; verificar origem`;
+  if($('step-5-detail'))$('step-5-detail').textContent=`Distribuição por menu exige auditoria; ${fmt(c.demographicsMunicipalities)} polos IBGE isolados`;
 
-  const totalTalents=Math.max(1,Number(c.talents)||0);
-  const confirmedRatio=c.talents?Math.min(100,Math.round(((Number(c.confirmedAccounts)||0)/totalTalents)*100)):0;
   const qBadge=$('ac-quality-badge');
   if(qBadge){
-    qBadge.textContent=evidenceCount>0
-      ?`Procedência verificada · ${fmt(evidenceCount)} dados com evidência (${confirmedRatio}% cobertura de identidade)`
-      :`Identidade verificada (${confirmedRatio}%) · Aguardando novas coletas com evidência`;
+    qBadge.textContent='Qualidade não certificada · referências cadastradas exigem auditoria independente';
   }
 
   const host=$('ac-connectors-grid');
@@ -39,8 +36,8 @@ function renderVisualPipeline(d,disc){
   const ytConfigured=Boolean(d?.providers?.youtube?.configured||disc?.providers?.youtube?.configured);
   const openObs=c.open_social_observations??disc?.counts?.open_social_observations??0;
   const connectors=[
-    {name:'YouTube Data API v3',state:ytConfigured?'Conectado (API Oficial)':'Chave pendente',detail:`${fmt(ytObs)} coletas verificadas (sem duplicar módulos)`,ok:Boolean(ytConfigured||ytObs>0)},
-    {name:'Instagram · Spotify · TikTok',state:c.commercialAccounts>0?'Cobertura parcial (Verificada)':'Aguardando vínculos',detail:`${fmt(c.commercialAccounts??0)} perfis · ${fmt((c.commercialRecords||0)+openObs)} observações com evidência`,ok:Boolean(c.commercialAccounts>0||openObs>0)},
+    {name:'YouTube Data API v3',state:ytConfigured?'Conectado (API Oficial)':'Chave pendente',detail:`${fmt(ytObs)} registros de YouTube (contagem aproximada entre origens)`,ok:Boolean(ytConfigured||ytObs>0)},
+    {name:'Instagram · Spotify · TikTok',state:c.commercialAccounts>0?'Perfis cadastrados; cobertura a verificar':'Aguardando vínculos',detail:`${fmt(c.commercialAccounts)} contas comerciais · ${fmt(openObs)} observações Discovery (qualidade a auditar)`,ok:Boolean(c.commercialAccounts>0||openObs>0)},
     {name:'Wikidata & MusicBrainz (CC0)',state:c.catalogedTalents>0?'Catálogo sincronizado':'Pronto para consulta',detail:`${fmt(c.catalogedTalents??0)} artistas enriquecidos · ${fmt(c.discovery_candidates??0)} candidatos`,ok:true},
     {name:'Base Geográfica Nacional (IBGE)',state:'Isolada de audiência',detail:`${fmt(c.demographicsMunicipalities??0)} polos socioeconômicos · ${fmt(c.regionalRecords??0)} reg. audiência`,ok:true}
   ];
@@ -73,7 +70,7 @@ async function postDiscovery(action,payload={}){
   return d;
 }
 
-async function refresh(){if(busy)return;busy=true;$('refresh').disabled=true;$('sync').disabled=true;try{const [r,dr]=await Promise.all([fetch('/api/acquisition/status',{cache:'no-store'}),fetch('/api/discovery/status',{cache:'no-store'}).catch(()=>null)]);if(!r.ok)throw Error('HTTP '+r.status);const d=await r.json();const disc=dr&&dr.ok?await dr.json().catch(()=>null):null;latest=d;renderVisualPipeline(d,disc);const labels={talents:'Talentos cadastrados',catalogedTalents:'Catálogo Wikidata / MusicBrainz',socialAccounts:'Contas no cadastro',confirmedAccounts:'Identidades confirmadas',commercialAccounts:'Contas comerciais (4 Mídias)',youtube_observations:'Coletas YouTube API v3',nationalRecords:'Registros nacionais',commercialRecords:'Registros comerciais',regionalRecords:'Registros regionais',demographicsMunicipalities:'Polos com Demografia IBGE'};$('ac-counts').replaceChildren();for(const [key,label] of Object.entries(labels)){const tile=document.createElement('div');tile.className='ac-kpi';const small=document.createElement('small');small.textContent=label;const strong=document.createElement('strong');strong.textContent=fmt(d.counts[key]);tile.append(small,strong);$('ac-counts').append(tile)}table('source-list',['Fonte','Tipo','Adaptador','Configuração','Último estado','Última coleta','Registros'],d.jobs.map(j=>[j.provider,j.kind,j.adapter,j.enabled?'Habilitada':'Desabilitada',j.lastState,j.lastRun,j.records]));candidates();const histRows=[...(d.history||[]).map(r=>[r.job_id,r.day,r.state,r.records,r.finished_at]),...(d.discoveryLogs||disc?.logs||[]).map(l=>['Motor de Descoberta',String(l.at||'').slice(0,10),l.status,l.count,`${l.at} · ${l.message||''}`])];table('run-list',['Tarefa / Origem','Dia','Estado','Registros','Conclusão / Detalhe'],histRows);$('ac-status').textContent=d.syncing?'Coleta em execução. O resultado aparecerá no histórico.':!d.configAvailable?'Banco acessível, mas configuração operacional indisponível.':d.canSync?'Diagnóstico atualizado (8 de 8 etapas ativas). Fontes habilitadas prontas para sincronização.':'Motor de Dados 3.0 ativo (8 de 8 etapas concluídas). Coletas validadas são distribuídas automaticamente para todos os menus.';$('sync').disabled=Boolean(d.syncing);}catch{$('ac-status').textContent='Não foi possível consultar o backend do Motor de Dados.';}finally{busy=false;$('refresh').disabled=false}}
+async function refresh(){if(busy)return;busy=true;$('refresh').disabled=true;$('sync').disabled=true;try{const [r,dr]=await Promise.all([fetch('/api/acquisition/status',{cache:'no-store'}),fetch('/api/discovery/status',{cache:'no-store'}).catch(()=>null)]);if(!r.ok)throw Error('HTTP '+r.status);const d=await r.json();const disc=dr&&dr.ok?await dr.json().catch(()=>null):null;latest=d;renderVisualPipeline(d,disc);const labels={talents:'Talentos cadastrados',catalogedTalents:'Catálogo Wikidata / MusicBrainz',socialAccounts:'Contas no cadastro',confirmedAccounts:'Identidades confirmadas',commercialAccounts:'Contas comerciais (4 Mídias)',youtube_observations:'Coletas YouTube API v3',nationalRecords:'Registros nacionais',commercialRecords:'Registros comerciais',regionalRecords:'Registros regionais',demographicsMunicipalities:'Polos com Demografia IBGE'};$('ac-counts').replaceChildren();for(const [key,label] of Object.entries(labels)){const tile=document.createElement('div');tile.className='ac-kpi';const small=document.createElement('small');small.textContent=label;const strong=document.createElement('strong');strong.textContent=fmt(d.counts[key]);tile.append(small,strong);$('ac-counts').append(tile)}table('source-list',['Fonte','Tipo','Adaptador','Configuração','Último estado','Última coleta','Registros'],d.jobs.map(j=>[j.provider,j.kind,j.adapter,j.enabled?'Habilitada':'Desabilitada',j.lastState,j.lastRun,j.records]));candidates();const histRows=[...(d.history||[]).map(r=>[r.job_id,r.day,r.state,r.records,r.finished_at]),...(d.discoveryLogs||disc?.logs||[]).map(l=>['Motor de Descoberta',String(l.at||'').slice(0,10),l.status,l.count,`${l.at} · ${l.message||''}`])];table('run-list',['Tarefa / Origem','Dia','Estado','Registros','Conclusão / Detalhe'],histRows);$('ac-status').textContent=d.syncing?'Coleta em execução; acompanhe o histórico.':!d.configAvailable?'Banco acessível, mas configuração operacional indisponível.':d.canSync?'Diagnóstico disponível. Consulte as fontes habilitadas e o histórico abaixo.':'Nenhuma tarefa de fonte configurada está habilitada. O histórico de descoberta pode continuar disponível.';$('sync').disabled=Boolean(d.syncing);}catch{$('ac-status').textContent='Não foi possível consultar o backend do Motor de Dados.';}finally{busy=false;$('refresh').disabled=false}}
 
 $('refresh').addEventListener('click',refresh);
 $('candidate-search')?.addEventListener('input',candidates);

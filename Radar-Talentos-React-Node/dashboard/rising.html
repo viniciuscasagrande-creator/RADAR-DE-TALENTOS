@@ -1,1 +1,226 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Descobertas em ascensão | Radar de Talentos</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/rising.css"><script defer src="/rising.js"></script><script defer src="/acceleration.js"></script><script defer src="/rising-notifications.js"></script></head><body class="dashboard rising-page"><header class="sidebar"><a class="brand" href="/"><span class="radar-mark">◎</span><span>RADAR DE<br><b>TALENTOS</b></span></a><p class="brand-sub">Inteligência de mercado</p><nav aria-label="Navegação principal"><span class="nav-label">ANÁLISES</span><a href="/">Visão Geral</a><a href="/audience.html">Audiência Geográfica</a><a href="/commercial.html">Oportunidade Comercial</a><span class="nav-label">MOTOR DE DADOS</span><a href="/acquisition.html">Motor de Dados</a><a href="/discovery.html">Prospecção e aprovação</a><a aria-current="page" href="/rising.html">↗ Novas descobertas</a><span class="nav-label">CONSULTAS OPCIONAIS</span><a href="/events.html">Eventos e Ticketeiras</a></nav></header><main class="dashboard-main"><div class="rising-top"><div><p class="eyebrow">MOTOR DE DADOS · SINAIS EMERGENTES</p><h1>Descobertas em ascensão</h1><p>Talentos de todas as categorias com crescimento demonstrável nas observações disponíveis.</p></div></div><section class="rising-kpis"><article><small>Artistas com crescimento elegível</small><strong id="rising-total">—</strong></article><article><small>Janela comparada</small><strong>30 dias</strong></article><article><small>Medições recentes</small><strong>7 dias</strong></article></section><section class="rising-card" id="acceleration-panel"><div class="rising-head"><h2>Artistas acelerando · 2 períodos de 30 dias</h2><button type="button" id="acceleration-refresh">Atualizar</button></div><p>Comparação entre crescimento anterior e recente. Não soma indicadores de mídias distintas; referências precisam de auditoria externa.</p><div class="acceleration-controls"><label>Segmento <select id="acceleration-category"><option value="">Todos os segmentos</option></select></label><label>Mídia <select id="acceleration-network"><option value="">Todas</option><option>Instagram</option><option>Spotify</option><option>YouTube</option><option>TikTok</option></select></label><strong>Elegíveis: <span id="acceleration-total">—</span></strong></div><p id="acceleration-status" role="status">Consultando...</p><div id="acceleration-results"></div></section><section class="rising-card"><div class="rising-head"><h2>Ranking por crescimento observado</h2><label>Mídia <select id="rising-filter"><option value="">Todas</option><option>Instagram</option><option>Spotify</option><option>YouTube</option><option>TikTok</option></select></label></div><p id="rising-status" role="status">Consultando fontes...</p><div id="rising-results"></div></section><p class="rising-note">Sinais preliminares, não certificação independente da fonte. Somente séries nacionais datadas com a mesma fonte, indicador e janela comparável. Nenhum dado de população IBGE, localização estimada ou ticket de evento é utilizado.</p></main></body></html>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Descobertas em ascensão | Radar de Talentos</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/talent-home.css" />
+  <link rel="stylesheet" href="/rising.css" />
+  <script defer src="/rising.js"></script>
+  <script defer src="/acceleration.js"></script>
+  <script defer src="/rising-notifications.js"></script>
+</head>
+<body class="dashboard talent-home rising-page">
+  <a class="skip-link" href="#rising-overview">Ir para o conteúdo</a>
+  <header class="sidebar">
+    <a class="brand" href="/">
+      <span aria-hidden="true" class="radar-mark"><img src="/radar-logo-mark.png" alt="" class="brand-logo-img" /></span>
+      <span>RADAR DE<br /><b>TALENTOS</b></span>
+    </a>
+    <p class="brand-sub">Inteligência de mercado</p>
+    <nav aria-label="Navegação principal">
+      <span class="nav-label">ANÁLISES</span>
+      <a href="/">◉ &nbsp; Visão Geral</a>
+      <a href="/audience.html">⌖ &nbsp; Audiência Geográfica</a>
+      <a href="/commercial.html">↗ &nbsp; Oportunidade Comercial</a>
+      <span class="nav-label">NESTE PAINEL</span>
+      <a href="#rising-overview">Resumo &amp; Filtros</a>
+      <a href="#rising-traction-panel">Radar de Tração &amp; Emergentes</a>
+      <a href="#rising-new-discovery-panel">Descobrir Novo Talento</a>
+      <a href="#acceleration-panel">Aceleração (2×30d)</a>
+      <a href="#rising-growth-panel">Crescimento (30d)</a>
+      <span class="nav-label">ADMINISTRAÇÃO</span>
+      <a href="/acquisition.html">⚙ &nbsp; Motor de Dados</a>
+      <a href="/discovery.html">✓ &nbsp; Prospecção e Aprovação</a>
+      <a aria-current="page" href="/rising.html">↗ &nbsp; Novas descobertas</a>
+      <span class="nav-label">CONSULTAS OPCIONAIS</span>
+      <a href="/events.html">▥ &nbsp; Eventos e Ticketeiras</a>
+    </nav>
+    <div class="side-status" data-state="online">
+      <span class="status-dot"></span>
+      <span id="connection-status" role="status">Monitoramento ativo</span>
+      <small>Sinais Emergentes &amp; Séries</small>
+    </div>
+  </header>
+
+  <main class="dashboard-main">
+    <section class="overview" id="rising-overview">
+      <div class="topline">
+        <div class="topline-brand">
+          <span class="eyebrow">MOTOR DE DADOS · SINAIS EMERGENTES &amp; TRAÇÃO DIGITAL <b class="env-badge">Ativo</b></span>
+          <h1>Descobertas em Ascensão</h1>
+        </div>
+        <div class="top-search-bar">
+          <input aria-label="Pesquisar talento em ascensão" autocomplete="off" id="rising-quick-search" type="search" value="" />
+          <button id="rising-quick-btn" type="button">Filtrar</button>
+          <button id="rising-collect-now-btn" class="btn-simulate-show" type="button">⚡ Atualizar Coletas</button>
+        </div>
+      </div>
+
+      <!-- 4 KPIs Executivos Neon Uniformes -->
+      <div class="exec-kpi-grid rising-kpis" aria-label="Indicadores de descobertas em ascensão">
+        <article class="exec-kpi-card exec-kpi-clickable" id="kpi-card-baseline" role="button" tabindex="0">
+          <span class="exec-kpi-label">Talentos com Série Ativa</span>
+          <strong id="rising-baseline-total">—</strong>
+          <small id="rising-baseline-sub">Linha de base verificada · Ver lista ↗</small>
+        </article>
+        <article class="exec-kpi-card exec-kpi-clickable" id="kpi-card-traction" role="button" tabindex="0">
+          <span class="exec-kpi-label">Destaques em Tração Digital</span>
+          <strong id="rising-traction-total">—</strong>
+          <small id="rising-traction-sub">Spotify &amp; YouTube ativos · Filtrar ↗</small>
+        </article>
+        <article class="exec-kpi-card exec-kpi-clickable" id="kpi-card-growth" role="button" tabindex="0">
+          <span class="exec-kpi-label">Crescimento Elegível (30d)</span>
+          <strong id="rising-total">—</strong>
+          <small id="rising-growth-sub">Critério: +5% em 30 dias · Ver ↗</small>
+        </article>
+        <article class="exec-kpi-card exec-kpi-clickable" id="kpi-card-accel" role="button" tabindex="0">
+          <span class="exec-kpi-label">Aceleração (2×30 dias)</span>
+          <strong id="rising-accel-kpi">—</strong>
+          <small id="rising-accel-sub">Medições recentes (7d) · Ver ↗</small>
+        </article>
+      </div>
+
+      <!-- Cards de Categorias Nacionais Clicáveis -->
+      <p id="rising-category-scope" class="rising-section-label">FILTRO RÁPIDO POR CATEGORIA NACIONAL · CLIQUE PARA FILTRAR OS TALENTOS EMERGENTES</p>
+      <div class="kpis" id="rising-category-kpis"></div>
+
+      <!-- Barra de Filtros Operacionais -->
+      <div class="filter-panel rising-filter-panel">
+        <div class="rising-filters-grid">
+          <label class="filter-card">
+            <span class="filter-label">Segmento / Categoria</span>
+            <select id="rising-category-select">
+              <option value="">Todas as categorias</option>
+            </select>
+          </label>
+          <label class="filter-card">
+            <span class="filter-label">Mídia em Foco</span>
+            <select id="rising-filter">
+              <option value="">Todas as 4 mídias</option>
+              <option value="Spotify">Spotify</option>
+              <option value="YouTube">YouTube</option>
+              <option value="Instagram">Instagram</option>
+              <option value="TikTok">TikTok</option>
+            </select>
+          </label>
+          <label class="filter-card">
+            <span class="filter-label">Porte do Talento (Recorte)</span>
+            <select id="rising-tier-filter">
+              <option value="all">Todos os portes</option>
+              <option value="emerging">🌱 Emergentes &amp; Em Ascensão (Até 2,5M)</option>
+              <option value="mid">🚀 Tração Consolidada (2,5M a 10M)</option>
+              <option value="mega">⭐ Grandes Atrações (&gt; 10M)</option>
+            </select>
+          </label>
+          <label class="filter-card">
+            <span class="filter-label">Ordenar Ranking Por</span>
+            <select id="rising-sort-filter">
+              <option value="traction">🔥 Índice de Tração &amp; Descoberta</option>
+              <option value="spotify">🟢 Ouvintes Mensais (Spotify)</option>
+              <option value="youtube">🔵 Inscritos &amp; Views (YouTube)</option>
+              <option value="instagram">🟣 Seguidores (Instagram)</option>
+            </select>
+          </label>
+          <div class="filter-card filter-card-actions">
+            <span class="filter-label">Ações Rápidas</span>
+            <div class="filter-dual">
+              <button type="button" id="rising-reset-filters" class="secondary-button">Limpar</button>
+              <button type="button" id="rising-open-discover-btn" class="btn-simulate-show">+ Novo Talento</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="query-status" id="rising-feedback-banner" role="status"></p>
+    </section>
+
+    <!-- 1. Radar de Tração Digital, Descoberta Algorítmica & Talentos Monitorados -->
+    <section class="rising-card neon-card" id="rising-traction-panel">
+      <div class="rising-head">
+        <div>
+          <span class="eyebrow">SINAIS VERIFICADOS EM TEMPO REAL · SPOTIFY, YOUTUBE &amp; INSTAGRAM</span>
+          <h2>🔥 Radar de Tração Digital &amp; Potencial de Ascensão</h2>
+          <p id="rising-traction-subtitle">Cruzamento entre Ouvintes Mensais vs. Seguidores (taxa de descoberta algorítmica no Spotify), Visualizações por Inscrito no YouTube e audiência social verificada.</p>
+        </div>
+        <div class="rising-head-actions">
+          <span class="studio-badge-pill" id="rising-traction-badge">Carregando...</span>
+        </div>
+      </div>
+      <div class="rising-table-wrap" id="rising-traction-results"></div>
+    </section>
+
+    <!-- 2. Descobrir & Incorporar Novo Talento Direto na Página -->
+    <section class="rising-card neon-card cyan-card" id="rising-new-discovery-panel">
+      <div class="rising-head">
+        <div>
+          <span class="eyebrow">PROSPECÇÃO INSTANTÂNEA DE SINAIS EMERGENTES · YOUTUBE API + WIKIDATA + MUSICBRAINZ</span>
+          <h2>🔎 Descobrir &amp; Incorporar Novo Talento em Ascensão</h2>
+          <p>Pesquise qualquer artista, banda, humorista, DJ ou palestrante emergente para localizar seus perfis oficiais e incorporá-lo imediatamente ao monitoramento de ascensão com 1 clique.</p>
+        </div>
+      </div>
+      <form id="rising-discover-form" class="rising-discover-bar">
+        <input id="rising-discover-query" type="search" autocomplete="off" aria-label="Digite o nome do artista ou talento emergente para descobrir" value="" />
+        <button type="submit" id="rising-discover-submit" class="btn-simulate-show">🔎 Buscar Novo Talento nas Fontes Oficiais</button>
+      </form>
+      <p id="rising-discover-status" class="rising-note" role="status">Digite o nome de um artista acima e clique em Buscar para consultar YouTube Data API v3, Wikidata e MusicBrainz em tempo real.</p>
+      <div id="rising-discover-results" class="rising-discover-grid"></div>
+    </section>
+
+    <!-- 3. Artistas Acelerando (2 períodos de 30 dias) -->
+    <section class="rising-card neon-card" id="acceleration-panel">
+      <div class="rising-head">
+        <div>
+          <span class="eyebrow"> MONITORAMENTO MULTI-JANELA · SÉRIES COM 3 PONTOS (~60D, ~30D, ATUAL)</span>
+          <h2>⚡ Artistas acelerando · 2 períodos de 30 dias</h2>
+          <p>Comparação entre crescimento anterior e recente. Não soma indicadores de mídias distintas; referências precisam de auditoria externa.</p>
+        </div>
+        <button type="button" id="acceleration-refresh" class="secondary-button">↻ Atualizar</button>
+      </div>
+      <div class="acceleration-controls">
+        <label class="filter-card">
+          <span class="filter-label">Segmento</span>
+          <select id="acceleration-category"><option value="">Todos os segmentos</option></select>
+        </label>
+        <label class="filter-card">
+          <span class="filter-label">Mídia</span>
+          <select id="acceleration-network">
+            <option value="">Todas</option>
+            <option>Instagram</option>
+            <option>Spotify</option>
+            <option>YouTube</option>
+            <option>TikTok</option>
+          </select>
+        </label>
+        <div class="filter-card">
+          <span class="filter-label">Sinais Elegíveis (2×30d)</span>
+          <strong class="accel-count-badge">Elegíveis: <span id="acceleration-total">—</span></strong>
+        </div>
+      </div>
+      <p id="acceleration-status" role="status">Consultando...</p>
+      <div id="acceleration-results"></div>
+    </section>
+
+    <!-- 4. Ranking por Crescimento Observado (30 dias) -->
+    <section class="rising-card neon-card" id="rising-growth-panel">
+      <div class="rising-head">
+        <div>
+          <span class="eyebrow">VARIAÇÃO ENTRE COLETAS DATADAS · JANELA DE 30 DIAS</span>
+          <h2>📈 Ranking por crescimento observado &amp; Linha de Base da Série</h2>
+        </div>
+        <span class="studio-badge-pill" id="rising-window-badge">Janela: 30 dias</span>
+      </div>
+      <p id="rising-status" role="status">Consultando fontes...</p>
+      <div id="rising-results"></div>
+    </section>
+
+    <p class="rising-note">Sinais preliminares, não certificação independente da fonte. Somente séries nacionais datadas com a mesma fonte, indicador e janela comparável. Nenhum dado de população IBGE, localização estimada ou ticket de evento é utilizado nos cálculos de crescimento.</p>
+  </main>
+
+  <!-- Modal 360° e Simulador de Show Integrado em Novas Descobertas -->
+  <dialog aria-labelledby="rising-modal-title" class="palette show-sim-modal" id="rising-detail-modal">
+    <div id="rising-modal-content"></div>
+  </dialog>
+</body>
+</html>

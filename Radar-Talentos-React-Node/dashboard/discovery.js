@@ -1,17 +1,347 @@
-'use strict';const $=id=>document.getElementById(id);let selected=null,busy=false,cachedCandidates=[];const status=t=>{$('status').textContent=t};const add=(parent,tag,text)=>{const e=document.createElement(tag);e.textContent=text;parent.append(e);return e};async function api(path,payload){const r=await fetch('/api/discovery/'+path,payload===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json','X-Radar-Action':'discovery'},body:JSON.stringify(payload)});if(!r.ok)throw Error('Operação indisponível ('+r.status+'). Verifique acesso administrativo e configuração.');return r.json();}function renderCandidatesList(){const host=$('candidates');if(!host)return;host.replaceChildren();const filterVal=$('candidate-priority-filter')?.value||'all';const sorted=[...cachedCandidates].filter(c=>filterVal==='all'||c.priority_tier===filterVal).sort((a,b)=>(a.priority_order??9)-(b.priority_order??9)||a.name.localeCompare(b.name,'pt-BR'));for(const c of sorted){const b=add(host,'button','');b.className='cand-queue-btn';b.dataset.tier=c.priority_tier||'';const title=add(b,'strong',c.name);const meta=add(b,'small',`[${c.status}] · ${c.priority_label||'Revisar'}`);b.onclick=()=>open(c.id).catch(e=>status(e.message));}if(!sorted.length)add(host,'p','Nenhum candidato encontrado neste filtro.');}$('candidate-priority-filter')?.addEventListener('change',renderCandidatesList);async function refresh(){const s=await api('status');if(s.funnel){if($('funnel-searched'))$('funnel-searched').textContent=Number(s.funnel.searched??0).toLocaleString('pt-BR');if($('funnel-confirmed'))$('funnel-confirmed').textContent=Number(s.funnel.confirmed??0).toLocaleString('pt-BR');if($('funnel-collected'))$('funnel-collected').textContent=Number(s.funnel.collected??0).toLocaleString('pt-BR');if($('funnel-distributed'))$('funnel-distributed').textContent=Number(s.funnel.distributed??0).toLocaleString('pt-BR');}const previous=$('source').value;$('source').replaceChildren();const g=add($('source'),'option','Busca global gratuita');g.value='global';const yt=add($('source'),'option','YouTube — pesquisar canais');yt.value='youtube-live';for(const f of s.sources.filter(f=>f.enabled&&f.kind!=='licensed-file')){const o=add($('source'),'option',f.id);o.value=f.id;}if([...$('source').options].some(o=>o.value===previous))$('source').value=previous;cachedCandidates=Array.isArray(s.candidates)?s.candidates:[];renderCandidatesList();$('logs').replaceChildren();for(const l of s.logs)add($('logs'),'p',l.at+' · '+l.status+' · '+l.count+' registros · '+(l.message||''));}async function open(id){const c=await api('detail?id='+encodeURIComponent(id));selected=id;const p=$('detail');p.replaceChildren();add(p,'h3',c.name);add(p,'p','Status: '+({pending:'Pendente',approved:'Aprovado',published:'Publicado',rejected:'Rejeitado'}[c.status]||c.status));if(c.suggestedRadarId&&!c.radar_id)add(p,'p','Cadastro sugerido por nome exato: confira a identidade antes de aprovar.');for(const e of c.evidence){const a=add(p,'a',e.url);a.href=e.url;a.rel='noopener noreferrer';a.target='_blank';add(p,'p','Observado: '+e.observed_at);}for(const x of c.profiles){const a=add(p,'a',x.network+' · '+x.url);a.href=x.url;a.rel='noopener noreferrer';a.target='_blank';const obs=c.observations.filter(o=>o.profile_id===x.id);for(const o of obs)add(p,'p',o.metric+' · '+o.value.toLocaleString('pt-BR')+' · '+o.observed_at);} if(c.status!=='published'&&c.status!=='rejected'){const block=add(p,'div','');add(block,'p','Associar outro canal YouTube encontrado');const url=document.createElement('input');url.type='url';url.setAttribute('aria-label','URL do canal YouTube');const ev=document.createElement('input');ev.type='url';ev.setAttribute('aria-label','Evidência do vínculo');add(block,'p','URL do canal (/channel/UC...)');block.append(url);add(block,'p','Evidência independente (URL HTTPS)');block.append(ev);const b=add(block,'button','Adicionar canal à revisão');b.type='button';b.onclick=()=>run(()=>api('youtube-add',{id:c.id,url:url.value,evidence:ev.value}));} for(const y of c.youtube??[]){const block=add(p,'div','');add(block,'p','YouTube · '+y.url);add(block,'p',y.confirmed?'Passo 2 concluído: Canal confirmado individualmente pelo operador':'Passo 2 pendente: Canal aguarda confirmação individual (aprovar a identidade do artista no Passo 1 não confirma automaticamente o canal)');if(!y.confirmed&&['approved','published'].includes(c.status)&&c.radar_id){const field=document.createElement('input');field.type='url';field.setAttribute('aria-label','Evidência independente do canal');add(block,'p','Evidência independente do vínculo deste canal (URL HTTPS):');block.append(field);const b=add(block,'button','Confirmar canal YouTube (Passo 2)');b.type='button';b.onclick=()=>{if(!field.value||!window.confirm('Você conferiu o vínculo deste canal com o artista em fonte independente?'))return;run(()=>api('youtube-confirm',{id:c.id,profileId:y.id,evidence:field.value}));};}else if(!y.confirmed){add(block,'p','Para habilitar a confirmação deste canal, conclua primeiro o Passo 1 abaixo (aprovar identidade com um ID Radar válido, ex.: t-artista).');}if(y.confirmed){const b=add(block,'button','Coletar YouTube agora');b.type='button';b.onclick=()=>run(()=>api('youtube-collect',{id:c.id}));}for(const o of y.metrics??[])add(block,'p',({subscribers:'Inscritos (contagem pública arredondada)',views:'Visualizações acumuladas',video_count:'Vídeos públicos'}[o.metric]||o.metric)+' · '+o.value.toLocaleString('pt-BR')+' · youtube-public-current · '+o.observed_at);if(!y.metrics?.length)add(block,'p','Sem coleta atual disponível.');} renderOpen(p,c); $('review-form').hidden=false;if($('observe-form')){$('observe-form').hidden=false;if(c.profiles[0]){$('obs-network').value=c.profiles[0].network;$('obs-url').value=c.profiles[0].url;$('obs-evidence').value='';}}$('evidence').value=c.status==='pending'?(c.evidence.find(e=>e.source_id==='wikidata-cc0')?.url??''):'';const rawRadarId=c.radar_id&&!String(c.radar_id).includes('://')?c.radar_id:null;$('radar-id').value=rawRadarId??c.suggestedRadarId??'';$('approve').disabled=c.status==='published';$('reject').disabled=c.status==='published';$('publish').disabled=!['approved','published'].includes(c.status);if($('publish-identity'))$('publish-identity').disabled=!['approved','published'].includes(c.status);}async function run(fn){if(busy)return;busy=true;status('Executando…');try{const result=await fn();await refresh();if(selected)await open(selected);status(result.openRecorded?'Indicador atual registrado.':result.openConfirmed?'Perfil confirmado.':result.bulk?`Prospecção: ${result.bulk.attempted} pesquisados; ${result.bulk.queued} na revisão; ${result.bulk.unmatched} sem correspondência; ${result.bulk.review} casos para revisão; ${result.bulk.failed} falhas.`:result.confirmed?'Canal confirmado. Agora clique em Coletar YouTube agora.':result.status==='success'?'Coleta YouTube concluída.':result.status==='skipped'?'Coleta já executada nesta hora.':result.status==='failed'?'Coleta YouTube falhou. Confira a chave e os logs.':result.identityOnly?'Identidade vinculada ao Radar. Aguardando coleta autorizada; nenhuma métrica publicada.':'Operação concluída. '+JSON.stringify(result));}catch(e){status(e.message)}finally{busy=false;}}$('search-form').onsubmit=e=>{e.preventDefault();if($('source').value==='youtube-live'){run(async()=>{const r=await api('youtube-search',{query:$('query').value});const p=$('global-list');p.replaceChildren();$('global-results').hidden=false;add(p,'p','YouTube — canais encontrados; resultados não confirmados.');for(const x of r.channels){const a=add(p,'a',x.title+' · '+x.url);a.href=x.url;a.target='_blank';a.rel='noopener noreferrer';add(p,'p','Confira o vínculo antes de associar ao candidato.');}return {channels:r.channels.length};});}else if($('source').value==='global'){run(async()=>{const r=await api('global-search',{query:$('query').value,includeMusicBrainzLive:Boolean($('include-mb')?.checked)});renderGlobal(r);return {sources:r.sources,coverage:r.coverage};});}else{$('global-results').hidden=true;run(()=>api('search',{source:$('source').value,query:$('query').value}));}};$('approve').onclick=()=>{if(window.confirm('Você verificou a identidade e o cadastro indicado? A confirmação do canal será separada.'))run(()=>api('review',{id:selected,approve:true,evidence:$('evidence').value,radarId:$('radar-id').value}));};$('reject').onclick=()=>run(()=>api('review',{id:selected,approve:false,evidence:$('evidence').value}));$('publish').onclick=()=>run(()=>api('publish',{id:selected}));if($('publish-identity'))$('publish-identity').onclick=()=>run(()=>api('publish-identity',{id:selected}));if($('observe-form'))$('observe-form').onsubmit=e=>{e.preventDefault();run(()=>api('observe',{id:selected,network:$('obs-network').value,url:$('obs-url').value,metric:$('obs-metric').value,value:Number($('obs-value').value),evidence_url:$('obs-evidence').value,authorization_ref:$('obs-auth').value}));};if($('csv-form'))$('csv-form').onsubmit=e=>{e.preventDefault();run(()=>api('import-csv',{mode:$('csv-mode').value,authorization_ref:$('csv-auth').value,csv:$('csv-content').value}));};refresh().catch(e=>status(e.message));
+'use strict';
+const $ = id => document.getElementById(id);
+let selected = null, busy = false, cachedCandidates = [];
+const status = t => { $('status').textContent = t; };
+const add = (parent, tag, text) => {
+  const e = document.createElement(tag);
+  if (text !== undefined) e.textContent = text;
+  parent.append(e);
+  return e;
+};
 
-function renderGlobal(r){const p=$('global-list');p.replaceChildren();$('global-results').hidden=false;const mbLabel=r.sources.musicbrainz==='local_index'?'catálogo local':r.sources.musicbrainz==='api_ok'||r.sources.musicbrainz==='local_and_api'?'consultado':'não importado';const braveLabel=r.sources.brave==='ok'?'consultado':r.sources.brave==='not_configured'?'chave opcional não configurada':'indisponível';add(p,'p','Cobertura parcial · Wikidata: '+(r.sources.wikidata==='ok'?'consultado':r.sources.wikidata==='disabled'?'desabilitado':'indisponível')+' · MusicBrainz: '+mbLabel+' · Brave Search: '+braveLabel);if(r.crossValidation){add(p,'h3','Validação cruzada das 4 mídias (sem inventar métricas)');for(const n of r.crossValidation.networks){add(p,'p',n.network+': '+(n.located?n.profiles.map(x=>x.url+' ['+x.sources.join(' + ')+']').join(' ; '):'Perfil não localizado automaticamente')+' · Coleta automática: '+n.capabilities.automated_collection);}}add(p,'h3','Radar — cadastrados');for(const x of r.registered)add(p,'p',x.name+' · '+x.id);if(!r.registered.length)add(p,'p','Nenhum registro encontrado nesta consulta.');add(p,'h3','Motor de Dados — candidatos');for(const x of r.candidates){const b=add(p,'button',x.name+' · '+x.status);b.type='button';b.onclick=()=>open(x.id).catch(e=>status(e.message));}add(p,'h3','Wikidata — identidades a confirmar');for(const x of r.external){const d=document.createElement('div');p.append(d);add(d,'strong',x.name);add(d,'p',x.description||'Sem descrição');const a=add(d,'a',x.evidence_url);a.href=x.evidence_url;a.target='_blank';a.rel='noopener noreferrer';if(x.official_website){const s=add(d,'a',' · Site oficial: '+x.official_website);s.href=x.official_website;s.target='_blank';s.rel='noopener noreferrer';}for(const h of x.profiles)add(d,'p',h.network+' · '+h.url+' · vínculo não validado');const b=add(d,'button',x.candidate_id?'Abrir candidato':'Adicionar à validação');b.type='button';b.onclick=()=>x.candidate_id?open(x.candidate_id).catch(e=>status(e.message)):run(async()=>{const c=await api('global-save',{id:x.external_id});await open(c.id);b.textContent='Abrir candidato';b.onclick=()=>open(c.id).catch(e=>status(e.message));return {name:c.name,status:c.status};});}if(!r.external.length)add(p,'p','Nenhum resultado externo no Wikidata nesta consulta. Isso não comprova ausência do artista.');if(Array.isArray(r.musicbrainz)&&r.musicbrainz.length){add(p,'h3','MusicBrainz — artistas musicais');for(const x of r.musicbrainz){const d=document.createElement('div');p.append(d);add(d,'strong',x.name);add(d,'p',x.description||'Artista musical');const a=add(d,'a',x.evidence_url);a.href=x.evidence_url;a.target='_blank';a.rel='noopener noreferrer';for(const h of x.profiles??[])add(d,'p',h.network+' · '+h.url+' · vínculo MusicBrainz');const b=add(d,'button',x.candidate_id?'Abrir candidato':'Importar do MusicBrainz');b.type='button';b.onclick=()=>x.candidate_id?open(x.candidate_id).catch(e=>status(e.message)):run(async()=>{const c=await api('musicbrainz-save',{id:x.external_id});await open(c.id);b.textContent='Abrir candidato';b.onclick=()=>open(c.id).catch(e=>status(e.message));return {name:c.name,status:c.status};});}}if(Array.isArray(r.youtubeChannels)&&r.youtubeChannels.length){add(p,'h3','YouTube Data API v3 — canais sugeridos (confirmar vínculo antes de associar)');for(const ch of r.youtubeChannels){const d=document.createElement('div');p.append(d);add(d,'strong',ch.title);const a=add(d,'a',' · '+ch.url);a.href=ch.url;a.target='_blank';a.rel='noopener noreferrer';}}}
-
-const bulkButton=add($("search-form"),"button","Prospectar 5 artistas");bulkButton.type="button";bulkButton.onclick=()=>run(()=>api("youtube-bulk",{}));
-
-function renderOpen(p,c){
- const block=add(p,'section','');add(block,'h3','Instagram · Spotify · TikTok — fontes gratuitas');add(block,'p','Vínculos encontrados em bases abertas. Valores somente por registro autorizado e conferido pelo operador; sem coleta automática destas redes.');
- const ready=['approved','published'].includes(c.status)&&c.radar_id;
- const field=(parent,label,type='text')=>{const l=add(parent,'label',label);const x=add(l,'input','');x.type=type;return x;};
- const select=(parent,values)=>{const x=add(parent,'select','');for(const v of values){const o=add(x,'option',v);o.value=v;}return x;};
- const labels={followers:'Seguidores',posts:'Publicações',monthly_listeners:'Ouvintes mensais',likes:'Curtidas totais',video_count:'Vídeos'};
- if(ready){const form=add(block,'div','');add(form,'p','Adicionar perfil localizado em fonte aberta');const net=select(form,['Instagram','Spotify','TikTok']);const url=field(form,'URL do perfil','url'),ev=field(form,'Evidência independente','url');const b=add(form,'button','Adicionar à revisão');b.type='button';b.onclick=()=>run(()=>api('open-add',{id:c.id,network:net.value,url:url.value,evidence:ev.value}));}
- for(const x of c.openSocial??[]){const d=add(block,'div','');const a=add(d,'a',x.network+' · '+x.url);a.href=x.url;a.target='_blank';a.rel='noopener noreferrer';add(d,'p',x.confirmed?'Vínculo confirmado pelo operador':'Vínculo pendente');if(ready&&!x.confirmed){const ev=field(d,'Evidência independente do vínculo','url');const b=add(d,'button','Confirmar perfil');b.type='button';b.onclick=()=>{if(window.confirm('Conferiu o vínculo em uma fonte independente?'))run(()=>api('open-confirm',{id:c.id,profileId:x.id,evidence:ev.value,attested:true}));};}
- for(const o of x.metrics??[]){const st=(x.statistics||[]).find(s=>s.metric===o.metric);const d7=st?.change_7d?` · 7d: ${st.change_7d.absolute>0?'+':''}${st.change_7d.absolute.toLocaleString('pt-BR')}${st.change_7d.percent!=null?` (${st.change_7d.percent>0?'+':''}${st.change_7d.percent.toFixed(1)}%)`:''}`:'';const d30=st?.change_30d?` · 30d: ${st.change_30d.absolute>0?'+':''}${st.change_30d.absolute.toLocaleString('pt-BR')}${st.change_30d.percent!=null?` (${st.change_30d.percent>0?'+':''}${st.change_30d.percent.toFixed(1)}%)`:''}`:'';add(d,'p',(labels[o.metric]||o.metric)+' · '+o.value.toLocaleString('pt-BR')+d7+d30+' · '+o.observed_at+' · registro autorizado pelo operador');const a=add(d,'a','Fonte do indicador');a.href=o.evidence_url;a.target='_blank';a.rel='noopener noreferrer';}
- if(ready&&x.confirmed){const m=select(d,({Instagram:['followers','posts'],Spotify:['followers','monthly_listeners'],TikTok:['followers','likes','video_count']})[x.network]);const value=field(d,'Valor observado (inteiro)','number');value.min=0;value.step=1;const date=field(d,'Data e hora da observação','datetime-local');const ev=field(d,'URL da fonte autorizada','url');const b=add(d,'button','Registrar indicador atual');b.type='button';b.onclick=()=>{if(!value.value||!date.value||!window.confirm('Confirma que o número foi conferido e que a fonte permite armazenar e exibir este dado?'))return;run(()=>api('open-record',{id:c.id,profileId:x.id,metric:m.value,value:Number(value.value),observed_at:new Date(date.value).toISOString(),evidence:ev.value,attested:true}));};}}
+async function api(path, payload) {
+  const r = await fetch('/api/discovery/' + path, payload === undefined ? {} : {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Radar-Action': 'discovery' },
+    body: JSON.stringify(payload)
+  });
+  if (!r.ok) throw Error('Operação indisponível (' + r.status + '). Verifique acesso administrativo e configuração.');
+  return r.json();
 }
+
+function renderCandidatesList() {
+  const host = $('candidates');
+  if (!host) return;
+  host.replaceChildren();
+  const filterVal = $('candidate-priority-filter')?.value || 'all';
+  const sorted = [...cachedCandidates]
+    .filter(c => filterVal === 'all' || c.priority_tier === filterVal)
+    .sort((a, b) => (a.priority_order ?? 9) - (b.priority_order ?? 9) || a.name.localeCompare(b.name, 'pt-BR'));
+  for (const c of sorted) {
+    const b = add(host, 'button', '');
+    b.className = 'cand-queue-btn';
+    b.dataset.tier = c.priority_tier || '';
+    add(b, 'strong', c.name);
+    add(b, 'small', `[${({ pending: 'Pendente', approved: 'Aprovado', published: 'No Radar', rejected: 'Rejeitado' }[c.status] || c.status)}] · ${c.priority_label || 'Revisar'}`);
+    b.onclick = () => open(c.id).catch(e => status(e.message));
+  }
+  if (!sorted.length) add(host, 'p', 'Nenhum candidato encontrado neste filtro.');
+}
+$('candidate-priority-filter')?.addEventListener('change', renderCandidatesList);
+
+async function refresh() {
+  const s = await api('status');
+  if (s.funnel) {
+    if ($('funnel-searched')) $('funnel-searched').textContent = Number(s.funnel.searched ?? 0).toLocaleString('pt-BR');
+    if ($('funnel-confirmed')) $('funnel-confirmed').textContent = Number(s.funnel.confirmed ?? 0).toLocaleString('pt-BR');
+    if ($('funnel-collected')) $('funnel-collected').textContent = Number(s.funnel.collected ?? 0).toLocaleString('pt-BR');
+    if ($('funnel-distributed')) $('funnel-distributed').textContent = Number(s.funnel.distributed ?? 0).toLocaleString('pt-BR');
+  }
+  const previous = $('source').value;
+  $('source').replaceChildren();
+  const g = add($('source'), 'option', 'Busca global gratuita (Wikidata + MusicBrainz + YouTube)');
+  g.value = 'global';
+  const yt = add($('source'), 'option', 'YouTube — pesquisar canais');
+  yt.value = 'youtube-live';
+  for (const f of s.sources.filter(f => f.enabled && f.kind !== 'licensed-file')) {
+    const o = add($('source'), 'option', f.id);
+    o.value = f.id;
+  }
+  if ([...$('source').options].some(o => o.value === previous)) $('source').value = previous;
+  cachedCandidates = Array.isArray(s.candidates) ? s.candidates : [];
+  renderCandidatesList();
+  $('logs').replaceChildren();
+  for (const l of s.logs) add($('logs'), 'p', l.at + ' · ' + l.status + ' · ' + l.count + ' registros · ' + (l.message || ''));
+}
+
+async function open(id) {
+  const c = await api('detail?id=' + encodeURIComponent(id));
+  selected = id;
+  const p = $('detail');
+  p.replaceChildren();
+  add(p, 'h3', c.name);
+  const stLabel = { pending: 'Pendente de aprovação', approved: 'Aprovado (pronto para enviar ao Radar)', published: 'Ativo no Radar (perfis e métricas distribuídos)', rejected: 'Rejeitado' }[c.status] || c.status;
+  const rawRadarId = c.radar_id && !String(c.radar_id).includes('://') ? c.radar_id : null;
+  const autoRadarId = rawRadarId ?? c.suggestedRadarId ?? '';
+  add(p, 'p', `Status: ${stLabel}${autoRadarId ? ` · Vínculo Radar: ${autoRadarId}` : ''}`);
+
+  const pills = add(p, 'div', '');
+  pills.className = 'disc-profile-pills';
+  for (const x of c.profiles) {
+    const a = add(pills, 'a', `${x.network} ↗`);
+    a.className = 'disc-profile-pill';
+    a.href = x.url;
+    a.title = x.url;
+    a.rel = 'noopener noreferrer';
+    a.target = '_blank';
+  }
+  for (const e of c.evidence) {
+    const a = add(pills, 'a', `Evidência (${e.source_id}) ↗`);
+    a.className = 'disc-profile-pill';
+    a.href = e.url;
+    a.title = e.url;
+    a.rel = 'noopener noreferrer';
+    a.target = '_blank';
+  }
+
+  for (const y of c.youtube ?? []) {
+    for (const o of y.metrics ?? []) {
+      const mLabel = { subscribers: 'YouTube Inscritos', views: 'YouTube Visualizações', video_count: 'YouTube Vídeos' }[o.metric] || o.metric;
+      add(p, 'p', `✓ ${mLabel}: ${o.value.toLocaleString('pt-BR')} (${o.observed_at.slice(0, 10)})`);
+    }
+  }
+  for (const x of c.openSocial ?? []) {
+    for (const o of x.metrics ?? []) {
+      add(p, 'p', `✓ ${x.network} · ${o.metric}: ${o.value.toLocaleString('pt-BR')} (${o.observed_at.slice(0, 10)})`);
+    }
+  }
+  for (const o of c.observations ?? []) {
+    add(p, 'p', `✓ ${o.metric}: ${o.value.toLocaleString('pt-BR')} (${o.observed_at.slice(0, 10)})`);
+  }
+
+  const autoEv =
+    c.identity_evidence ||
+    c.evidence.find(e => e.source_id === 'wikidata-cc0')?.url ||
+    c.evidence[0]?.url ||
+    c.profiles[0]?.url ||
+    'https://www.wikidata.org';
+
+  $('review-form').hidden = false;
+  if ($('evidence')) $('evidence').value = autoEv;
+  if ($('radar-id')) $('radar-id').value = autoRadarId;
+  if ($('observe-form')) {
+    $('observe-form').hidden = false;
+    if (c.profiles[0]) {
+      $('obs-network').value = c.profiles[0].network;
+      $('obs-url').value = c.profiles[0].url;
+      $('obs-evidence').value = '';
+    }
+  }
+  $('approve').disabled = false;
+  $('publish').disabled = false;
+}
+
+async function run(fn) {
+  if (busy) return;
+  busy = true;
+  status('Executando…');
+  try {
+    const result = await fn();
+    await refresh();
+    if (result?.id) selected = result.id;
+    if (selected) await open(selected);
+    if (result?.ok && result?.radarId) {
+      status(
+        `✓ ${result.name || 'Artista'} aprovado e enviado ao Radar (${result.radarId})! Perfis vinculados: ${result.profilesLinked ?? 0} · YouTube coletado: ${result.youtubeCollected ?? 0} · Spotify coletado: ${result.spotifyCollected ?? 0}.`
+      );
+    } else if (result?.bulk) {
+      status(`Prospecção: ${result.bulk.attempted} pesquisados; ${result.bulk.queued} na fila; ${result.bulk.unmatched} sem correspondência.`);
+    } else {
+      status('Operação concluída com sucesso.');
+    }
+  } catch (e) {
+    status(e.message);
+  } finally {
+    busy = false;
+  }
+}
+
+function attachFastButtons(container, payloadFactory) {
+  const bar = add(container, 'div', '');
+  bar.className = 'disc-fast-actions';
+  const btnApprove = add(bar, 'button', '✓ Aprovar');
+  btnApprove.type = 'button';
+  btnApprove.className = 'btn-approve';
+  const btnSend = add(bar, 'button', '🚀 Enviar ao Radar');
+  btnSend.type = 'button';
+  btnSend.className = 'btn-send-radar';
+
+  const exec = () =>
+    run(async () => {
+      const payload = await payloadFactory();
+      return api('approve-and-send', payload);
+    });
+  btnApprove.onclick = exec;
+  btnSend.onclick = exec;
+}
+
+$('search-form').onsubmit = e => {
+  e.preventDefault();
+  if ($('source').value === 'youtube-live') {
+    run(async () => {
+      const r = await api('youtube-search', { query: $('query').value });
+      const p = $('global-list');
+      p.replaceChildren();
+      $('global-results').hidden = false;
+      for (const x of r.channels) {
+        const card = add(p, 'div', '');
+        card.className = 'disc-result-card';
+        const head = add(card, 'div', '');
+        head.className = 'disc-result-head';
+        add(head, 'strong', x.title);
+        const a = add(head, 'a', x.url + ' ↗');
+        a.className = 'disc-profile-pill';
+        a.href = x.url;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+      }
+      return { channels: r.channels.length };
+    });
+  } else if ($('source').value === 'global') {
+    run(async () => {
+      const r = await api('global-search', {
+        query: $('query').value,
+        includeMusicBrainzLive: Boolean($('include-mb')?.checked)
+      });
+      renderGlobal(r);
+      return { sources: r.sources, coverage: r.coverage };
+    });
+  } else {
+    $('global-results').hidden = true;
+    run(() => api('search', { source: $('source').value, query: $('query').value }));
+  }
+};
+
+// Ambos os botões na ficha executam o fluxo unificado (Aprovar + Confirmar perfis da busca + Coletar YouTube/Spotify + Enviar ao Radar)
+$('approve').onclick = () =>
+  run(() =>
+    api('approve-and-send', {
+      id: selected,
+      evidence: $('evidence')?.value || '',
+      radarId: $('radar-id')?.value || ''
+    })
+  );
+$('publish').onclick = () =>
+  run(() =>
+    api('approve-and-send', {
+      id: selected,
+      evidence: $('evidence')?.value || '',
+      radarId: $('radar-id')?.value || ''
+    })
+  );
+
+if ($('observe-form')) {
+  $('observe-form').onsubmit = e => {
+    e.preventDefault();
+    run(() =>
+      api('observe', {
+        id: selected,
+        network: $('obs-network').value,
+        url: $('obs-url').value,
+        metric: $('obs-metric').value,
+        value: Number($('obs-value').value),
+        evidence_url: $('obs-evidence').value,
+        authorization_ref: $('obs-auth').value
+      })
+    );
+  };
+}
+if ($('csv-form')) {
+  $('csv-form').onsubmit = e => {
+    e.preventDefault();
+    run(() =>
+      api('import-csv', {
+        mode: $('csv-mode').value,
+        authorization_ref: $('csv-auth').value,
+        csv: $('csv-content').value
+      })
+    );
+  };
+}
+
+function renderGlobal(r) {
+  const p = $('global-list');
+  p.replaceChildren();
+  $('global-results').hidden = false;
+
+  const extraYt = Array.isArray(r.youtubeChannels) && r.youtubeChannels.length ? [r.youtubeChannels[0]] : [];
+
+  for (const x of r.external ?? []) {
+    const card = add(p, 'div', '');
+    card.className = 'disc-result-card';
+    const head = add(card, 'div', '');
+    head.className = 'disc-result-head';
+    add(head, 'strong', `${x.name} (Wikidata · ${x.external_id})`);
+    if (x.description) add(card, 'p', x.description);
+    const pills = add(card, 'div', '');
+    pills.className = 'disc-profile-pills';
+    const evLink = add(pills, 'a', 'Wikidata ↗');
+    evLink.className = 'disc-profile-pill';
+    evLink.href = x.evidence_url;
+    evLink.target = '_blank';
+    evLink.rel = 'noopener noreferrer';
+    for (const h of x.profiles ?? []) {
+      const a = add(pills, 'a', `${h.network} ↗`);
+      a.className = 'disc-profile-pill';
+      a.href = h.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+    }
+    attachFastButtons(card, async () => ({
+      id: x.candidate_id || null,
+      source: 'wikidata',
+      external_id: x.external_id,
+      evidence: x.evidence_url,
+      extraProfiles: x.profiles?.some(pr => pr.network === 'YouTube') ? [] : extraYt
+    }));
+  }
+
+  for (const x of r.musicbrainz ?? []) {
+    const card = add(p, 'div', '');
+    card.className = 'disc-result-card';
+    const head = add(card, 'div', '');
+    head.className = 'disc-result-head';
+    add(head, 'strong', `${x.name} (MusicBrainz)`);
+    if (x.description) add(card, 'p', x.description);
+    const pills = add(card, 'div', '');
+    pills.className = 'disc-profile-pills';
+    const evLink = add(pills, 'a', 'MusicBrainz ↗');
+    evLink.className = 'disc-profile-pill';
+    evLink.href = x.evidence_url;
+    evLink.target = '_blank';
+    evLink.rel = 'noopener noreferrer';
+    for (const h of x.profiles ?? []) {
+      const a = add(pills, 'a', `${h.network} ↗`);
+      a.className = 'disc-profile-pill';
+      a.href = h.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+    }
+    attachFastButtons(card, async () => ({
+      id: x.candidate_id || null,
+      source: 'musicbrainz',
+      external_id: x.external_id,
+      evidence: x.evidence_url,
+      extraProfiles: x.profiles?.some(pr => pr.network === 'YouTube') ? [] : extraYt
+    }));
+  }
+
+  for (const x of r.candidates ?? []) {
+    const card = add(p, 'div', '');
+    card.className = 'disc-result-card';
+    const head = add(card, 'div', '');
+    head.className = 'disc-result-head';
+    add(head, 'strong', `${x.name} (Candidato na fila · ${x.status})`);
+    attachFastButtons(card, async () => ({ id: x.id, extraProfiles: extraYt }));
+  }
+
+  if (!r.external?.length && !r.musicbrainz?.length && !r.candidates?.length) {
+    add(p, 'p', 'Nenhum candidato localizado nesta busca.');
+  }
+}
+
+const bulkButton = add($('search-form'), 'button', 'Prospectar 5 artistas');
+bulkButton.type = 'button';
+bulkButton.onclick = () => run(() => api('youtube-bulk', {}));
+
+refresh().catch(e => status(e.message));

@@ -461,9 +461,10 @@ function renderOperationalSidebars(artistMap){
 
 function selectionSummary(r){
  const demByCode=new Map((demographicsData?.items||[]).map(d=>[String(d.code),d]));
- const rows=[...selected].map(code=>{
-  const c=catalog.find(x=>x.code===code);
-  const place=r?.places?.find(x=>x.code===code);
+ const codesToShow=selected.size?[...selected]:(field('center')?.value?[field('center').value]:[]);
+ const rows=codesToShow.map(code=>{
+  const c=catalog.find(x=>String(x.code)===String(code));
+  const place=r?.places?.find(x=>String(x.code)===String(code));
   const dem=demByCode.get(String(code));
   const label=c?`${c.name} / ${c.uf} (${c.region})`:code;
   const valText=place
@@ -473,8 +474,8 @@ function selectionSummary(r){
      :`Bacia Regional (${c?.region||'Brasil'})`;
   const simBtn=el('button','⚡ Simular Show');
   simBtn.type='button';
-  simBtn.className='secondary-button';
-  simBtn.addEventListener('click',()=>focusCommercialHub(code,100));
+  simBtn.className='btn-simulate-show';
+  simBtn.addEventListener('click',()=>openShowSimulatorModal(code));
   return [label,valText,simBtn];
  });
  const known=r?.places?.filter(p=>selected.has(p.code))??[];
@@ -482,6 +483,517 @@ function selectionSummary(r){
   rows.push(['Total observado ('+known.length+' de '+selected.size+' cidades)',fmt(known.reduce((a,b)=>a+b.value,0)),'—']);
  }
  table('selection-summary',['Município / UF','Audiência / Potencial IBGE','Ação no Mapa'],rows);
+}
+
+function clientDistKm(a,b){
+ if(!a||!b||a.lat==null||a.lon==null||b.lat==null||b.lon==null)return Infinity;
+ const rad=Math.PI/180,dlat=(b.lat-a.lat)*rad,dlon=(b.lon-a.lon)*rad;
+ const h=Math.sin(dlat/2)**2+Math.cos(a.lat*rad)*Math.cos(b.lat*rad)*Math.sin(dlon/2)**2;
+ return 6371*2*Math.asin(Math.sqrt(Math.min(1,Math.max(0,h))));
+}
+
+function buildShowPlan(compat,cityObj,activeArtist,radiusKm){
+ const demItems=demographicsData?.items||[];
+ const directDem=compat?.city?.demographics||demItems.find(d=>String(d.code)===String(cityObj?.code))||null;
+ let nearestHub=null,nearestKm=Infinity;
+ for(const h of demItems){
+  const d=clientDistKm(cityObj,h);
+  if(d<nearestKm){nearestKm=d;nearestHub=h;}
+ }
+ const regBench=(demographicsData?.byRegion||[]).find(r=>r.region===(cityObj?.region||compat?.city?.region))||null;
+ const pibPerCapita=Number(directDem?.gdp_per_capita||directDem?.pib_per_capita||regBench?.avg_pib_per_capita||nearestHub?.pib_per_capita||42000);
+ const avgIncome=Number(directDem?.avg_income||(pibPerCapita/12*0.62)||3200);
+ const cityPop=Number(directDem?.population||0);
+ const catchmentCount=Number(compat?.catchment?.totalMunicipalities||1);
+ const catchmentKnownPop=Number(compat?.catchment?.knownPopulation||cityPop||(catchmentCount*28000));
+
+ const cats=compat?.artist?.categories||activeArtist?.categories||[];
+ const isSeatedStage=cats.some(c=>/Humor|Palestr|Ator|Mágic|Jornal/i.test(c));
+ const mediaVals=[
+  compat?.media?.find(m=>m.network==='YouTube')?.national?.value||activeArtist?.media?.YouTube?.value||0,
+  compat?.media?.find(m=>m.network==='Spotify')?.national?.value||activeArtist?.media?.Spotify?.value||0,
+  compat?.media?.find(m=>m.network==='Instagram')?.national?.value||activeArtist?.media?.Instagram?.value||0,
+  compat?.media?.find(m=>m.network==='TikTok')?.national?.value||activeArtist?.media?.TikTok?.value||0
+ ];
+ const maxReach=Math.max(0,...mediaVals);
+ const tier=maxReach>=10000000?'A':maxReach>=2500000?'B':maxReach>=400000?'C':'D';
+ const tierLabel={
+  A:'Mega Atração Nacional (Headliner / Arena)',
+  B:'Grande Atração Nacional (Turnê Principal)',
+  C:'Atração Consolidada / Regional',
+  D:'Atração de Nicho / Corporativo / Em Ascensão'
+ }[tier];
+
+ const realVenues=(compat?.competition?.sampleCompetingEvents||[]).filter(e=>e.venue).map(e=>`${e.venue} (${e.city})`);
+ const uniqueRealVenues=[...new Set(realVenues)];
+
+ let venueType='',venueSecondary='',stageFormat='',baseCap=2500;
+ if(isSeatedStage){
+  venueType=cityPop>=300000?'Teatro Principal / Centro de Convenções':'Auditório / Salão Nobre de Clube ou Teatro Regional';
+  venueSecondary=nearestHub&&nearestKm>5?`Opção Polo Regional (${nearestHub.name}/${nearestHub.uf} a ${nearestKm.toFixed(0)} km): Centro de Convenções / Teatro`:'Sessão Dupla (20h e 22h) para maximizar bilheteria';
+  stageFormat='Plateia Sentada Numerada (VIP Frontal + Plateia Central + Mezanino)';
+  baseCap=tier==='A'?2200:tier==='B'?1400:tier==='C'?900:550;
+  if(cityPop>0&&cityPop<150000)baseCap=Math.min(baseCap,1100);
+ }else if(cityPop>=500000){
+  venueType=tier==='A'?'Arena Multiuso / Estádio / Parque de Eventos':'Casa de Grandes Shows / Centro de Eventos / Arena Coberta';
+  venueSecondary='Espaço Premium com Pista, Frontstage e Lounges Corporativos';
+  stageFormat='Arena Show (Pista 65% + Área VIP Frontstage 23% + Camarotes/Lounges 12%)';
+  baseCap=tier==='A'?8500:tier==='B'?5000:tier==='C'?2800:1500;
+ }else if(cityPop>=120000){
+  venueType='Parque de Exposições / Centro de Eventos Regional / Ginásio Coberto';
+  venueSecondary='Recinto Agropecuário ou Clube Campestre com estrutura para camarotes';
+  stageFormat='Show Regional (Pista/Arena 65% + VIP Frontstage 23% + Camarotes/Bistrôs 12%)';
+  baseCap=tier==='A'?5500:tier==='B'?3600:tier==='C'?2200:1200;
+ }else{
+  venueType='Parque de Exposições Municipal / Recinto de Festas & Rodeio / Ginásio Municipal';
+  venueSecondary=nearestHub?`Captação Regional na Bacia de ${radiusKm} km (${catchmentCount} municípios · Polo de apoio: ${nearestHub.name}/${nearestHub.uf} a ${nearestKm.toFixed(0)} km)`:`Captação Regional na Bacia de ${radiusKm} km (${catchmentCount} municípios vizinhos)`;
+  stageFormat='Formato Bacia Regional (Arena/Pista 65% + Frontstage/VIP 23% + Camarotes/Mesas 12%)';
+  const basinMultiplier=Math.min(1.45,0.75+catchmentCount*0.02);
+  const rawCap=(tier==='A'?4000:tier==='B'?2800:tier==='C'?1800:1000)*basinMultiplier;
+  baseCap=Math.round(rawCap/100)*100;
+ }
+ if(uniqueRealVenues.length){
+  venueSecondary=`Locais reais monitorados na região: ${uniqueRealVenues.slice(0,3).join(' · ')}`;
+ }
+
+ const incomeFactor=Math.max(0.78,Math.min(1.42,pibPerCapita/46000));
+ const scoreFactor=compat?.score!=null?Math.max(0.88,Math.min(1.22,0.85+compat.score/260)):1;
+ const rawBaseTicket=(tier==='A'?90:tier==='B'?75:tier==='C'?60:50)*incomeFactor*scoreFactor*(isSeatedStage?1.15:1);
+ const baseTicket=Math.max(40,Math.round(rawBaseTicket/5)*5);
+
+ const sectors=isSeatedStage
+  ?[
+    {name:'Plateia Central / Prata (1º/2º Lote)',share:0.55,mult:1.0},
+    {name:'Plateia VIP Ouro (Frente Palco)',share:0.30,mult:1.65},
+    {name:'Camarote / Bistrô / Mezanino Premium',share:0.15,mult:2.35}
+   ]
+  :[
+    {name:'Pista / Arena (Meia / Solidário)',share:0.65,mult:1.0},
+    {name:'Área VIP / Frontstage',share:0.23,mult:1.9},
+    {name:'Camarotes / Bistrôs / Lounges',share:0.12,mult:3.3}
+   ];
+
+ return {
+  cityObj,
+  directDem,
+  nearestHub,
+  nearestKm,
+  pibPerCapita,
+  avgIncome,
+  cityPop,
+  catchmentCount,
+  catchmentKnownPop,
+  isSeatedStage,
+  maxReach,
+  tier,
+  tierLabel,
+  venueType,
+  venueSecondary,
+  stageFormat,
+  uniqueRealVenues,
+  recommendedCapacity:baseCap,
+  recommendedBaseTicket:baseTicket,
+  sectors
+ };
+}
+
+let simModalReqSeq=0;
+async function openShowSimulatorModal(cityCode,customArtistId=null,customRadiusKm=null){
+ const dialog=$('show-simulator-modal');
+ const host=$('show-simulator-content');
+ if(!dialog||!host)return;
+ const seq=++simModalReqSeq;
+ const codeStr=String(cityCode||field('center')?.value||[...selected][0]||(demographicsData?.items?.[0]?.code||'3550308'));
+ const cityObj=catalog.find(c=>String(c.code)===codeStr)||(demographicsData?.items||[]).find(d=>String(d.code)===codeStr)||{code:codeStr,name:'Município Selecionado',uf:'BR',region:'Brasil'};
+ const radiusKm=Number(customRadiusKm||field('radius')?.value||100)||100;
+
+ // Sincroniza a cidade com o mapa ao abrir o simulador
+ if(!selected.has(String(cityObj.code))){
+  selected.add(String(cityObj.code));
+  selectedChips();
+ }
+ if(cityObj.lat!=null&&field('center').value!==String(cityObj.code)){
+  $('center-search').value=`${cityObj.name} / ${cityObj.uf}`;
+  filterCenters();
+  field('center').value=String(cityObj.code);
+  field('radius').value=String(radiusKm);
+  if($('radius-slider'))$('radius-slider').value=String(radiusKm);
+ }
+
+ const chosenTalentId=customArtistId||field('talent')?.value||'';
+ const activeArtist=
+  lastCrossItems.find(a=>a.id===chosenTalentId)||
+  active360Artist||
+  lastCrossItems.find(a=>Object.values(a.media||{}).some(m=>m?.value!=null))||
+  lastCrossItems[0]||
+  null;
+
+ if(!dialog.open)dialog.showModal();
+ host.replaceChildren(el('p',`Carregando inteligência territorial, sugestão de local, capacidade e estimativa de ingressos para ${cityObj.name} / ${cityObj.uf}…`));
+
+ let compat=null;
+ if(activeArtist){
+  try{
+   const cp=new URLSearchParams({talent:activeArtist.id,city:String(cityObj.code),radius:String(radiusKm)});
+   compat=await get('/api/commercial/compatibility?'+cp);
+  }catch{}
+ }
+ if(seq!==simModalReqSeq)return;
+
+ const plan=buildShowPlan(compat,cityObj,activeArtist,radiusKm);
+ host.replaceChildren();
+
+ // 1. Cabeçalho do Modal
+ const head=el('div');head.className='show-sim-head';
+ const headLeft=el('div');
+ const eye=el('span',`PLANEJAMENTO DE SHOW & VIABILIDADE DE PRAÇA · BACIA REGIONAL DE ${radiusKm} KM`);
+ eye.className='eyebrow';
+ const h2=el('h2',`⚡ ${activeArtist?.name||'Catálogo Nacional'} em ${cityObj.name} / ${cityObj.uf} (${cityObj.region||'Brasil'})`);
+ h2.id='show-sim-title';
+ const subP=el('p',plan.directDem?.population
+  ?`Polo Monitorado IBGE · População local: ${fmt(plan.directDem.population)} hab · PIB per capita: R$ ${fmt(Math.round(plan.pibPerCapita))} · ${plan.catchmentCount} municípios no raio de ${radiusKm} km.`
+  :`Município Oficial IBGE (${cityObj.name}/${cityObj.uf}) · Bacia Regional com ${plan.catchmentCount} municípios num raio de ${radiusKm} km`+(plan.nearestHub?` · Polo IBGE de referência: ${plan.nearestHub.name}/${plan.nearestHub.uf} (${plan.nearestKm.toFixed(0)} km · PIB/hab R$ ${fmt(Math.round(plan.pibPerCapita))}).`:'.')
+ );
+ headLeft.append(eye,h2,subP);
+ const closeBtn=el('button','✕ Fechar');
+ closeBtn.type='button';
+ closeBtn.className='secondary-button';
+ closeBtn.addEventListener('click',()=>dialog.close());
+ head.append(headLeft,closeBtn);
+ host.append(head);
+
+ // 2. Barra de Controles da Simulação (Artista, Cidade, Raio e Score)
+ const ctrlRow=el('div');ctrlRow.className='show-sim-controls';
+
+ const artistCard=el('label');artistCard.className='show-sim-ctrl-card';
+ artistCard.append(el('span','Artista / Atração Simulada'));
+ const artistSel=el('select');
+ for(const a of lastCrossItems){
+  const opt=new Option(`${a.name} (${a.media?.YouTube?.formatted||a.media?.Spotify?.formatted||'Ativo'})`,a.id);
+  if(activeArtist&&a.id===activeArtist.id)opt.selected=true;
+  artistSel.append(opt);
+ }
+ artistSel.addEventListener('change',()=>{
+  field('talent').value=artistSel.value;
+  const found=lastCrossItems.find(x=>x.id===artistSel.value);
+  if(found&&$('artist-quick-search'))$('artist-quick-search').value=found.name;
+  openShowSimulatorModal(cityObj.code,artistSel.value,radiusKm);
+ });
+ artistCard.append(artistSel);
+
+ const cityCard=el('label');cityCard.className='show-sim-ctrl-card';
+ cityCard.append(el('span','Município Sede do Evento'));
+ const citySel=el('select');
+ const candidateCities=new Map();
+ candidateCities.set(String(cityObj.code),cityObj);
+ for(const code of selected){
+  const c=catalog.find(x=>String(x.code)===String(code));
+  if(c)candidateCities.set(String(c.code),c);
+ }
+ for(const h of (demographicsData?.items||[])){
+  if(!candidateCities.has(String(h.code)))candidateCities.set(String(h.code),h);
+ }
+ for(const c of candidateCities.values()){
+  const opt=new Option(`${c.name} / ${c.uf} (${c.region||'Brasil'})`,String(c.code));
+  if(String(c.code)===String(cityObj.code))opt.selected=true;
+  citySel.append(opt);
+ }
+ citySel.addEventListener('change',()=>openShowSimulatorModal(citySel.value,activeArtist?.id,radiusKm));
+ cityCard.append(citySel);
+
+ const radiusCard=el('div');radiusCard.className='show-sim-ctrl-card';
+ radiusCard.append(el('span','Raio da Bacia Regional (km)'));
+ const radPills=el('div');radPills.className='show-sim-radius-pills';
+ for(const rVal of [50,80,100,150,200]){
+  const rb=el('button',`${rVal} km`);
+  rb.type='button';
+  rb.setAttribute('aria-pressed',String(radiusKm===rVal));
+  rb.addEventListener('click',()=>{
+   field('radius').value=String(rVal);
+   if($('radius-slider'))$('radius-slider').value=String(rVal);
+   openShowSimulatorModal(cityObj.code,activeArtist?.id,rVal);
+  });
+  radPills.append(rb);
+ }
+ radiusCard.append(radPills);
+
+ const scoreCard=el('div');scoreCard.className='show-sim-score-pill';
+ const scVal=compat?.score;
+ scoreCard.append(
+  el('span','Score Comercial da Praça'),
+  el('strong',scVal!=null?`${scVal} / 100`:'Qualificado'),
+  el('small',compat?.verdict?.label||plan.tierLabel)
+ );
+
+ ctrlRow.append(artistCard,cityCard,radiusCard,scoreCard);
+ host.append(ctrlRow);
+
+ // 3. Quatro Cards Principais: Sugestão de Local, Capacidade, Valor de Ingresso e Receita Estimada
+ const kpiGrid=el('div');kpiGrid.className='show-sim-kpi-grid';
+ const kpiVenue=el('div');kpiVenue.className='show-sim-kpi-card';
+ kpiVenue.append(
+  el('span','1. Sugestão de Local (Venue)'),
+  el('strong',plan.venueType),
+  el('small',plan.stageFormat)
+ );
+ kpiVenue.firstChild.className='kpi-tag';
+
+ const kpiCap=el('div');kpiCap.className='show-sim-kpi-card cyan-neon';
+ const kpiCapStrong=el('strong','');
+ const kpiCapSmall=el('small','');
+ const kpiCapTag=el('span','2. Capacidade & Público Pagante');
+ kpiCapTag.className='kpi-tag';
+ kpiCap.append(kpiCapTag,kpiCapStrong,kpiCapSmall);
+
+ const kpiTicket=el('div');kpiTicket.className='show-sim-kpi-card';
+ const kpiTicketStrong=el('strong','');
+ const kpiTicketSmall=el('small','');
+ const kpiTicketTag=el('span','3. Estimativa de Ingresso');
+ kpiTicketTag.className='kpi-tag';
+ kpiTicket.append(kpiTicketTag,kpiTicketStrong,kpiTicketSmall);
+
+ const kpiRev=el('div');kpiRev.className='show-sim-kpi-card cyan-neon';
+ const kpiRevStrong=el('strong','');
+ const kpiRevSmall=el('small','');
+ const kpiRevTag=el('span','4. Projeção de Bilheteria Bruta');
+ kpiRevTag.className='kpi-tag';
+ kpiRev.append(kpiRevTag,kpiRevStrong,kpiRevSmall);
+
+ kpiGrid.append(kpiVenue,kpiCap,kpiTicket,kpiRev);
+ host.append(kpiGrid);
+
+ // 4. Simulador Interativo de Capacidade, Lotes de Ingresso e Ocupação + Tabela por Setor
+ const tuner=el('div');tuner.className='show-sim-tuner';
+ const tunerHead=el('div');tunerHead.className='show-sim-tuner-head';
+ tunerHead.append(el('strong','🎛 Calibragem Operacional de Capacidade, Ingressos e Lotes (Ajuste em Tempo Real)'));
+ const scenarioBtns=el('div');scenarioBtns.style.display='flex';scenarioBtns.style.gap='6px';
+ tunerHead.append(scenarioBtns);
+ tuner.append(tunerHead);
+
+ const tunerGrid=el('div');tunerGrid.className='show-sim-tuner-grid';
+
+ // Controle 1: Capacidade
+ const capBox=el('div');capBox.className='show-sim-slider-box';
+ const capTop=el('div');capTop.className='show-sim-slider-top';
+ capTop.append(el('span','Capacidade Total do Local'));
+ const capNum=el('input');capNum.type='number';capNum.min='200';capNum.max='50000';capNum.step='100';capNum.value=String(plan.recommendedCapacity);
+ const capRange=el('input');capRange.type='range';capRange.min='300';capRange.max='25000';capRange.step='100';capRange.value=String(Math.min(25000,plan.recommendedCapacity));
+ capTop.append(capNum);
+ capBox.append(capTop,capRange);
+
+ // Controle 2: Ingresso Base Pista
+ const tktBox=el('div');tktBox.className='show-sim-slider-box';
+ const tktTop=el('div');tktTop.className='show-sim-slider-top';
+ tktTop.append(el('span','Ingresso Base 1º Lote (R$)'));
+ const tktNum=el('input');tktNum.type='number';tktNum.min='20';tktNum.max='1500';tktNum.step='5';tktNum.value=String(plan.recommendedBaseTicket);
+ const tktRange=el('input');tktRange.type='range';tktRange.min='30';tktRange.max='500';tktRange.step='5';tktRange.value=String(Math.min(500,plan.recommendedBaseTicket));
+ tktTop.append(tktNum);
+ tktBox.append(tktTop,tktRange);
+
+ // Controle 3: Ocupação (%)
+ const occBox=el('div');occBox.className='show-sim-slider-box';
+ const occTop=el('div');occTop.className='show-sim-slider-top';
+ occTop.append(el('span','Ocupação / Venda Estimada (%)'));
+ const occNum=el('input');occNum.type='number';occNum.min='30';occNum.max='100';occNum.step='5';occNum.value='85';
+ const occRange=el('input');occRange.type='range';occRange.min='40';occRange.max='100';occRange.step='5';occRange.value='85';
+ occTop.append(occNum);
+ occBox.append(occTop,occRange);
+
+ tunerGrid.append(capBox,tktBox,occBox);
+ tuner.append(tunerGrid);
+
+ const sectorTableHost=el('div');
+ tuner.append(sectorTableHost);
+ host.append(tuner);
+
+ let currentSummaryText='';
+ function recalculateFinancials(){
+  const cap=Math.max(100,Number(capNum.value)||plan.recommendedCapacity);
+  const basePrice=Math.max(10,Number(tktNum.value)||plan.recommendedBaseTicket);
+  const occPct=Math.max(10,Math.min(100,Number(occNum.value)||85));
+  const occRatio=occPct/100;
+
+  let totalBuyers=0,totalGross=0;
+  const sectorRows=[];
+  const sectorPrices=[];
+  for(const sec of plan.sectors){
+   const secCap=Math.round(cap*sec.share);
+   const secBuyers=Math.round(secCap*occRatio);
+   const secPrice=Math.round((basePrice*sec.mult)/5)*5;
+   const secGross=secBuyers*secPrice;
+   totalBuyers+=secBuyers;
+   totalGross+=secGross;
+   sectorPrices.push({name:sec.name,price:secPrice,buyers:secBuyers,cap:secCap,gross:secGross});
+   sectorRows.push([
+    sec.name,
+    `${Math.round(sec.share*100)}% (${fmt(secCap)} lug.)`,
+    `${fmt(secBuyers)} pagantes`,
+    `R$ ${fmt(secPrice)},00`,
+    `R$ ${fmt(secGross)},00`
+   ]);
+  }
+  const weightedAvg=totalBuyers>0?Math.round(totalGross/totalBuyers):basePrice;
+  const minPrice=sectorPrices[0]?.price||basePrice;
+  const maxPrice=sectorPrices.at(-1)?.price||basePrice;
+
+  kpiCapStrong.textContent=`${fmt(totalBuyers)} pagantes (${occPct}%)`;
+  kpiCapSmall.textContent=`Capacidade instalada: ${fmt(cap)} lugares · Conservador (70%): ${fmt(Math.round(cap*0.7))} · Lotação máxima: ${fmt(cap)}`;
+
+  kpiTicketStrong.textContent=`Ticket Médio: R$ ${fmt(weightedAvg)},00`;
+  kpiTicketSmall.textContent=`Faixa por setor: R$ ${fmt(minPrice)},00 (Base) a R$ ${fmt(maxPrice)},00 (Premium) · Calibrado pelo PIB/Renda IBGE`;
+
+  const gross70=Math.round(totalGross*(0.70/occRatio));
+  const gross100=Math.round(totalGross*(1.00/occRatio));
+  kpiRevStrong.textContent=`R$ ${fmt(totalGross)},00`;
+  kpiRevSmall.textContent=`Cenário 70%: R$ ${fmt(gross70)} · Sold Out (100%): R$ ${fmt(gross100)}`;
+
+  sectorRows.push([
+   'TOTAL CONSOLIDADO DO SHOW',
+   `${fmt(cap)} lugares (100%)`,
+   `${fmt(totalBuyers)} pagantes (${occPct}%)`,
+   `Ticket Médio: R$ ${fmt(weightedAvg)},00`,
+   `R$ ${fmt(totalGross)},00`
+  ]);
+
+  sectorTableHost.replaceChildren();
+  const tbl=el('table');
+  const thead=el('thead'),trH=el('tr');
+  ['Setor / Mapa de Palco','Capacidade do Setor','Público Estimado','Valor Sugerido (Lote Base)','Receita Bruta Estimada'].forEach(h=>trH.append(el('th',h)));
+  thead.append(trH);tbl.append(thead);
+  const tbody=el('tbody');
+  sectorRows.forEach((r,idx)=>{
+   const tr=el('tr');
+   if(idx===sectorRows.length-1)tr.style.fontWeight='800';
+   r.forEach(c=>tr.append(el('td',c)));
+   tbody.append(tr);
+  });
+  tbl.append(tbody);
+  sectorTableHost.append(tbl);
+
+  currentSummaryText=[
+   `⚡ SIMULAÇÃO DE SHOW & VIABILIDADE — RADAR DE TALENTOS`,
+   `• Artista: ${activeArtist?.name||'Catálogo Nacional'} (${plan.tierLabel})`,
+   `• Praça Sede: ${cityObj.name} / ${cityObj.uf} (${cityObj.region||'Brasil'}) — Raio da Bacia: ${radiusKm} km (${plan.catchmentCount} municípios abrangidos)`,
+   `• Score Comercial: ${scVal!=null?scVal+'/100':'Qualificado'} (${compat?.verdict?.label||'Análise Territorial'})`,
+   `• Sugestão de Local: ${plan.venueType} — ${plan.stageFormat}`,
+   `• Capacidade Instalada: ${fmt(cap)} lugares | Público Estimado (${occPct}%): ${fmt(totalBuyers)} pagantes`,
+   `• Valores Sugeridos: ${sectorPrices.map(s=>`${s.name}: R$ ${fmt(s.price)},00`).join(' | ')} (Ticket Médio: R$ ${fmt(weightedAvg)},00)`,
+   `• Receita Bruta Estimada de Bilheteria: R$ ${fmt(totalGross)},00 (Cenário 70%: R$ ${fmt(gross70)} | 100%: R$ ${fmt(gross100)})`
+  ].join('\n');
+ }
+
+ for(const [label,pct] of [['70% Conservador',70],['85% Recomendado',85],['100% Lotação Máxima',100]]){
+  const b=el('button',label);
+  b.type='button';
+  b.className='secondary-button';
+  b.addEventListener('click',()=>{occNum.value=String(pct);occRange.value=String(pct);recalculateFinancials();});
+  scenarioBtns.append(b);
+ }
+
+ capNum.addEventListener('input',()=>{capRange.value=String(Math.min(25000,Number(capNum.value)||300));recalculateFinancials();});
+ capRange.addEventListener('input',()=>{capNum.value=capRange.value;recalculateFinancials();});
+ tktNum.addEventListener('input',()=>{tktRange.value=String(Math.min(500,Number(tktNum.value)||40));recalculateFinancials();});
+ tktRange.addEventListener('input',()=>{tktNum.value=tktRange.value;recalculateFinancials();});
+ occNum.addEventListener('input',()=>{occRange.value=occNum.value;recalculateFinancials();});
+ occRange.addEventListener('input',()=>{occNum.value=occRange.value;recalculateFinancials();});
+ recalculateFinancials();
+
+ // 5. Painéis Inferiores: Informações de Eventos, Locais e Bacia de Municípios + Força nas 4 Mídias & Argumentário
+ const bodyGrid=el('div');bodyGrid.className='show-sim-body-grid';
+
+ const leftBox=el('div');leftBox.className='show-sim-box';
+ leftBox.append(el('h3',`📍 Informações de Eventos, Sugestão de Local & Bacia Regional (${radiusKm} km)`));
+ const venueList=el('ul');venueList.className='show-sim-list';
+ venueList.append(
+  el('li',`Tipologia Principal Recomendada: ${plan.venueType}.`),
+  el('li',`Referência Complementar: ${plan.venueSecondary}.`),
+  el('li',`Eventos Monitorados na Bacia (${radiusKm} km): ${compat?.competition?.radiusEventsCount??0} evento(s) mapeado(s) no raio e ${compat?.competition?.cityEventsCount??0} diretamente em ${cityObj.name}/${cityObj.uf}.`),
+  el('li',`Economia Regional (Base IBGE): PIB per capita de referência R$ ${fmt(Math.round(plan.pibPerCapita))}/hab · Renda média estimada R$ ${fmt(Math.round(plan.avgIncome))}/mês.`)
+ );
+ leftBox.append(venueList);
+
+ if(compat?.competition?.sampleCompetingEvents?.length){
+  leftBox.append(el('h3','🎟 Eventos & Locais Reais Detectados na Região'));
+  const evList=el('ul');evList.className='show-sim-list';
+  for(const ev of compat.competition.sampleCompetingEvents.slice(0,5)){
+   evList.append(el('li',`${ev.title} — Local: ${ev.venue||'A confirmar'} (${ev.city} · ${ev.date})`));
+  }
+  leftBox.append(evList);
+ }
+
+ const neighbors=compat?.catchment?.municipalities||[];
+ if(neighbors.length){
+  leftBox.append(el('h3',`🗺 Municípios que Compõem o Público da Bacia (${plan.catchmentCount} cidades em ${radiusKm} km)`));
+  const tagsBox=el('div');tagsBox.className='show-sim-city-tags';
+  for(const m of neighbors.slice(0,28)){
+   const tag=el('span',`${m.name}/${m.uf} (${m.distance_km===0?'Sede':m.distance_km+' km'})`);
+   tag.className='show-sim-city-tag';
+   tagsBox.append(tag);
+  }
+  leftBox.append(tagsBox);
+ }
+
+ const rightBox=el('div');rightBox.className='show-sim-box';
+ rightBox.append(el('h3',`📊 Indicadores do Artista & Argumentário Comercial de Vendas`));
+ const mediaSummaryList=el('ul');mediaSummaryList.className='show-sim-list';
+ for(const net of ['YouTube','Spotify','Instagram','TikTok']){
+  const mCross=activeArtist?.media?.[net];
+  const mCompat=compat?.media?.find(x=>x.network===net);
+  const valStr=mCompat?.national?.formatted||mCross?.formatted||'Sem coleta';
+  const srcStr=mCompat?.national?.source||mCross?.source||'Monitoramento Radar';
+  mediaSummaryList.append(el('li',`${net}: ${valStr} (${srcStr})`));
+ }
+ rightBox.append(mediaSummaryList);
+
+ if(compat?.salesPitch?.length){
+  rightBox.append(el('h3','💡 Recomendações Executivas para o Show'));
+  const pitchList=el('ul');pitchList.className='show-sim-list';
+  for(const bullet of compat.salesPitch.slice(0,4)){
+   pitchList.append(el('li',bullet));
+  }
+  if(compat?.verdict?.recommendation){
+   pitchList.append(el('li',compat.verdict.recommendation));
+  }
+  rightBox.append(pitchList);
+ }
+
+ bodyGrid.append(leftBox,rightBox);
+ host.append(bodyGrid);
+
+ // 6. Rodapé do Modal
+ const foot=el('div');foot.className='show-sim-foot';
+ foot.append(el('small','Dimensionamento orientativo calculado sobre métricas oficiais verificadas do artista, malha territorial IBGE de 5.570 municípios e parâmetros econômicos regionais ajustáveis.'));
+ const footBtns=el('div');footBtns.style.display='flex';footBtns.style.gap='8px';footBtns.style.flexWrap='wrap';
+
+ const copyBtn=el('button','📋 Copiar Proposta / Resumo do Show');
+ copyBtn.type='button';
+ copyBtn.className='btn-simulate-show';
+ copyBtn.addEventListener('click',async()=>{
+  try{
+   await navigator.clipboard.writeText(currentSummaryText);
+   copyBtn.textContent='✓ Resumo Copiado!';
+   setTimeout(()=>{copyBtn.textContent='📋 Copiar Proposta / Resumo do Show';},2500);
+  }catch{
+   copyBtn.textContent='✓ Pronto';
+  }
+ });
+
+ const commUrl=new URLSearchParams({
+  q:activeArtist?.name||'',
+  city:String(cityObj.code),
+  cityQuery:`${cityObj.name} / ${cityObj.uf}`,
+  radius:String(radiusKm)
+ });
+ const openComm=el('a','↗ Abrir no Painel de Oportunidade Comercial');
+ openComm.className='secondary-button';
+ openComm.style.textDecoration='none';
+ openComm.style.padding='5px 11px';
+ openComm.style.borderRadius='7px';
+ openComm.href='/commercial.html?'+commUrl.toString()+'#compatibility-simulator';
+
+ footBtns.append(copyBtn,openComm);
+ foot.append(footBtns);
+ host.append(foot);
 }
 
 async function renderTerritoryInspector(enrichedMap){
@@ -516,7 +1028,7 @@ async function renderTerritoryInspector(enrichedMap){
  const titleGroup=el('div');titleGroup.className='inspector-title-group';
  titleGroup.append(
   el('strong',`⌖ Praça em Foco no Mapa: ${activeHub.name} / ${activeHub.uf} (${activeHub.region||'Brasil'}) · Bacia de ${radiusKm} km`),
-  el('small',demInfo.population?`Base Oficial IBGE · População: ${fmt(demInfo.population)} hab · PIB per capita: R$ ${fmt(Math.round(demInfo.pib_per_capita||0))} · Perfil: ${demInfo.economic_profile||'Polo comercial'}`:`Município oficial IBGE (${activeHub.name}/${activeHub.uf}) · Clique em "Ativar Raio 100 km" ou simule a compatibilidade comercial`)
+  el('small',demInfo.population?`Base Oficial IBGE · População: ${fmt(demInfo.population)} hab · PIB per capita: R$ ${fmt(Math.round(demInfo.pib_per_capita||0))} · Perfil: ${demInfo.economic_profile||'Polo comercial'}`:`Município oficial IBGE (${activeHub.name}/${activeHub.uf}) · Clique em "⚡ Simular Show" para ver sugestão de local, capacidade e valor de ingresso`)
  );
  const scoreBadge=el('div','Calculando viabilidade artista × praça…');
  scoreBadge.className='inspector-score-badge';
@@ -547,7 +1059,7 @@ async function renderTerritoryInspector(enrichedMap){
  addMetricBox(
   'Raio Comercial no Mapa',
   `${radiusKm} km`,
-  field('center')?.value===String(activeHub.code)?'Anel de bacia regional ativo no mapa':'Clique abaixo para traçar o raio no mapa'
+  field('center')?.value===String(activeHub.code)?'Anel de bacia regional ativo no mapa':'Clique em Simular Show para detalhar a bacia'
  );
  host.append(metricsGrid);
 
@@ -566,13 +1078,20 @@ async function renderTerritoryInspector(enrichedMap){
   topArtistsBar.append(pill);
  }
  const btnGroup=el('div');btnGroup.style.display='flex';btnGroup.style.gap='6px';btnGroup.style.flexWrap='wrap';
+ const modalSimBtn=el('button',`⚡ Simular Show (Local, Capacidade & Ingressos)`);
+ modalSimBtn.type='button';
+ modalSimBtn.className='btn-simulate-show';
+ modalSimBtn.addEventListener('click',()=>openShowSimulatorModal(activeHub.code,activeArtist?.id,radiusKm));
+ btnGroup.append(modalSimBtn);
+
  if(field('center')?.value!==String(activeHub.code)){
   const radiusBtn=el('button',`📍 Traçar Bacia de 100 km em ${activeHub.name}`);
   radiusBtn.type='button';
+  radiusBtn.className='secondary-button';
   radiusBtn.addEventListener('click',()=>focusCommercialHub(activeHub.code,100));
   btnGroup.append(radiusBtn);
  }
- const commLink=el('a',`↗ Abrir Simulador Comercial (${activeArtist?.name||'Artista'} × ${activeHub.name})`);
+ const commLink=el('a',`↗ Oportunidade Comercial`);
  commLink.className='secondary-button';
  commLink.style.textDecoration='none';
  commLink.style.padding='4px 10px';
@@ -594,18 +1113,18 @@ async function renderTerritoryInspector(enrichedMap){
    const cp=new URLSearchParams({talent:activeArtist.id,city:String(activeHub.code),radius:String(radiusKm)});
    const compat=await get('/api/commercial/compatibility?'+cp);
    if(seq!==inspectorSeq)return;
-   const sc=compat?.compatibility?.score;
-   const cls=compat?.compatibility?.classification||'Potencial calculado';
+   const sc=compat?.score;
+   const cls=compat?.verdict?.label||'Potencial calculado';
    scoreBadge.textContent=sc!=null
     ?`⚡ Compatibilidade Comercial (${activeArtist.name} × ${activeHub.name}/${activeHub.uf}): ${sc}/100 · ${cls}`
     :`⚡ Praça pronta para simulação comercial (${activeHub.name}/${activeHub.uf})`;
-   if(compat?.territory?.basin?.municipalitiesCount){
+   if(compat?.catchment?.totalMunicipalities){
     const basinBox=metricsGrid.children[3];
     if(basinBox){
      basinBox.replaceChildren(
       el('span',`Bacia Regional (${radiusKm} km)`),
-      el('strong',`${fmt(compat.territory.basin.municipalitiesCount)} municípios`),
-      el('small',compat.territory.basin.coveredPopulation?`População nos polos do raio: ${fmt(compat.territory.basin.coveredPopulation)} hab`:`Alcance territorial a partir de ${activeHub.name}`)
+      el('strong',`${fmt(compat.catchment.totalMunicipalities)} municípios`),
+      el('small',compat.catchment.knownPopulation?`População nos polos do raio: ${fmt(compat.catchment.knownPopulation)} hab`:`Alcance territorial a partir de ${activeHub.name}`)
      );
     }
    }

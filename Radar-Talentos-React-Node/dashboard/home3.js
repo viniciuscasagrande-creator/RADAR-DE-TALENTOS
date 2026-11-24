@@ -46,7 +46,8 @@
     quick.setAttribute('aria-label', 'Atalhos do painel executivo');
     const links = [
       ['★ Ficha 360° em Destaque', '#studio-ficha-360'],
-      ['▥ Ranking Multi-Mídia', '#radar-intelligence-studio'],
+      ['▥ Ranking Multi-Mídia', '#studio-compare-content'],
+      ['⚡ Simular Show & Ingressos', '#simular-show'],
       ['⌖ Audiência Geográfica', '/audience.html'],
       ['↗ Oportunidade Comercial', '/commercial.html'],
       ['✓ Prospecção Rápida', '/discovery.html']
@@ -54,6 +55,22 @@
     links.forEach(([title, href]) => {
       const a = el('a', null, title);
       a.href = href;
+      if (href === '#simular-show') {
+        a.addEventListener('click', e => {
+          e.preventDefault();
+          if (typeof window.openRadarShowSimulator === 'function') {
+            window.openRadarShowSimulator(null, null, 100);
+          }
+        });
+      } else if (href.startsWith('#')) {
+        a.addEventListener('click', e => {
+          const target = document.querySelector(href);
+          if (target) {
+            e.preventDefault();
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        });
+      }
       quick.append(a);
     });
     heroBanner.append(heroLeft, quick);

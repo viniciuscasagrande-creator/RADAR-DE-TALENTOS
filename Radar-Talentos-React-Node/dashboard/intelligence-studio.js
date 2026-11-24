@@ -20,14 +20,17 @@
 
   const header = el('header', 'studio-header');
   const heading = el('div');
+  const activeFilterBanner = el('div', 'studio-active-filter');
+  activeFilterBanner.hidden = true;
   heading.append(
     el('span', 'studio-eyebrow', 'PAINEL DE INTELIGÊNCIA · VISÃO GERAL DAS 4 MÍDIAS'),
     el('h2', null, 'Desempenho das Mídias & Ficha 360°'),
     el(
       'p',
       null,
-      'Compare os talentos monitorados com indicadores verificados de Instagram, Spotify, YouTube e TikTok, inspecione a Ficha 360° com repertório musical e acompanhe a evolução datada.'
-    )
+      'Compare os talentos monitorados com indicadores verificados de Instagram, Spotify, YouTube e TikTok, inspecione a Ficha 360° com repertório musical e simule shows.'
+    ),
+    activeFilterBanner
   );
 
   const toolbar = el('div', 'studio-toolbar');
@@ -42,6 +45,7 @@
   const metric = el('select');
   metric.setAttribute('aria-label', 'Selecionar indicador');
   const artistPicker = el('select');
+  artistPicker.id = 'studio-artist-picker';
   artistPicker.setAttribute('aria-label', 'Selecionar artista para Ficha 360°');
   const comparePicker = el('select');
   comparePicker.setAttribute('aria-label', 'Comparar com segundo artista');
@@ -52,18 +56,26 @@
 
   const cards = el('div', 'studio-stats');
   const names = [
-    ['Artistas com indicadores', 'artists'],
-    ['Perfis verificados com coleta', 'profiles'],
-    ['Mídias com coleta ativa', 'networks'],
-    ['Última observação verificada', 'latest']
+    ['Artistas com indicadores', 'artists', 'verified_talents', 'Clique para listar talentos com coleta ↗'],
+    ['Perfis verificados com coleta', 'profiles', 'profiles', 'Clique para abrir mapa de perfis ↗'],
+    ['Mídias com coleta ativa', 'networks', 'quality', 'Clique para ver cobertura por mídia ↗'],
+    ['Última observação verificada', 'latest', 'recent', 'Clique para ver coletas recentes ↗']
   ];
   const statValues = {};
-  for (const [title, id] of names) {
-    const box = el('div', 'studio-stat');
+  for (const [title, id, modalKind, hint] of names) {
+    const box = el('button', 'studio-stat studio-stat-clickable');
+    box.type = 'button';
+    box.title = hint;
     box.append(el('span', null, title));
     const v = el('strong', null, '—');
     statValues[id] = v;
-    box.append(v);
+    const sub = el('small', 'studio-stat-hint', hint);
+    box.append(v, sub);
+    box.addEventListener('click', () => {
+      if (typeof window.openRadarExecutiveModal === 'function') {
+        window.openRadarExecutiveModal(modalKind);
+      }
+    });
     cards.append(box);
   }
 
@@ -77,9 +89,19 @@
     el('h3', null, 'Instagram · Spotify · YouTube · TikTok')
   );
   const fichaHeadRight = el('div', 'studio-ficha-actions');
+  fichaHeadRight.style.display = 'flex';
+  fichaHeadRight.style.gap = '8px';
+  fichaHeadRight.style.flexWrap = 'wrap';
+  const fichaSimShowBtn = el('button', 'btn-simulate-show', '⚡ Simular Show (Local, Capacidade & Ingressos)');
+  fichaSimShowBtn.type = 'button';
+  fichaSimShowBtn.addEventListener('click', () => {
+    if (typeof window.openRadarShowSimulator === 'function') {
+      window.openRadarShowSimulator(null, activeTalentId || artistPicker.value || null, 100);
+    }
+  });
   const fichaCommLink = el('a', 'studio-link-btn', 'Simular Oportunidade Comercial ↗');
   fichaCommLink.href = '/commercial.html';
-  fichaHeadRight.append(fichaCommLink);
+  fichaHeadRight.append(fichaSimShowBtn, fichaCommLink);
   fichaHead.append(fichaHeadLeft, fichaHeadRight);
   const fichaBody = el('div', 'studio-ficha-body');
   const compareHost = el('div', 'studio-compare-host');
@@ -87,6 +109,7 @@
   fichaPanel.append(fichaHead, fichaBody, compareHost);
 
   const content = el('div', 'studio-content');
+  content.id = 'studio-compare-content';
   const chartCard = el('article', 'studio-panel studio-chart');
   const chartTitle = el('div', 'studio-panel-title');
   chartTitle.append(el('h3', null, 'Ranking Top 15 Artistas por Alcance Verificado'), el('span', 'studio-source', 'Clique na barra para abrir a Ficha 360°'));
@@ -146,6 +169,8 @@
   let items = [],
     crossArtists = [],
     catalogTalents = [],
+    activeCategoryId = '',
+    activeCategoryName = '',
     loadingId = 0,
     fichaReqId = 0,
     activeTalentId = '';
@@ -164,7 +189,7 @@
       .toLowerCase()
       .trim();
 
-  function populateArtistPickers(searchQuery = '') {
+  function populateArtistPickers(searchQuery = '', forceFirstOfCategory = false) {
     const byId = new Map();
     for (const a of crossArtists) {
       if (a.id && a.name) byId.set(a.id, { id: a.id, name: a.name, hasCurrent: Boolean(a.hasCollectedMetric), maxVal: a.maxNumericValue || 0 });
@@ -182,7 +207,7 @@
     const list = [...byId.values()].sort(
       (a, b) => (b.hasCurrent ? 1 : 0) - (a.hasCurrent ? 1 : 0) || b.maxVal - a.maxVal || a.name.localeCompare(b.name, 'pt-BR')
     );
-    const prevA = artistPicker.value || activeTalentId;
+    const prevA = forceFirstOfCategory ? '' : artistPicker.value || activeTalentId;
     const prevC = comparePicker.value;
     artistPicker.replaceChildren();
     const o0 = document.createElement('option');
@@ -197,7 +222,7 @@
     for (const item of list) {
       const oa = document.createElement('option');
       oa.value = item.id;
-      oa.textContent = item.hasCurrent ? `★ ${item.name} (com coleta)` : item.name;
+      oa.textContent = item.hasCurrent ? `★ ${item.name} (Verificado)` : `${item.name} (Catálogo)`;
       artistPicker.append(oa);
       const oc = document.createElement('option');
       oc.value = item.id;
@@ -212,7 +237,7 @@
       : '';
     if (matchedByQuery && byId.has(matchedByQuery)) artistPicker.value = matchedByQuery;
     else if (prevA && byId.has(prevA)) artistPicker.value = prevA;
-    else if (list.find(x => x.id === 't-gusttavo-lima' && x.hasCurrent)) artistPicker.value = 't-gusttavo-lima';
+    else if (!activeCategoryId && list.find(x => x.id === 't-gusttavo-lima' && x.hasCurrent)) artistPicker.value = 't-gusttavo-lima';
     else if (list[0]?.id) artistPicker.value = list[0].id;
     if (prevC && byId.has(prevC)) comparePicker.value = prevC;
     activeTalentId = artistPicker.value;
@@ -295,6 +320,23 @@
       if (reqId === fichaReqId) fichaBody.replaceChildren(el('p', 'studio-empty', 'Erro ao consultar a Ficha 360° do artista.'));
     }
   }
+
+  window.selectRadarStudioArtist = function (talentId, scrollIntoView = true) {
+    if (!talentId) return;
+    if (![...artistPicker.options].some(o => o.value === talentId)) {
+      const found = crossArtists.find(a => a.id === talentId);
+      const o = document.createElement('option');
+      o.value = talentId;
+      o.textContent = found ? `★ ${found.name}` : talentId;
+      artistPicker.append(o);
+    }
+    artistPicker.value = talentId;
+    activeTalentId = talentId;
+    loadFicha360();
+    if (scrollIntoView) {
+      fichaPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
   function renderFicha360Cards(stats, currentRows) {
     fichaBody.replaceChildren();
@@ -489,6 +531,30 @@
   }
 
   function render() {
+    if (activeCategoryId) {
+      activeFilterBanner.hidden = false;
+      activeFilterBanner.replaceChildren();
+      activeFilterBanner.append(
+        el('span', null, `📂 Filtro de Categoria Ativo: ${activeCategoryName || activeCategoryId} (${crossArtists.length} talentos no recorte)`),
+        (() => {
+          const clr = el('button', 'secondary-button', '✕ Mostrar Todas as Categorias');
+          clr.type = 'button';
+          clr.style.height = '24px';
+          clr.style.padding = '0 9px';
+          clr.style.fontSize = '11px';
+          clr.addEventListener('click', () => {
+            if (typeof window.setRadarCategoryFilter === 'function') {
+              window.setRadarCategoryFilter('', '');
+            }
+          });
+          return clr;
+        })()
+      );
+    } else {
+      activeFilterBanner.hidden = true;
+      activeFilterBanner.replaceChildren();
+    }
+
     const subset = items.filter(x => !network.value || x.network === network.value);
     const keys = metricsForNetwork();
     const old = metric.value;
@@ -522,9 +588,9 @@
 
     const unique = new Set(valid.map(x => x.talent_id));
     const latest = valid.map(x => Date.parse(x.observed_at)).filter(Number.isFinite);
-    statValues.artists.textContent = unique.size ? format(unique.size) : '—';
-    statValues.profiles.textContent = valid.length ? format(new Set(valid.map(x => `${x.talent_id}|${x.network}`)).size) : '—';
-    statValues.networks.textContent = valid.length ? String(new Set(valid.map(x => x.network)).size) : '—';
+    statValues.artists.textContent = unique.size ? format(unique.size) : format(crossArtists.length);
+    statValues.profiles.textContent = valid.length ? format(new Set(valid.map(x => `${x.talent_id}|${x.network}`)).size) : '0';
+    statValues.networks.textContent = valid.length ? String(new Set(valid.map(x => x.network)).size) : '0';
     statValues.latest.textContent = latest.length ? date(new Date(Math.max(...latest)).toISOString()) : '—';
 
     chart.replaceChildren();
@@ -540,14 +606,24 @@
         if (!cur || x.value > cur.value) bestByTalent.set(x.talent_id, x);
       }
       barEntries = [...bestByTalent.values()].sort((a, b) => b.value - a.value);
-      chartInfo.textContent = 'Todas as mídias · Maior audiência principal verificada por artista (Instagram, Spotify ou YouTube).';
+      chartInfo.textContent = activeCategoryName
+        ? `Categoria ${activeCategoryName} · Maior audiência principal verificada por artista.`
+        : 'Todas as mídias · Maior audiência principal verificada por artista (Instagram, Spotify ou YouTube).';
     } else {
       barEntries = valid.filter(x => x.metric === metric.value).sort((a, b) => b.value - a.value);
       chartInfo.textContent = `${displayNames[metric.value] || metric.value || 'Indicador'} · ${network.value} · última observação disponível.`;
     }
 
     if (!barEntries.length) {
-      chart.append(el('p', 'studio-empty', `Sem valores observados para ${network.value || 'este recorte'}.`));
+      chart.append(
+        el(
+          'p',
+          'studio-empty',
+          crossArtists.length
+            ? `Os ${crossArtists.length} talento(s) deste recorte estão listados no quadro ao lado (aguardando coleta verificada nesta mídia).`
+            : `Sem valores observados para ${network.value || 'este recorte'}.`
+        )
+      );
     } else {
       const max = Math.max(1, ...barEntries.map(x => x.value));
       for (const x of barEntries.slice(0, 15)) {
@@ -574,17 +650,20 @@
       }
     }
 
-    // Quadro Consolidado Multi-Mídia (uma linha por artista mostrando Instagram, Spotify, YouTube e TikTok lado a lado!)
-    const activeCross = crossArtists.filter(a => a.hasCollectedMetric && (!network.value || a.media?.[network.value]?.value != null));
-    if (activeCross.length) {
+    // Quadro Consolidado Multi-Mídia (quando uma categoria está filtrada, mostra todos os talentos daquela categoria; no geral, prioriza os com coleta e exibe o catálogo!)
+    const activeCross = activeCategoryId
+      ? crossArtists.filter(a => !network.value || a.media?.[network.value]?.value != null || !a.hasCollectedMetric)
+      : crossArtists.filter(a => a.hasCollectedMetric && (!network.value || a.media?.[network.value]?.value != null));
+    const rowsToRender = activeCross.length ? activeCross : crossArtists;
+    if (rowsToRender.length) {
       const t = el('table', 'studio-table'),
         head = el('thead'),
         tr = el('tr');
-      for (const h of ['Artista', 'Instagram', 'Spotify', 'YouTube', 'TikTok']) tr.append(el('th', null, h));
+      for (const h of ['Artista', 'Instagram', 'Spotify', 'YouTube', 'TikTok', 'Ação']) tr.append(el('th', null, h));
       head.append(tr);
       t.append(head);
       const body = el('tbody');
-      for (const a of activeCross.slice(0, 40)) {
+      for (const a of rowsToRender.slice(0, 60)) {
         const trRow = el('tr');
         const tdName = el('td');
         const btn = el('button', 'studio-artist-btn', a.name);
@@ -592,6 +671,7 @@
         btn.addEventListener('click', () => {
           artistPicker.value = a.id;
           loadFicha360();
+          fichaPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
         tdName.append(btn);
         if (a.categories?.length) {
@@ -619,12 +699,29 @@
               td.append(l);
             }
           } else {
-            const emptySpan = el('span', null, '—');
+            const emptySpan = el('span', null, m?.url ? 'Perfil vinculado' : '—');
             emptySpan.style.color = '#71717a';
+            emptySpan.style.fontSize = '10.5px';
             td.append(emptySpan);
           }
           trRow.append(td);
         }
+
+        const tdAct = el('td');
+        const simBtn = el('button', 'btn-simulate-show', '⚡ Show');
+        simBtn.type = 'button';
+        simBtn.style.height = '24px';
+        simBtn.style.padding = '0 8px';
+        simBtn.style.fontSize = '10.5px';
+        simBtn.title = `Simular Show, Local, Capacidade e Ingressos para ${a.name}`;
+        simBtn.addEventListener('click', () => {
+          if (typeof window.openRadarShowSimulator === 'function') {
+            window.openRadarShowSimulator(null, a.id, 100);
+          }
+        });
+        tdAct.append(simBtn);
+        trRow.append(tdAct);
+
         body.append(trRow);
       }
       t.append(body);
@@ -634,14 +731,15 @@
     }
 
     status.textContent = valid.length
-      ? `${valid.length} indicadores verificados ativos em ${unique.size} talentos monitorados. Clique em qualquer artista para inspecionar a Ficha 360°.`
-      : 'Sem indicadores observados no recorte. Nenhum valor foi estimado.';
+      ? `${valid.length} indicadores verificados ativos em ${unique.size} talentos monitorados${activeCategoryName ? ` na categoria ${activeCategoryName}` : ''}. Clique em qualquer artista para inspecionar a Ficha 360° ou simular show.`
+      : `${crossArtists.length} talento(s) no recorte${activeCategoryName ? ` (${activeCategoryName})` : ''}. Clique em qualquer artista para abrir a Ficha 360° ou Simular Show.`;
   }
 
   function mergeCrossAndCurrent(crossItems, currentItems) {
+    const allowedIds = new Set(crossItems.map(a => a.id));
     const byKey = new Map();
     for (const c of currentItems) {
-      if (!c?.talent_id || !c?.network) continue;
+      if (!c?.talent_id || !c?.network || !allowedIds.has(c.talent_id)) continue;
       byKey.set(`${c.talent_id}|${c.network}`, c);
     }
     for (const artist of crossItems) {
@@ -676,15 +774,19 @@
     return [...byKey.values()];
   }
 
-  async function load() {
+  async function load(forceFirstOfCategory = false) {
     const id = ++loadingId;
     status.textContent = 'Consultando dados reais do Radar...';
     refresh.disabled = true;
     try {
       const q = document.getElementById('artist-quick-search')?.value?.trim() || '';
+      const catSelect = document.querySelector('#filters select[name="category"]');
+      activeCategoryId = catSelect?.value || activeCategoryId || '';
+      const cp = new URLSearchParams({ q, limit: '200' });
+      if (activeCategoryId) cp.set('category', activeCategoryId);
       const [response, crossRes] = await Promise.all([
         fetch('/api/current-media?' + new URLSearchParams({ q }), { cache: 'no-store' }).catch(() => null),
-        fetch('/api/radar/cross-summary?' + new URLSearchParams({ q, limit: '200' }), { cache: 'no-store' })
+        fetch('/api/radar/cross-summary?' + cp, { cache: 'no-store' })
       ]);
       if (!crossRes || !crossRes.ok) throw Error(`API ${crossRes?.status || 503}`);
       const crossData = await crossRes.json();
@@ -698,7 +800,7 @@
         : [];
       items = mergeCrossAndCurrent(crossArtists, rawCurrent);
 
-      populateArtistPickers(q);
+      populateArtistPickers(q, forceFirstOfCategory);
       render();
       loadFicha360();
     } catch (e) {
@@ -712,14 +814,20 @@
     }
   }
 
+  window.addEventListener('radar:category-change', e => {
+    activeCategoryId = e.detail?.categoryId || '';
+    activeCategoryName = e.detail?.categoryName || '';
+    load(true);
+  });
+
   network.addEventListener('change', render);
   metric.addEventListener('change', render);
   artistPicker.addEventListener('change', loadFicha360);
   comparePicker.addEventListener('change', loadFicha360);
-  refresh.addEventListener('click', load);
-  document.getElementById('artist-quick-btn')?.addEventListener('click', load);
+  refresh.addEventListener('click', () => load(false));
+  document.getElementById('artist-quick-btn')?.addEventListener('click', () => load(false));
   document.getElementById('artist-quick-search')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') load();
+    if (e.key === 'Enter') load(false);
   });
-  load();
+  load(false);
 })();

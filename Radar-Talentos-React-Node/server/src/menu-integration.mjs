@@ -2600,10 +2600,10 @@ export function getCrossMenuSummary(db, params = new URLSearchParams()) {
      LEFT JOIN talent_metadata tm ON tm.talent_id = t.id
      WHERE t.blocked = 0
        AND (? = '' OR t.id = ?)
-       AND (? = '' OR EXISTS (SELECT 1 FROM talent_categories tc WHERE tc.talent_id = t.id AND (CAST(tc.category_id AS TEXT) = ? OR EXISTS (SELECT 1 FROM categories c WHERE c.id = tc.category_id AND lower(c.name) = lower(?)))))
+       AND (? = '' OR (? = 'unclassified' AND NOT EXISTS (SELECT 1 FROM talent_categories tc WHERE tc.talent_id = t.id)) OR EXISTS (SELECT 1 FROM talent_categories tc WHERE tc.talent_id = t.id AND (CAST(tc.category_id AS TEXT) = ? OR EXISTS (SELECT 1 FROM categories c WHERE c.id = tc.category_id AND lower(c.name) = lower(?)))))
        AND (? = '' OR EXISTS (SELECT 1 FROM talent_modalities m WHERE m.talent_id = t.id AND m.modality_id = ?))
      ORDER BY t.name ASC`
-  ).all(talentParam, talentParam, categoryParam, categoryParam, categoryParam, modalityParam, modalityParam);
+  ).all(talentParam, talentParam, categoryParam, categoryParam, categoryParam, categoryParam, modalityParam, modalityParam);
 
   const filteredTalents = q
     ? talents.filter(t => norm(t.name).includes(q) || norm(t.id).includes(q) || norm(t.description || '').includes(q))

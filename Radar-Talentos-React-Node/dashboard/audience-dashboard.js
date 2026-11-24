@@ -297,6 +297,126 @@ $('radius-slider').addEventListener('change',()=>{
  else $('message').textContent='Digite ou escolha a cidade centro do raio (ou volte o controle para 0 / Sem raio).';
 });
 
+function activateCategoryFilter(catId='',catName='',forceModalIfAll=false){
+ const nextId=String(catId||'');
+ const wasAlreadyAll=!field('category').value&&!nextId;
+ field('category').value=nextId;
+ const foundCat=categoryCatalog.find(c=>String(c.id)===nextId);
+ const resolvedName=catName||(foundCat?foundCat.name:'');
+ window.dispatchEvent(new CustomEvent('radar:category-change',{detail:{categoryId:nextId,categoryName:resolvedName}}));
+ search();
+ if(wasAlreadyAll&&forceModalIfAll){
+  openExecutiveDetailModal('talents','','Todas as categorias');
+ }
+}
+window.setRadarCategoryFilter=activateCategoryFilter;
+
+function renderCategoryQuickDrawer(items,activeCatId,activeCatName){
+ const k=$('kpis');
+ if(!k||!k.parentElement)return;
+ let drawer=$('category-quick-drawer');
+ if(!drawer){
+  drawer=el('div');
+  drawer.id='category-quick-drawer';
+  drawer.className='category-quick-drawer';
+  k.after(drawer);
+ }
+ if(!activeCatId){
+  drawer.hidden=true;
+  drawer.replaceChildren();
+  return;
+ }
+ drawer.hidden=false;
+ drawer.replaceChildren();
+
+ const withMetricsCount=(items||[]).filter(a=>a.hasCollectedMetric||Object.values(a.media||{}).some(m=>m?.value!=null)).length;
+ const head=el('div');head.className='cat-drawer-head';
+ const titleWrap=el('div');titleWrap.className='cat-drawer-title';
+ titleWrap.append(
+  el('strong',`📂 Categoria Selecionada: ${activeCatName||'Categoria'} — ${fmt((items||[]).length)} talento(s) no catálogo`),
+  el('small',`${fmt(withMetricsCount)} com indicadores verificados nas 4 mídias · Clique em qualquer talento para abrir a Ficha 360° ou Simular Show`)
+ );
+ const actionsWrap=el('div');actionsWrap.className='cat-drawer-actions';
+ const modalBtn=el('button','📋 Abrir Tabela Completa em Modal');
+ modalBtn.type='button';
+ modalBtn.className='btn-simulate-show';
+ modalBtn.addEventListener('click',()=>openExecutiveDetailModal('talents',activeCatId,activeCatName));
+
+ const scrollStudioBtn=el('button','📊 Ver no Painel Multi-Mídia ↓');
+ scrollStudioBtn.type='button';
+ scrollStudioBtn.className='secondary-button';
+ scrollStudioBtn.addEventListener('click',()=>{
+  const target=$('radar-intelligence-studio')||$('ranking');
+  target?.scrollIntoView({behavior:'smooth',block:'start'});
+ });
+
+ const clearBtn=el('button','✕ Mostrar Todas as Categorias');
+ clearBtn.type='button';
+ clearBtn.className='secondary-button';
+ clearBtn.addEventListener('click',()=>activateCategoryFilter('','',false));
+
+ actionsWrap.append(modalBtn,scrollStudioBtn,clearBtn);
+ head.append(titleWrap,actionsWrap);
+ drawer.append(head);
+
+ if(!(items||[]).length){
+  drawer.append(el('p','Nenhum talento cadastrado nesta categoria no recorte atual.'));
+  return;
+ }
+
+ const grid=el('div');grid.className='cat-drawer-grid';
+ for(const a of (items||[]).slice(0,24)){
+  const card=el('div');card.className='cat-talent-card';
+  const top=el('div');top.className='cat-talent-top';
+  const nameBtn=el('button',a.name);
+  nameBtn.type='button';
+  nameBtn.className='cat-talent-name';
+  nameBtn.addEventListener('click',()=>focusArtistInOverview(a));
+  const statusTag=el('span',a.hasCollectedMetric?'Verificado':'Catálogo');
+  statusTag.className=a.hasCollectedMetric?'cat-tag-verified':'cat-tag-catalog';
+  top.append(nameBtn,statusTag);
+  card.append(top);
+
+  const metricsLine=el('div');metricsLine.className='cat-talent-metrics';
+  for(const [net,shortLabel] of [['Instagram','IG'],['Spotify','SP'],['YouTube','YT'],['TikTok','TK']]){
+   const m=a.media?.[net];
+   const pill=el('span',`${shortLabel}: ${m?.value!=null?m.formatted:'—'}`);
+   pill.className=m?.value!=null?'cat-net-pill has-val':'cat-net-pill';
+   metricsLine.append(pill);
+  }
+  card.append(metricsLine);
+
+  const btnRow=el('div');btnRow.className='cat-talent-btns';
+  const fBtn=el('button','◉ Ficha 360°');
+  fBtn.type='button';
+  fBtn.className='secondary-button';
+  fBtn.addEventListener('click',()=>focusArtistInOverview(a));
+
+  const sBtn=el('button','⚡ Simular Show');
+  sBtn.type='button';
+  sBtn.className='btn-simulate-show';
+  sBtn.addEventListener('click',()=>openShowSimulatorModal(null,a.id,100));
+
+  btnRow.append(fBtn,sBtn);
+  card.append(btnRow);
+  grid.append(card);
+ }
+ drawer.append(grid);
+}
+
+function focusArtistInOverview(artist){
+ if(!artist)return;
+ field('talent').value=artist.id;
+ if($('artist-quick-search'))$('artist-quick-search').value=artist.name;
+ if(typeof window.selectRadarStudioArtist==='function'){
+  window.selectRadarStudioArtist(artist.id,true);
+ }else if($('artist-360-body')){
+  selectOverviewArtist360(artist,true);
+ }else{
+  openShowSimulatorModal(null,artist.id,100);
+ }
+}
+
 function categoryCards(rows,scope,grand=null){
  const k=$('kpis');k.replaceChildren();$('category-scope').textContent=scope;
  const byId=new Map(rows.map(r=>[String(r.id),r.value]));
@@ -304,20 +424,24 @@ function categoryCards(rows,scope,grand=null){
  all.append(
   el('span','Total de talentos'),
   el('strong',grand==null?'—':fmt(grand)),
-  el('small',scope.startsWith('Talentos com')&&catalogTotal!=null?'Cadastro nacional: '+fmt(catalogTotal):'Catálogo nacional ativo')
+  el('small',!field('category').value?'Catálogo ativo · Clique p/ listar':'Clique p/ mostrar todos')
  );
- all.addEventListener('click',()=>{field('category').value='';search()});
+ all.addEventListener('click',()=>activateCategoryFilter('','Todas as categorias',true));
  k.append(all);
  for(const c of categoryCatalog){
-  const b=el('button');b.type='button';b.className='kpi';b.setAttribute('aria-pressed',String(field('category').value===String(c.id)));
+  const isPressed=field('category').value===String(c.id);
+  const b=el('button');b.type='button';b.className='kpi';b.setAttribute('aria-pressed',String(isPressed));
   const countVal=byId.has(String(c.id))?byId.get(String(c.id)):0;
   const pct=grand&&grand>0?Math.round(countVal/grand*100):0;
   b.append(
    el('span',c.name),
    el('strong',byId.has(String(c.id))?fmt(countVal):'—'),
-   el('small',scope.startsWith('Talentos com')?'Cadastro nacional: '+fmt(c.value):`${pct}% do catálogo · Filtrar`)
+   el('small',isPressed?'✓ Filtro ativo · Clique p/ limpar':`${pct}% do catálogo · Filtrar ↗`)
   );
-  b.addEventListener('click',()=>{field('category').value=field('category').value===String(c.id)?'':String(c.id);search()});
+  b.addEventListener('click',()=>{
+   const nextId=field('category').value===String(c.id)?'':String(c.id);
+   activateCategoryFilter(nextId,nextId?c.name:'Todas as categorias',false);
+  });
   k.append(b);
  }
 }
@@ -1218,6 +1342,9 @@ async function search(keepPage=false){
     const box=el('div');box.className='kpi';box.append(el('span',label),el('strong',fmt(value)),el('small',sub));k.append(box);
    }
    const pageItems=(cross.items||[]).slice(offset,offset+100);
+   const activeCatId=field('category').value||'';
+   const activeCatObj=categoryCatalog.find(c=>String(c.id)===String(activeCatId));
+   renderCategoryQuickDrawer(cross.items||[],activeCatId,activeCatObj?.name||'');
    renderOverview20(cross);
    table('artists',['Artista','Instagram','Spotify','YouTube','TikTok','Audiência por Cidade'],pageItems.map(a=>{
     const b=el('button',a.name);b.type='button';b.className='link';
@@ -1341,24 +1468,299 @@ let active360Artist=null,active360Stats=null,activeEvoDays=30,evoReqSeq=0;
 const evoPalette={Instagram:'#ff2bd6',Spotify:'#00ff88',YouTube:'#00f0ff',TikTok:'#facc15'};
 const evoClassLabel={oficial:'API Oficial',relatorio_autorizado:'Relatório Autorizado',observado:'Observação Pública',calculado:'Calculado'};
 
+window.openRadarShowSimulator=openShowSimulatorModal;
+
+let execModalBound=false;
 function renderOverview20(cross){
  if(!$('executive-kpis'))return;
  const eo=cross?.executiveOverview;
  if(eo){
   if($('exec-monitored'))$('exec-monitored').textContent=fmt(eo.monitoredTalents?.value??cross.total??0);
-  if($('exec-monitored-sub'))$('exec-monitored-sub').textContent=eo.monitoredTalents?.subtitle||'Cadastro atualizado';
+  if($('exec-monitored-sub'))$('exec-monitored-sub').textContent=(eo.monitoredTalents?.subtitle||'Cadastro atualizado')+' · Clique p/ listar ↗';
   if($('exec-profiles'))$('exec-profiles').textContent=fmt(eo.confirmedProfiles?.value??0);
-  if($('exec-profiles-sub'))$('exec-profiles-sub').textContent=eo.confirmedProfiles?.subtitle||'Quatro mídias';
+  if($('exec-profiles-sub'))$('exec-profiles-sub').textContent=(eo.confirmedProfiles?.subtitle||'Quatro mídias')+' · Clique p/ abrir ↗';
   if($('exec-recent'))$('exec-recent').textContent=fmt(eo.recentCollections?.value??0);
-  if($('exec-recent-sub'))$('exec-recent-sub').textContent=eo.recentCollections?.subtitle||'Últimos 7 dias';
-  if($('exec-quality'))$('exec-quality').textContent=eo.dataQuality?.label||'Sem coleta';
-  if($('exec-quality-sub'))$('exec-quality-sub').textContent=eo.dataQuality?.subtitle||'Confiabilidade';
+  if($('exec-recent-sub'))$('exec-recent-sub').textContent=(eo.recentCollections?.subtitle||'Últimos 7 dias')+' · Clique p/ auditar ↗';
+  if($('exec-quality'))$('exec-quality').textContent=eo.dataQuality?.formatted||eo.dataQuality?.label||'Verificado';
+  if($('exec-quality-sub'))$('exec-quality-sub').textContent=(eo.dataQuality?.subtitle||'Talentos com coleta verificada')+' · Ver diagnóstico ↗';
+ }
+ if(!execModalBound){
+  execModalBound=true;
+  const cards=[...document.querySelectorAll('#executive-kpis .exec-kpi-card')];
+  const modes=['talents','profiles','recent','quality'];
+  cards.forEach((card,idx)=>{
+   const mode=modes[idx]||'talents';
+   card.classList.add('exec-kpi-clickable');
+   card.setAttribute('role','button');
+   card.setAttribute('tabindex','0');
+   card.addEventListener('click',()=>openExecutiveDetailModal(mode));
+   card.addEventListener('keydown',e=>{
+    if(e.key==='Enter'||e.key===' '){
+     e.preventDefault();
+     openExecutiveDetailModal(mode);
+    }
+   });
+  });
  }
  const items=cross?.items||[];
  const chosenId=field('talent')?.value;
  const target=items.find(x=>x.id===chosenId)||items.find(x=>active360Artist&&x.id===active360Artist.id)||items.find(x=>Object.values(x.media||{}).some(m=>m?.value!=null))||items[0]||null;
  if(target)selectOverviewArtist360(target,false);
 }
+
+async function openExecutiveDetailModal(mode='talents',filterCatId='',filterCatName=''){
+ const dialog=$('show-simulator-modal');
+ const host=$('show-simulator-content');
+ if(!dialog||!host)return;
+ if(!dialog.open)dialog.showModal();
+ host.replaceChildren(el('p','Carregando painel detalhado do catálogo nacional…'));
+
+ let fullCross=null;
+ try{
+  const cp=new URLSearchParams({limit:'200'});
+  if(filterCatId)cp.set('category',String(filterCatId));
+  fullCross=await get('/api/radar/cross-summary?'+cp);
+ }catch(e){
+  host.replaceChildren(el('p','Não foi possível carregar os dados detalhados: '+e.message));
+  return;
+ }
+
+ const allItems=fullCross?.items||[];
+ const counts=fullCross?.counts||{};
+ host.replaceChildren();
+
+ const titles={
+  talents:filterCatName?`📂 Talentos da Categoria: ${filterCatName} (${allItems.length})`:`📋 Catálogo Nacional de Talentos Monitorados (${counts.talents||allItems.length})`,
+  verified_talents:`★ Artistas com Indicadores Verificados nas Mídias (${allItems.filter(a=>a.hasCollectedMetric).length})`,
+  profiles:`🔗 Perfis Oficiais Confirmados nas 4 Mídias (${counts.confirmedProfiles||0} contas vinculadas)`,
+  recent:`⚡ Coletas Verificadas Recentes — Últimos 7 Dias (${counts.recentCollections7d||0} indicadores)`,
+  quality:`🛡 Diagnóstico de Qualidade, Procedência & Cobertura (${counts.withCollectedMetrics||0}/${counts.talents||allItems.length} talentos)`
+ };
+ const subtitles={
+  talents:'Pesquise por nome, filtre por categoria e clique em qualquer talento para abrir sua Ficha 360° ou Simular Show.',
+  verified_talents:'Talentos com métricas reais auditadas de YouTube Data API v3, Spotify Web API e relatórios públicos de Instagram.',
+  profiles:'Vínculos oficiais validados via Wikidata, MusicBrainz e APIs oficiais nas 4 mídias (Instagram, Spotify, YouTube e TikTok).',
+  recent:'Indicadores coletados e auditados nos últimos 7 dias com fonte, data de referência e link de comprovação.',
+  quality:'Separação transparente entre talentos com coleta verificada ativa e talentos do catálogo aguardando coleta.'
+ };
+
+ const head=el('div');head.className='show-sim-head';
+ const headLeft=el('div');
+ const eye=el('span','DETALHAMENTO EXECUTIVO · RADAR DE TALENTOS');
+ eye.className='eyebrow';
+ const h2=el('h2',titles[mode]||titles.talents);
+ const subP=el('p',subtitles[mode]||subtitles.talents);
+ headLeft.append(eye,h2,subP);
+ const closeBtn=el('button','✕ Fechar');
+ closeBtn.type='button';
+ closeBtn.className='secondary-button';
+ closeBtn.addEventListener('click',()=>dialog.close());
+ head.append(headLeft,closeBtn);
+ host.append(head);
+
+ // Abas de alternância rápida entre os 4 módulos executivos dentro do próprio modal
+ const tabRow=el('div');tabRow.className='exec-modal-tabs';
+ for(const [mKey,mLabel] of [
+  ['talents',`📋 Talentos (${counts.talents||allItems.length})`],
+  ['verified_talents',`★ Com Coleta (${counts.withCollectedMetrics||0})`],
+  ['profiles',`🔗 Perfis Confirmados (${counts.confirmedProfiles||0})`],
+  ['recent',`⚡ Coletas 7d (${counts.recentCollections7d||0})`],
+  ['quality',`🛡 Qualidade & Pendentes`]
+ ]){
+  const tb=el('button',mLabel);
+  tb.type='button';
+  tb.className='map-mode-btn';
+  tb.setAttribute('aria-pressed',String(mode===mKey));
+  tb.addEventListener('click',()=>openExecutiveDetailModal(mKey,filterCatId,filterCatName));
+  tabRow.append(tb);
+ }
+ host.append(tabRow);
+
+ // Barra de busca + filtro por categoria / mídia dentro do modal
+ const filterBar=el('div');filterBar.className='exec-modal-filterbar';
+ const searchInp=el('input');
+ searchInp.type='search';
+ searchInp.setAttribute('aria-label','Filtrar lista por nome do artista ou mídia');
+ searchInp.value='';
+
+ const catSel=el('select');
+ catSel.append(new Option('Todas as categorias',''));
+ for(const c of categoryCatalog){
+  const o=new Option(`${c.name} (${c.value})`,String(c.id));
+  if(String(c.id)===String(filterCatId))o.selected=true;
+  catSel.append(o);
+ }
+ catSel.addEventListener('change',()=>{
+  const chosenCat=categoryCatalog.find(c=>String(c.id)===catSel.value);
+  activateCategoryFilter(catSel.value,chosenCat?.name||'',false);
+  openExecutiveDetailModal(mode,catSel.value,chosenCat?.name||'');
+ });
+
+ const netSel=el('select');
+ for(const [nVal,nText] of [['','Todas as 4 mídias'],['Instagram','Instagram'],['Spotify','Spotify'],['YouTube','YouTube'],['TikTok','TikTok']]){
+  netSel.append(new Option(nText,nVal));
+ }
+
+ filterBar.append(
+  (() => { const l=el('label');l.className='show-sim-ctrl-card';l.append(el('span','Buscar Artista / Perfil'),searchInp);return l; })(),
+  (() => { const l=el('label');l.className='show-sim-ctrl-card';l.append(el('span','Filtrar Categoria'),catSel);return l; })(),
+  (() => { const l=el('label');l.className='show-sim-ctrl-card';l.append(el('span','Filtrar Mídia'),netSel);return l; })()
+ );
+ host.append(filterBar);
+
+ const bodyWrap=el('div');bodyWrap.className='exec-modal-table-wrap';
+ host.append(bodyWrap);
+
+ function renderModalRows(){
+  const q=normalize(searchInp.value);
+  const netFilter=netSel.value;
+  bodyWrap.replaceChildren();
+
+  if(mode==='profiles'||mode==='recent'){
+   const flatRows=[];
+   for(const a of allItems){
+    if(q&&!normalize(a.name).includes(q)&&!normalize((a.categories||[]).join(' ')).includes(q))continue;
+    for(const net of ['Instagram','Spotify','YouTube','TikTok']){
+     if(netFilter&&net!==netFilter)continue;
+     const m=a.media?.[net];
+     if(!m)continue;
+     if(mode==='recent'&&m.value==null)continue;
+     if(mode==='profiles'&&!m.url&&m.value==null)continue;
+     flatRows.push({artist:a,net,m});
+    }
+   }
+   if(!flatRows.length){
+    bodyWrap.append(el('p','Nenhum registro encontrado para este filtro.'));
+    return;
+   }
+   const tbl=el('table');
+   const thead=el('thead'),trH=el('tr');
+   ['Artista','Categoria','Mídia','Indicador Verificado','Fonte & Data','Perfil Oficial','Ações'].forEach(h=>trH.append(el('th',h)));
+   thead.append(trH);tbl.append(thead);
+   const tbody=el('tbody');
+   for(const {artist,net,m} of flatRows.slice(0,180)){
+    const tr=el('tr');
+    const nameBtn=el('button',artist.name);
+    nameBtn.type='button';nameBtn.className='link';
+    nameBtn.addEventListener('click',()=>{dialog.close();focusArtistInOverview(artist);});
+    const tdName=el('td');tdName.append(nameBtn);
+
+    const tdCat=el('td',(artist.categories||[]).join(' · ')||'Sem categoria');
+    const tdNet=el('td',net);
+    tdNet.style.color=evoPalette[net]||'#e9d5ff';
+    tdNet.style.fontWeight='700';
+
+    const tdVal=el('td',m.value!=null?`${m.formatted} (${fmt(m.value)})`:'Aguardando coleta');
+    const tdSrc=el('td',m.value!=null?`${m.source||'Verificado'} · ${m.observed_on||'Atual'}`:'Perfil pré-cadastrado');
+
+    const tdUrl=el('td');
+    if(m.url){
+     const aLink=el('a','Abrir perfil ↗');
+     aLink.href=m.url;aLink.target='_blank';aLink.rel='noopener noreferrer';
+     tdUrl.append(aLink);
+    }else{
+     tdUrl.textContent='—';
+    }
+
+    const tdAct=el('td');
+    const simB=el('button','⚡ Show');
+    simB.type='button';simB.className='btn-simulate-show';
+    simB.style.height='24px';simB.style.padding='0 8px';simB.style.fontSize='10.5px';
+    simB.addEventListener('click',()=>openShowSimulatorModal(null,artist.id,100));
+    tdAct.append(simB);
+
+    tr.append(tdName,tdCat,tdNet,tdVal,tdSrc,tdUrl,tdAct);
+    tbody.append(tr);
+   }
+   tbl.append(tbody);
+   bodyWrap.append(tbl);
+   return;
+  }
+
+  // Modos: talents, verified_talents, quality
+  let list=allItems.filter(a=>{
+   if(q&&!normalize(a.name).includes(q)&&!normalize((a.categories||[]).join(' ')).includes(q))return false;
+   if(netFilter&&a.media?.[netFilter]?.value==null)return false;
+   if(mode==='verified_talents')return Boolean(a.hasCollectedMetric);
+   return true;
+  });
+
+  if(mode==='quality'){
+   const verCount=list.filter(a=>a.hasCollectedMetric).length;
+   const pendCount=list.length-verCount;
+   const qGrid=el('div');qGrid.className='show-sim-kpi-grid';
+   for(const [tag,val,sub] of [
+    ['Com Coleta Verificada',`${fmt(verCount)} talentos`,'Métricas reais com fonte, data e evidência'],
+    ['Aguardando Coleta',`${fmt(pendCount)} talentos`,'Identidade no catálogo pronta para enriquecimento'],
+    ['YouTube & Spotify Ativos',`${fmt(list.filter(a=>a.media?.YouTube?.value!=null||a.media?.Spotify?.value!=null).length)} talentos`,'Coleta automática via API Oficial / Web Player'],
+    ['Instagram Verificado',`${fmt(list.filter(a=>a.media?.Instagram?.value!=null).length)} talentos`,'Relatórios públicos verificados com evidência']
+   ]){
+    const c=el('div');c.className='show-sim-kpi-card cyan-neon';
+    const sp=el('span',tag);sp.className='kpi-tag';
+    c.append(sp,el('strong',val),el('small',sub));
+    qGrid.append(c);
+   }
+   bodyWrap.append(qGrid);
+  }
+
+  const tbl=el('table');
+  const thead=el('thead'),trH=el('tr');
+  ['Artista / Talento','Categoria(s)','Instagram','Spotify','YouTube','TikTok','Status','Ações Rápidas'].forEach(h=>trH.append(el('th',h)));
+  thead.append(trH);tbl.append(thead);
+  const tbody=el('tbody');
+  for(const a of list){
+   const tr=el('tr');
+   const nameBtn=el('button',a.name);
+   nameBtn.type='button';nameBtn.className='link';
+   nameBtn.addEventListener('click',()=>{dialog.close();focusArtistInOverview(a);});
+   const tdName=el('td');tdName.append(nameBtn);
+   const tdCat=el('td',(a.categories||[]).join(' · ')||'Sem categoria');
+
+   const cellNet=net=>{
+    const m=a.media?.[net];
+    const td=el('td');
+    if(m?.value!=null){
+     const st=el('strong',m.formatted);
+     st.style.color=evoPalette[net]||'#fafafa';
+     td.append(st);
+    }else{
+     td.textContent=m?.url?'Vinculado':'—';
+     td.style.color='#71717a';
+    }
+    return td;
+   };
+
+   const tdStatus=el('td',a.hasCollectedMetric?'✓ Verificado':'⏳ Catálogo');
+   tdStatus.style.color=a.hasCollectedMetric?'#34d399':'#facc15';
+   tdStatus.style.fontWeight='700';
+
+   const tdAct=el('td');
+   const actWrap=el('div');actWrap.style.display='flex';actWrap.style.gap='5px';
+   const f360=el('button','◉ 360°');
+   f360.type='button';f360.className='secondary-button';
+   f360.style.height='24px';f360.style.padding='0 7px';f360.style.fontSize='10.5px';
+   f360.addEventListener('click',()=>{dialog.close();focusArtistInOverview(a);});
+
+   const simB=el('button','⚡ Show');
+   simB.type='button';simB.className='btn-simulate-show';
+   simB.style.height='24px';simB.style.padding='0 8px';simB.style.fontSize='10.5px';
+   simB.addEventListener('click',()=>openShowSimulatorModal(null,a.id,100));
+
+   actWrap.append(f360,simB);
+   tdAct.append(actWrap);
+
+   tr.append(tdName,tdCat,cellNet('Instagram'),cellNet('Spotify'),cellNet('YouTube'),cellNet('TikTok'),tdStatus,tdAct);
+   tbody.append(tr);
+  }
+  tbl.append(tbody);
+  bodyWrap.append(tbl);
+ }
+
+ searchInp.addEventListener('input',renderModalRows);
+ netSel.addEventListener('change',renderModalRows);
+ renderModalRows();
+}
+window.openRadarExecutiveModal=openExecutiveDetailModal;
 
 async function selectOverviewArtist360(artist,scrollInto=false){
  if(!artist||!$('artist-360-body'))return;

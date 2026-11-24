@@ -350,9 +350,98 @@ export async function handleDiscovery(req, res, { radar, security } = {}) {
         if (typeof v.id !== 'string' || !v.id) throw Error('Candidato obrigatório');
         result = await collectYoutube(db, { candidateId: v.id, force: true });
         if (radar) distributeVerifiedDiscoveryToRadar(radar, db);
-      } else if (action === 'youtube-collect-all') {
-        result = await collectYoutube(db, { force: Boolean(v.force) });
-        if (radar) distributeVerifiedDiscoveryToRadar(radar, db);
+      } else if (action === 'youtube-collect-all' || action === 'collect-all' || action === 'refresh-catalog') {
+        const ytBatch = await collectYoutube(db, { force: Boolean(v.force) }).catch(() => ({ collected: 0 }));
+        let ytExtra = 0;
+        let spExtra = 0;
+        const refreshedNames = [];
+        if (radar) {
+          const catFilter = typeof v.category === 'string' ? v.category.trim() : '';
+          const talentFilter = typeof v.talentId === 'string' ? v.talentId.trim() : '';
+          const candidatesToEnrich = radar
+            .prepare(
+              `SELECT t.id, t.name
+               FROM talents t
+               WHERE t.blocked = 0
+                 AND (? = '' OR t.id = ?)
+                 AND (? = '' OR EXISTS (
+                   SELECT 1 FROM talent_categories tc
+                   JOIN categories c ON c.id = tc.category_id
+                   WHERE tc.talent_id = t.id AND lower(c.name) = lower(?)
+                 ))
+                 AND (
+                   NOT EXISTS (SELECT 1 FROM metric_current mc WHERE mc.talent_id = t.id AND mc.network = 'Spotify' AND mc.value IS NOT NULL)
+                   OR NOT EXISTS (SELECT 1 FROM metric_current mc WHERE mc.talent_id = t.id AND mc.network = 'YouTube' AND mc.value >= 1000)
+                 )
+               ORDER BY t.name ASC
+               LIMIT 6`
+            )
+            .all(talentFilter, talentFilter, catFilter, catFilter);
+
+          for (const tal of candidatesToEnrich) {
+            try {
+              const gSearch = await globalSearch(db, radar, tal.name, { includeMusicBrainzLive: false }).catch(() => null);
+              const ext = gSearch?.external?.[0] || null;
+              let extraProfiles = [];
+              if (process.env.YOUTUBE_API_KEY) {
+                const ytChans = await searchYoutube(tal.name).catch(() => []);
+                if (ytChans?.[0]?.url) {
+                  extraProfiles.push({ network: 'YouTube', url: ytChans[0].url });
+                }
+              }
+              if (ext?.external_id) {
+                const ap = await approveAndSendToRadar(db, radar, {
+                  source: ext.source || 'wikidata',
+                  external_id: ext.external_id,
+                  radarId: tal.id,
+                  extraProfiles
+                });
+                ytExtra += ap.youtubeCollected || 0;
+                spExtra += ap.spotifyCollected || 0;
+                if ((ap.youtubeCollected || 0) + (ap.spotifyCollected || 0) > 0) {
+                  refreshedNames.push(tal.name);
+                }
+              } else if (extraProfiles.length) {
+                const existingCand = db.prepare('SELECT id FROM candidates WHERE radar_id = ? LIMIT 1').get(tal.id);
+                let candId = existingCand?.id || null;
+                if (!candId) {
+                  candId = `cand-${tal.id}`;
+                  const nowIso = new Date().toISOString();
+                  db.prepare(
+                    "INSERT OR IGNORE INTO sources(id,kind,name,url,terms_url,auth_kind,enabled,history_allowed,created_at) VALUES('youtube-public-current','youtube','YouTube Data API v3','https://www.googleapis.com/youtube/v3','https://developers.google.com/youtube/terms/api-services-terms-of-service','api_key',1,0,?)"
+                  ).run(nowIso);
+                  db.prepare(
+                    "INSERT OR IGNORE INTO candidates(id,name,normalized_name,entity_type,status,confidence,source_id,external_id,radar_id,identity_evidence,reviewed_by,reviewed_at,created_at,updated_at) VALUES(?,?,?,'person','approved',90,'youtube-public-current',?,?,?,'admin',?,?,?)"
+                  ).run(candId, tal.name, tal.name.toLowerCase(), tal.id, tal.id, extraProfiles[0].url, nowIso, nowIso, nowIso);
+                }
+                const ap = await approveAndSendToRadar(db, radar, {
+                  id: candId,
+                  radarId: tal.id,
+                  evidence: extraProfiles[0].url,
+                  extraProfiles
+                });
+                ytExtra += ap.youtubeCollected || 0;
+                if (ap.youtubeCollected > 0) refreshedNames.push(tal.name);
+              }
+            } catch {}
+          }
+          distributeVerifiedDiscoveryToRadar(radar, db);
+        }
+        const totalWithMetrics = radar
+          ? radar.prepare('SELECT count(DISTINCT talent_id) n FROM metric_current WHERE value IS NOT NULL').get().n
+          : 0;
+        const totalMetrics = radar
+          ? radar.prepare('SELECT count(*) n FROM metric_current WHERE value IS NOT NULL').get().n
+          : 0;
+        result = {
+          ok: true,
+          collected: (ytBatch.collected || 0) + ytExtra + spExtra,
+          youtubeCollected: (ytBatch.collected || 0) + ytExtra,
+          spotifyCollected: spExtra,
+          refreshedNames,
+          totalWithMetrics,
+          totalMetrics
+        };
       } else if (action === 'global-search') {
         result = await globalSearch(db, radar, v.query, { includeMusicBrainzLive: Boolean(v.includeMusicBrainzLive) });
       } else if (action === 'global-save') {

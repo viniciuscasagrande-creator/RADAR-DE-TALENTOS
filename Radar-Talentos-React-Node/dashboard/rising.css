@@ -13,6 +13,90 @@
   color: #e9d5ff;
   margin: 8px 0 4px;
 }
+.rising-page #rising-quick-search {
+  flex: 1 1 240px;
+  height: 30px;
+  padding: 4px 10px;
+  background: #100d18;
+  border: 1.5px solid #a855f7;
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.28);
+  border-radius: 7px;
+  font-size: 12px;
+}
+.rising-page #rising-quick-search:focus {
+  border-color: #00f0ff;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.55);
+  outline: none;
+}
+.rising-page #rising-category-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
+  margin-bottom: 4px;
+}
+.rising-page #rising-category-kpis .kpi {
+  text-align: left;
+  color: var(--text);
+  font: inherit;
+  height: 86px;
+  min-height: 86px;
+  max-height: 86px;
+  box-sizing: border-box;
+  padding: 11px 14px;
+  border-radius: 10px;
+  background: linear-gradient(160deg, #1b142c 0%, #100c1b 100%);
+  border: 1.5px solid #c084fc;
+  box-shadow: 0 0 12px rgba(192, 132, 252, 0.38), 0 0 24px rgba(168, 85, 247, 0.14), inset 0 0 12px rgba(192, 132, 252, 0.12);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2px;
+  overflow: hidden;
+  transition: transform 0.14s ease, box-shadow 0.14s ease, border-color 0.14s ease;
+}
+.rising-page #rising-category-kpis .kpi::before {
+  width: 34px;
+  height: 3px;
+  background: linear-gradient(90deg, #d946ef, #00f0ff);
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.7);
+}
+.rising-page #rising-category-kpis .kpi:hover {
+  border-color: #00f0ff;
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.6), 0 0 28px rgba(192, 132, 252, 0.32), inset 0 0 14px rgba(0, 240, 255, 0.16);
+  transform: translateY(-1px);
+}
+.rising-page #rising-category-kpis .kpi[aria-pressed="true"] {
+  border-color: #00f0ff;
+  background: linear-gradient(160deg, #2d1a47 0%, #161029 100%);
+  box-shadow: 0 0 18px rgba(0, 240, 255, 0.72), 0 0 32px rgba(217, 70, 239, 0.4), inset 0 0 14px rgba(0, 240, 255, 0.22);
+}
+.rising-page #rising-category-kpis .kpi span {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #e9d5ff;
+  letter-spacing: 0.04em;
+  width: 100%;
+}
+.rising-page #rising-category-kpis .kpi strong {
+  font-size: 21px;
+  line-height: 1.1;
+  color: #ffffff;
+  text-shadow: 0 0 10px rgba(192, 132, 252, 0.45);
+}
+.rising-page #rising-category-kpis .kpi small {
+  font-size: 10px;
+  color: #c4b5fd;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.rising-page #rising-category-kpis .kpi[aria-pressed="true"] small {
+  color: #00f0ff;
+  font-weight: 600;
+}
 .rising-page .rising-filter-panel {
   margin-top: 8px;
 }

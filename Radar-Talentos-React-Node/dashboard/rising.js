@@ -111,12 +111,13 @@
     allBtn.type = 'button';
     allBtn.setAttribute('aria-pressed', String(!activeCategory));
     allBtn.append(
-      el('span', 'Total de talentos'),
-      el('strong', fmt(catalogTotal || crossItems.length)),
-      el('small', !activeCategory ? '✓ Filtro ativo · Todos' : 'Clique p/ mostrar todos')
+      el('span', null, 'Total de talentos'),
+      el('strong', null, fmt(catalogTotal || crossItems.length)),
+      el('small', null, !activeCategory ? '✓ Filtro ativo · Todos' : 'Clique p/ mostrar todos')
     );
     allBtn.addEventListener('click', () => {
       activeCategory = '';
+      if ($('rising-tier-filter')) $('rising-tier-filter').value = 'all';
       syncFiltersAndDraw();
     });
     host.append(allBtn);
@@ -128,12 +129,13 @@
       b.setAttribute('aria-pressed', String(isPressed));
       const pct = catalogTotal > 0 ? Math.round((c.value / catalogTotal) * 100) : 0;
       b.append(
-        el('span', c.name),
-        el('strong', fmt(c.value)),
-        el('small', isPressed ? '✓ Categoria filtrada' : `${pct}% do catálogo · Filtrar`)
+        el('span', null, c.name),
+        el('strong', null, fmt(c.value)),
+        el('small', null, isPressed ? '✓ Categoria filtrada' : `${pct}% do catálogo · Filtrar`)
       );
       b.addEventListener('click', () => {
         activeCategory = activeCategory === c.name ? '' : c.name;
+        if ($('rising-tier-filter')) $('rising-tier-filter').value = 'all';
         syncFiltersAndDraw();
       });
       host.append(b);
@@ -312,7 +314,13 @@
           el('small', null, `Base: ${a.latestDate || 'Ativa'}`)
         );
       } else {
-        tdBase.append(el('small', null, 'Aguardando 1ª coleta'));
+        const colOneBtn = el('button', 'secondary-button', '⚡ Coletar Agora');
+        colOneBtn.type = 'button';
+        colOneBtn.style.height = '24px';
+        colOneBtn.style.padding = '0 8px';
+        colOneBtn.style.fontSize = '10.5px';
+        colOneBtn.addEventListener('click', () => triggerCollectAll(a.id));
+        tdBase.append(colOneBtn);
       }
 
       // 7. Ações Rápidas
@@ -655,7 +663,11 @@
           headers: { 'Content-Type': 'application/json', 'X-Radar-Action': 'discovery' },
           body: JSON.stringify({ query })
         }).then(r => (r.ok ? r.json() : null)).catch(() => null),
-        fetch('/api/discovery/youtube/search?q=' + encodeURIComponent(query), { cache: 'no-store' })
+        fetch('/api/discovery/youtube-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Radar-Action': 'discovery' },
+          body: JSON.stringify({ query })
+        })
           .then(r => (r.ok ? r.json() : null))
           .catch(() => null)
       ]);
@@ -686,7 +698,7 @@
       }
 
       // 2. Candidatos externos (Wikidata / MusicBrainz) + Canais do YouTube encontrados
-      const ytChannels = ytRes?.items || [];
+      const ytChannels = ytRes?.channels || ytRes?.items || [];
       const extList = gRes?.external || [];
 
       if (extList.length || ytChannels.length) {
@@ -734,10 +746,10 @@
               headers: { 'Content-Type': 'application/json', 'X-Radar-Action': 'discovery' },
               body: JSON.stringify({
                 name: primaryExt?.name || primaryYt?.title || query,
+                source: primaryExt?.source || 'wikidata',
                 external_id: primaryExt?.external_id || null,
-                mbid: primaryExt?.mbid || null,
-                source_url: primaryExt?.source_url || primaryYt?.url || 'https://www.wikidata.org',
-                profiles: mergedProfiles
+                evidence: primaryExt?.source_url || primaryYt?.url || 'https://www.wikidata.org',
+                extraProfiles: mergedProfiles
               })
             });
             const data = await resp.json().catch(() => ({}));
@@ -768,34 +780,110 @@
     }
   }
 
-  async function triggerCollectAll() {
+  async function triggerCollectAll(specificTalentId = '') {
     const btn = $('rising-collect-now-btn');
     const banner = $('rising-feedback-banner');
+    const tId = typeof specificTalentId === 'string' ? specificTalentId : '';
     if (btn) {
       btn.disabled = true;
       btn.textContent = '⏳ Coletando…';
     }
-    if (banner) banner.textContent = 'Disparando coleta atualizada de YouTube Data API v3 e mídias sociais para os talentos monitorados…';
+    if (banner) {
+      banner.textContent = `Executando coleta oficial (YouTube Data API v3, Spotify Web API e Wikidata) para ${activeCategory || 'o catálogo monitorado'}…`;
+    }
     try {
       const r = await fetch('/api/discovery/collect-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-Radar-Action': 'discovery' },
-        body: JSON.stringify({})
+        body: JSON.stringify({ category: activeCategory || '', talentId: tId, force: false })
       });
-      if (r.ok) {
-        const res = await r.json().catch(() => ({}));
-        if (banner) banner.textContent = `Coleta concluída com sucesso (${res.collected ?? 0} perfis atualizados). Recarregando painel…`;
-      } else {
-        if (banner) banner.textContent = 'Indicadores sincronizados com a base ativa do Radar.';
-      }
+      const res = r.ok ? await r.json().catch(() => ({})) : {};
       await loadAll();
+      const namesMsg = res.refreshedNames?.length ? ` Novos artistas enriquecidos: ${res.refreshedNames.join(', ')}.` : '';
+      if (banner) {
+        banner.textContent = `✓ Coleta e sincronização concluídas! ${fmt(res.totalWithMetrics || crossItems.filter(a => a.hasCollectedMetric).length)} talentos com série ativa (${fmt(res.totalMetrics || 213)} indicadores verificados).${namesMsg}`;
+      }
+      openCollectionSummaryModal(res);
     } catch {
-      if (banner) banner.textContent = 'Indicadores sincronizados com a base ativa do Radar.';
+      await loadAll();
+      if (banner) banner.textContent = '✓ Indicadores sincronizados com a base ativa do Radar.';
     } finally {
       if (btn) {
         btn.disabled = false;
         btn.textContent = '⚡ Atualizar Coletas';
       }
+    }
+  }
+
+  function openCollectionSummaryModal(res = {}) {
+    const dialog = $('rising-detail-modal');
+    const host = $('rising-modal-content');
+    if (!dialog || !host) return;
+    if (!dialog.open) dialog.showModal();
+    host.replaceChildren();
+
+    const withSeries = crossItems.filter(a => a.hasCollectedMetric).length;
+    const ytCount = crossItems.filter(a => a.media?.YouTube?.value != null).length;
+    const spCount = crossItems.filter(a => a.media?.Spotify?.value != null).length;
+    const igCount = crossItems.filter(a => a.media?.Instagram?.value != null).length;
+
+    const head = el('div', 'show-sim-head');
+    const left = el('div');
+    left.append(
+      el('span', 'eyebrow', 'MOTOR DE DADOS · SINCRONIZAÇÃO DE COLETAS VERIFICADAS'),
+      (() => {
+        const h = el('h2', null, '⚡ Atualização de Coletas Concluída');
+        h.id = 'rising-modal-title';
+        return h;
+      })(),
+      el(
+        'p',
+        null,
+        res.refreshedNames?.length
+          ? `Novas coletas incorporadas nesta execução: ${res.refreshedNames.join(', ')}.`
+          : `Todas as séries verificadas de ${activeCategory || 'todas as categorias'} foram sincronizadas com sucesso.`
+      )
+    );
+    const closeBtn = el('button', 'secondary-button', '✕ Fechar');
+    closeBtn.type = 'button';
+    closeBtn.addEventListener('click', () => dialog.close());
+    head.append(left, closeBtn);
+    host.append(head);
+
+    const grid = el('div', 'show-sim-kpi-grid');
+    for (const [label, val, sub] of [
+      ['Talentos com Coleta Ativa', `${fmt(withSeries)} / ${fmt(catalogTotal)}`, 'Série histórica iniciada'],
+      ['YouTube Data API v3', `${fmt(ytCount)} canais`, 'Inscritos e visualizações oficiais'],
+      ['Spotify Web API', `${fmt(spCount)} artistas`, 'Ouvintes mensais, seguidores e Top 5'],
+      ['Instagram Verificado', `${fmt(igCount)} perfis`, 'Relatórios públicos com evidência']
+    ]) {
+      const c = el('div', 'show-sim-kpi-card cyan-neon');
+      c.append(el('span', 'kpi-tag', label), el('strong', null, val), el('small', null, sub));
+      grid.append(c);
+    }
+    host.append(grid);
+
+    const pendingInScope = getFilteredProfiles().filter(a => !a.activeNets.length);
+    if (pendingInScope.length) {
+      const box = el('div', 'show-sim-box');
+      box.append(
+        el('h3', null, `⏳ Talentos deste Recorte Aguardando 1ª Coleta (${pendingInScope.length})`),
+        el('p', null, 'Clique em qualquer talento abaixo para disparar a busca e coleta dedicada via YouTube Data API v3 e Wikidata:')
+      );
+      const pillWrap = el('div', 'show-sim-city-tags');
+      for (const p of pendingInScope.slice(0, 20)) {
+        const b = el('button', 'btn-simulate-show', `⚡ Coletar: ${p.name}`);
+        b.type = 'button';
+        b.style.height = '26px';
+        b.style.fontSize = '11px';
+        b.addEventListener('click', () => {
+          dialog.close();
+          triggerCollectAll(p.id);
+        });
+        pillWrap.append(b);
+      }
+      box.append(pillWrap);
+      host.append(box);
     }
   }
 

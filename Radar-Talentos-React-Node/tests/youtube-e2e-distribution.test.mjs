@@ -9,6 +9,7 @@ import { distributeVerifiedDiscoveryToRadar, quarantineUnverifiedRadarMetrics, g
 import { distributeArtistStats } from '../server/src/indicator-distribution.mjs';
 import { commercialQuery } from '../server/src/commercial.mjs';
 import { resolveClientIp } from '../server/src/app.mjs';
+import { approveAndSendToRadar } from '../server/src/discovery/http.mjs';
 
 const GUSTTAVO_ID = 't-gusttavo-lima';
 const GUSTTAVO_NAME = 'Gusttavo Lima';
@@ -394,5 +395,89 @@ test('Rate-limit IP atrás de proxy reverso e data de referência dinâmica em c
   const v = classifyMetricValidity(today);
   assert.equal(v.code, 'current_7d');
   assert.equal(v.ageDays, 0);
+});
+
+test('Prospecção rápida (approveAndSendToRadar): aprova, vincula todos os perfis vindos da busca, coleta YouTube + Spotify e envia ao Radar em um único clique', async () => {
+  const discovery = openDiscovery(':memory:');
+  const radar = openDatabase(':memory:');
+  const oldYtKey = process.env.YOUTUBE_API_KEY;
+  process.env.YOUTUBE_API_KEY = 'test-yt-key';
+  try {
+    radar.prepare("INSERT INTO talents(id, name, entity_type, blocked) VALUES (?, ?, 'person', 0)").run(GUSTTAVO_ID, GUSTTAVO_NAME);
+    configureSource(discovery, {
+      id: 'wikidata-cc0',
+      kind: 'licensed-file',
+      authorization: 'https://www.wikidata.org/wiki/Wikidata:Licensing',
+      history_allowed: false,
+      enabled: true
+    });
+
+    const spId = '7MiDcPa6UiV3In7lIM71IN';
+    ingest(discovery, 'wikidata-cc0', [
+      {
+        name: GUSTTAVO_NAME,
+        external_id: 'Q5621275',
+        evidence_url: 'https://www.wikidata.org/wiki/Q5621275',
+        profiles: [
+          { network: 'YouTube', url: CHANNEL_URL },
+          { network: 'Spotify', url: `https://open.spotify.com/artist/${spId}` },
+          { network: 'Instagram', url: 'https://instagram.com/gusttavolima' }
+        ]
+      }
+    ]);
+    const candidateId = listCandidates(discovery)[0].id;
+
+    const spInitialState = Buffer.from(
+      JSON.stringify({
+        entities: {
+          items: {
+            [`spotify:artist:${spId}`]: {
+              stats: { followers: 24807738, monthlyListeners: 13161472 },
+              discography: {
+                latest: { name: 'Doce Mel', date: { year: 2026 } },
+                topTracks: { items: [{ track: { name: 'Assunto Que Dói', playcount: '86926504' } }] }
+              }
+            }
+          }
+        }
+      }),
+      'utf8'
+    ).toString('base64');
+
+    const mockFetcher = async (url, opts) => {
+      const u = new URL(String(url));
+      if (u.hostname === 'open.spotify.com') {
+        return {
+          ok: true,
+          text: async () => `<html><script id="initialState" type="text/plain">${spInitialState}</script></html>`
+        };
+      }
+      return mockYoutubeApi({ subscribers: '21900000', views: '19536857880', videos: '1008' })(u, opts);
+    };
+
+    const res = await approveAndSendToRadar(
+      discovery,
+      radar,
+      { id: candidateId },
+      { reviewer: 'admin', fetcher: mockFetcher }
+    );
+
+    assert.equal(res.ok, true);
+    assert.equal(res.radarId, GUSTTAVO_ID);
+    assert.equal(res.status, 'published');
+    assert.equal(res.profilesLinked, 3);
+    assert.equal(res.youtubeCollected, 1);
+    assert.equal(res.spotifyCollected, 1);
+
+    const cross = getCrossMenuSummary(radar, new URLSearchParams({ talent: GUSTTAVO_ID }));
+    assert.equal(cross.items[0].media.YouTube.value, 21900000);
+    assert.equal(cross.items[0].media.Spotify.value, 13161472);
+    assert.equal(cross.items[0].media.Instagram.url, 'https://instagram.com/gusttavolima');
+  } finally {
+    if (oldYtKey === undefined) delete process.env.YOUTUBE_API_KEY;
+    else process.env.YOUTUBE_API_KEY = oldYtKey;
+    discovery.close();
+    radar.close();
+  }
 });
 

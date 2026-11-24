@@ -11,12 +11,22 @@ body.discovery-page{display:grid;grid-template-columns:220px minmax(0,1fr);min-h
 .discovery-page h1{font-size:1.3rem}
 .discovery-page h2{font-size:1rem;margin:0}
 .discovery-page form{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:12px 0}
-.discovery-page form[hidden],.discovery-page section[hidden]{display:none}
+.discovery-page form[hidden],.discovery-page section[hidden],.discovery-page button[hidden]{display:none}
 .discovery-page label{display:grid;gap:4px;flex:1;min-width:150px}
+.discovery-page label.disc-chk{display:flex;align-items:center;gap:6px;flex:0 0 auto;min-width:auto;padding-bottom:6px}
 .discovery-page #query{width:100%}
 .discovery-page section{min-width:0;padding:12px;border:1px solid #303036;border-radius:8px;background:#18181b}
 .discovery-page #global-results{margin-bottom:12px}
-.discovery-page #global-list div{padding:10px 0;border-top:1px solid #27272d}
+.discovery-page .disc-result-card{padding:12px;margin-top:8px;border:1px solid #322c40;border-radius:8px;background:#14131a;display:flex;flex-direction:column;gap:6px}
+.discovery-page .disc-result-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.discovery-page .disc-fast-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 4px}
+.discovery-page .btn-approve{background:linear-gradient(135deg,#059669,#10b981);border:1px solid #34d399;color:#fff;font-weight:700;padding:8px 16px;border-radius:7px;cursor:pointer}
+.discovery-page .btn-send-radar{background:linear-gradient(135deg,#7c3aed,#9333ea);border:1px solid #c084fc;color:#fff;font-weight:700;padding:8px 16px;border-radius:7px;cursor:pointer}
+.discovery-page .btn-approve:hover,.discovery-page .btn-send-radar:hover{filter:brightness(1.08)}
+.discovery-page .disc-profile-pills{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+.discovery-page .disc-profile-pill{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;background:#201b2c;border:1px solid #3f3356;font-size:11.5px;color:#e9d5ff;text-decoration:none}
+.discovery-page .disc-advanced-drawer{margin-top:14px;padding-top:10px;border-top:1px solid #27272d;font-size:12px;color:#a1a1aa}
+.discovery-page .disc-advanced-drawer summary{cursor:pointer;font-weight:600;color:#c084fc}
 .discovery-page .discovery-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:12px;margin-bottom:12px}
 .discovery-page #candidates{max-height:460px;overflow:auto;display:grid;gap:6px}
 .discovery-page .cand-queue-btn{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;white-space:normal;height:auto;padding:8px 10px;border-radius:7px;background:#131218;border:1px solid #2e2a38}

@@ -4,8 +4,8 @@ const el=(tag,text)=>{const e=document.createElement(tag);if(text!==undefined)e.
 async function get(path){const r=await fetch(path,{cache:'no-store'});if(!r.ok)throw Error((await r.json().catch(()=>({}))).error||`Consulta indisponível (HTTP ${r.status})`);return r.json()}
 function options(select,rows,blank){const old=select.value;select.replaceChildren(new Option(blank,''),...rows.map(r=>new Option(r.name,r.id)));if([...select.options].some(o=>o.value===old))select.value=old}
 function table(id,headers,rows){const target=$(id);if(!rows.length){target.replaceChildren(el('p','Nenhum registro neste recorte.'));return}const t=el('table'),head=el('thead'),tr=el('tr');headers.forEach(h=>tr.append(el('th',h)));head.append(tr);t.append(head);const body=el('tbody');for(const row of rows){const tr=el('tr');for(const v of row){const td=el('td');td.append(v instanceof Node?v:document.createTextNode(String(v??'—')));tr.append(td)}body.append(tr)}t.append(body);target.replaceChildren(t)}
-function bars(id,rows){const target=$(id);target.replaceChildren();if(!rows.length){target.append(el('p','Sem registros.'));return}const max=Math.max(1,...rows.map(r=>r.value));for(const r of rows){const line=el('div');line.className='bar';const p=el('progress');p.max=max;p.value=r.value;line.append(el('span',r.name),p,el('span',fmt(r.value)));target.append(line)}}
-let geo=null,mods=[],catalog=[],categoryCatalog=[],catalogTotal=null,selected=new Set(),request=0,offset=0,total=0;const regions=['Norte','Nordeste','Centro-Oeste','Sudeste','Sul'];
+function bars(id,rows,onClickRow=null,suffix=''){const target=$(id);if(!target)return;target.replaceChildren();if(!rows.length){target.append(el('p','Sem registros.'));return}const max=Math.max(1,...rows.map(r=>r.value));for(const r of rows){const line=el('div');line.className=onClickRow?'bar interactive-bar':'bar';const p=el('progress');p.max=max;p.value=r.value;line.append(el('span',r.name),p,el('span',fmt(r.value)+suffix));if(onClickRow){line.title='Clique para focar no mapa: '+r.name;line.addEventListener('click',()=>onClickRow(r));}target.append(line)}}
+let geo=null,mods=[],catalog=[],categoryCatalog=[],catalogTotal=null,demographicsData={items:[],byRegion:[]},lastCrossItems=[],mapLayerMode='operational',inspectorSeq=0,selected=new Set(),request=0,offset=0,total=0;const regions=['Norte','Nordeste','Centro-Oeste','Sudeste','Sul'];
 const regionUF={Norte:'AC AM AP PA RO RR TO',Nordeste:'AL BA CE MA PB PE PI RN SE','Centro-Oeste':'DF GO MS MT',Sudeste:'ES MG RJ SP',Sul:'PR RS SC'};
 const allUF=Object.values(regionUF).join(' ').split(' ').sort();
 options(field('region'),regions.map(name=>({name,id:name})),'Brasil inteiro');
@@ -71,7 +71,87 @@ function filterCenters(){
 function selectedChips(){const box=$('selected-cities');box.replaceChildren();for(const code of selected){const c=catalog.find(x=>x.code===code);const b=el('button',(c?c.name+' / '+c.uf:code)+' ×');b.type='button';b.setAttribute('aria-label','Remover '+(c?.name??code));b.addEventListener('click',()=>{selected.delete(code);selectedChips();search()});box.append(b);}}
 function clearCities(){selected.clear();field('city').value='';$('city-search').value='';selectedChips();}
 function chooseState(uf){const r=Object.keys(regionUF).find(r=>regionUF[r].split(' ').includes(uf))??'';field('region').value=r;updateUF();field('uf').value=uf;clearCities();filterCities();search()}
-function chooseCity(code){if(selected.has(code))selected.delete(code);else if(selected.size<100)selected.add(code);else{ $('message').textContent='Selecione até 100 municípios ou use região, estado ou raio.';field('city').value='';return;}field('city').value='';selectedChips();search()}
+function chooseCity(code,autoActivateRadius=true){
+ const wasSelected=selected.has(code);
+ if(wasSelected){
+  selected.delete(code);
+  if(field('center').value===code&&!selected.size){
+   field('center').value='';
+   $('center-search').value='';
+   field('radius').value='';
+   if($('radius-slider'))$('radius-slider').value='0';
+  }
+ }else if(selected.size<100){
+  selected.add(code);
+  const cityObj=catalog.find(c=>c.code===code);
+  if(autoActivateRadius&&cityObj?.lat!=null){
+   $('center-search').value=`${cityObj.name} / ${cityObj.uf}`;
+   filterCenters();
+   field('center').value=cityObj.code;
+   if(!field('radius').value||Number(field('radius').value)<=0){
+    field('radius').value='100';
+    if($('radius-slider'))$('radius-slider').value='100';
+   }
+  }
+ }else{
+  $('message').textContent='Selecione até 100 municípios ou use região, estado ou raio.';
+  field('city').value='';
+  return;
+ }
+ field('city').value='';
+ selectedChips();
+ updateQuickHubsHighlight();
+ search();
+}
+function focusCommercialHub(code,radiusKm=100){
+ const cityObj=catalog.find(c=>c.code===String(code));
+ if(!cityObj)return;
+ selected.clear();
+ selected.add(cityObj.code);
+ field('region').value=cityObj.region||'';
+ updateUF();
+ field('uf').value=cityObj.uf||'';
+ filterCities();
+ $('center-search').value=`${cityObj.name} / ${cityObj.uf}`;
+ filterCenters();
+ field('center').value=cityObj.code;
+ field('radius').value=String(radiusKm);
+ if($('radius-slider'))$('radius-slider').value=String(radiusKm);
+ selectedChips();
+ updateQuickHubsHighlight();
+ search();
+}
+function renderQuickHubsBar(){
+ const host=$('map-quick-hubs');
+ if(!host)return;
+ host.replaceChildren();
+ const topHubs=(demographicsData?.items||[]).slice(0,8);
+ for(const h of topHubs){
+  const btn=el('button',`📍 ${h.name}/${h.uf}`);
+  btn.type='button';
+  btn.className='hub-quick-pill';
+  btn.dataset.hubCode=String(h.code);
+  btn.setAttribute('aria-pressed',String(field('center').value===String(h.code)||selected.has(String(h.code))));
+  btn.title=`Ativar bacia comercial de 100 km em ${h.name}/${h.uf} (Pop.: ${fmt(h.population)} · PIB/hab: R$ ${fmt(Math.round(h.pib_per_capita||0))})`;
+  btn.addEventListener('click',()=>focusCommercialHub(h.code,100));
+  host.append(btn);
+ }
+}
+function updateQuickHubsHighlight(){
+ for(const btn of document.querySelectorAll('.hub-quick-pill[data-hub-code]')){
+  const code=btn.dataset.hubCode;
+  btn.setAttribute('aria-pressed',String(field('center').value===code||selected.has(code)));
+ }
+}
+for(const btn of document.querySelectorAll('.map-mode-btn[data-map-layer]')){
+ btn.addEventListener('click',()=>{
+  mapLayerMode=btn.dataset.mapLayer||'operational';
+  for(const b of document.querySelectorAll('.map-mode-btn[data-map-layer]')){
+   b.setAttribute('aria-pressed',String(b===btn));
+  }
+  search(true);
+ });
+}
 field('region').addEventListener('change',()=>{updateUF();clearCities();filterCities();search()});field('uf').addEventListener('change',()=>{clearCities();filterCities();search()});
 field('city').addEventListener('change',()=>{if(field('city').value)chooseCity(field('city').value)});
 $('city-search').addEventListener('input',filterCities);
@@ -96,7 +176,7 @@ $('center-search').addEventListener('keydown',e=>{
   }
  }
 });
-$('clear-territory').addEventListener('click',()=>{field('region').value='';updateUF();field('uf').value='';field('center').value='';$('center-search').value='';field('radius').value='';$('radius-slider').value=0;clearCities();filterCities();filterCenters();search()});
+$('clear-territory').addEventListener('click',()=>{field('region').value='';updateUF();field('uf').value='';field('center').value='';$('center-search').value='';field('radius').value='';$('radius-slider').value=0;clearCities();filterCities();filterCenters();updateQuickHubsHighlight();search()});
 field('modality').addEventListener('change',()=>{field('submodality').value='';subs();search()});
 for(const key of ['submodality','category','talent'])field(key).addEventListener('change',searchOnChange);
 function searchOnChange(){
@@ -217,11 +297,327 @@ $('radius-slider').addEventListener('change',()=>{
  else $('message').textContent='Digite ou escolha a cidade centro do raio (ou volte o controle para 0 / Sem raio).';
 });
 
-function categoryCards(rows,scope,grand=null){const k=$('kpis');k.replaceChildren();$('category-scope').textContent=scope;const byId=new Map(rows.map(r=>[String(r.id),r.value]));const all=el('button');all.className='kpi';all.type='button';all.setAttribute('aria-pressed',String(!field('category').value));all.append(el('span','Total de talentos'),el('strong',grand==null?'—':fmt(grand)));if(scope.startsWith('Talentos com')&&catalogTotal!=null)all.append(el('small','Cadastro nacional: '+fmt(catalogTotal)));all.addEventListener('click',()=>{field('category').value='';search()});k.append(all);for(const c of categoryCatalog){const b=el('button');b.type='button';b.className='kpi';b.setAttribute('aria-pressed',String(field('category').value===String(c.id)));b.append(el('span',c.name),el('strong',byId.has(String(c.id))?fmt(byId.get(String(c.id))):'—'));if(scope.startsWith('Talentos com'))b.append(el('small','Cadastro nacional: '+fmt(c.value)));b.addEventListener('click',()=>{field('category').value=field('category').value===String(c.id)?'':String(c.id);search()});k.append(b);}}
+function categoryCards(rows,scope,grand=null){
+ const k=$('kpis');k.replaceChildren();$('category-scope').textContent=scope;
+ const byId=new Map(rows.map(r=>[String(r.id),r.value]));
+ const all=el('button');all.className='kpi';all.type='button';all.setAttribute('aria-pressed',String(!field('category').value));
+ all.append(
+  el('span','Total de talentos'),
+  el('strong',grand==null?'—':fmt(grand)),
+  el('small',scope.startsWith('Talentos com')&&catalogTotal!=null?'Cadastro nacional: '+fmt(catalogTotal):'Catálogo nacional ativo')
+ );
+ all.addEventListener('click',()=>{field('category').value='';search()});
+ k.append(all);
+ for(const c of categoryCatalog){
+  const b=el('button');b.type='button';b.className='kpi';b.setAttribute('aria-pressed',String(field('category').value===String(c.id)));
+  const countVal=byId.has(String(c.id))?byId.get(String(c.id)):0;
+  const pct=grand&&grand>0?Math.round(countVal/grand*100):0;
+  b.append(
+   el('span',c.name),
+   el('strong',byId.has(String(c.id))?fmt(countVal):'—'),
+   el('small',scope.startsWith('Talentos com')?'Cadastro nacional: '+fmt(c.value):`${pct}% do catálogo · Filtrar`)
+  );
+  b.addEventListener('click',()=>{field('category').value=field('category').value===String(c.id)?'':String(c.id);search()});
+  k.append(b);
+ }
+}
 function svg(tag,attrs={}){const e=document.createElementNS('http://www.w3.org/2000/svg',tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));return e}
 const project=([lon,lat])=>[20+(lon+75)*15,20+(6-lat)*13];
-function map(r){const target=$('map');target.replaceChildren();const note=el('p',geo?.states?'Mapa da Base Geográfica Nacional com divisas municipais (use o scroll do mouse para zoom).':'Malha territorial não carregada. Execute a sincronização geográfica.');note.textContent+=` ${fmt(geo?.total??0)} municípios cadastrados; ${fmt(geo?.coordinates??0)} com coordenadas.`;target.append(note);const s=svg('svg',{viewBox:'0 0 680 570',role:'img','aria-label':'Mapa nacional de audiência'});if(typeof window.renderRadarMunicipalMesh==='function'&&geo?.municipalities?.length){window.renderRadarMunicipalMesh(s,target,geo,{...r,uf:field('uf').value,explicitCities:[...selected]},m=>chooseCity(m.code),uf=>chooseState(uf));}else{const values=new Map(r.byState.map(x=>[x.name,x.value])),max=Math.max(1,...values.values());for(const f of geo?.states?.features??[]){const polys=f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates;const d=polys.flatMap(poly=>poly.map(ring=>ring.map((p,i)=>(i?'L':'M')+project(p).join(' ')).join(' ')+'Z')).join(' '),uf=f.properties.uf,v=values.get(uf);const p=svg('path',{d,tabindex:'0',role:'button','aria-label':'Selecionar estado '+uf,fill:v?`rgba(168,85,247,${.18+.72*v/max})`:'#303036',stroke:'#71717a','fill-rule':'evenodd'});p.addEventListener('click',()=>chooseState(uf));p.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();chooseState(uf)}});s.append(p)}const chosen=geo?.states?.features?.find(f=>f.properties.uf===field('uf').value);if(chosen){const rings=chosen.geometry.type==='Polygon'?chosen.geometry.coordinates:chosen.geometry.coordinates.flat();const points=rings.flat().map(project);if(points.length){const [x,y,maxX,maxY]=points.reduce(([x,y,X,Y],[a,b])=>[Math.min(x,a),Math.min(y,b),Math.max(X,a),Math.max(Y,b)],[Infinity,Infinity,-Infinity,-Infinity]),w=maxX-x,h=maxY-y,pad=8;s.setAttribute('viewBox',[x-pad,y-pad,Math.max(20,w+pad*2),Math.max(20,h+pad*2)].join(' '));}}if(r.origin){const a=r.origin.lat*Math.PI/180,b=r.origin.lon*Math.PI/180,d=r.radius/6371;const points=Array.from({length:97},(_,i)=>{const t=i/96*2*Math.PI,lat=Math.asin(Math.sin(a)*Math.cos(d)+Math.cos(a)*Math.sin(d)*Math.cos(t)),lon=b+Math.atan2(Math.sin(t)*Math.sin(d)*Math.cos(a),Math.cos(d)-Math.sin(a)*Math.sin(lat));return project([lon*180/Math.PI,lat*180/Math.PI]).join(',')}).join(' ');s.append(svg('polygon',{points,fill:'#a855f722',stroke:'#d8b4fe','stroke-dasharray':'5 4'}));}}const maxCity=Math.max(1,...r.places.map(p=>p.value)),valuesByCity=new Map(r.places.map(p=>[p.code,p]));const uf=field('uf').value,region=field('region').value;const pointRows=new Map(r.places.map(p=>[p.code,p]));for(const c of catalog){if(c.lat!=null&&(selected.has(c.code)||uf&&c.uf===uf||!uf&&region&&c.region===region))pointRows.set(c.code,valuesByCity.get(c.code)||c);}for(const p of pointRows.values()){if(p.lat==null)continue;const [cx,cy]=project([p.lon,p.lat]),value=valuesByCity.get(p.code)?.value,c=svg('circle',{cx,cy,r:value==null?2.5:3+12*Math.sqrt(value/maxCity),fill:value==null?'#71717a':'#eab308',stroke:selected.has(p.code)?'#fff':value==null?'#a1a1aa':'#fef08a','fill-opacity':value==null?.65:.75,class:'municipality-point',tabindex:'0',role:'button','aria-pressed':String(selected.has(p.code)),'aria-label':p.name+' / '+p.uf});const t=svg('title');t.textContent=p.name+' / '+p.uf+': '+(value==null?'Sem registro':fmt(value));c.append(t);c.addEventListener('click',()=>chooseCity(p.code));c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();chooseCity(p.code)}});s.append(c)}target.insertBefore(s,target.querySelector('.radius-summary'))}
-function selectionSummary(r){const rows=[...selected].map(code=>{const c=catalog.find(x=>x.code===code);const place=r?.places.find(x=>x.code===code);return [c?c.name+' / '+c.uf:code,place?fmt(place.value):'Sem dados']});const known=r?.places.filter(p=>selected.has(p.code))??[];if(selected.size)rows.push(['Total observado ('+known.length+' de '+selected.size+' cidades)',known.length?fmt(known.reduce((a,b)=>a+b.value,0)):'Sem dados']);table('selection-summary',['Município','Valor observado'],rows);}
+
+function buildOperationalMapPayload(baseR){
+ const hasVerifiedPlaces=Boolean(baseR?.places?.length);
+ const centerCode=field('center')?.value||'';
+ const radiusKm=Number(field('radius')?.value||0);
+ const centerCity=centerCode?catalog.find(c=>String(c.code)===String(centerCode)&&c.lat!=null):null;
+ const origin=baseR?.origin||(centerCity&&radiusKm>0?{code:centerCity.code,name:centerCity.name,uf:centerCity.uf,region:centerCity.region,lat:centerCity.lat,lon:centerCity.lon}:null);
+ const radius=baseR?.radius||(origin&&radiusKm>0?radiusKm:null);
+ if(hasVerifiedPlaces||mapLayerMode==='verified'){
+  return {...baseR,origin,radius,isOperationalFallback:false,hubs:[]};
+ }
+ const rFilter=field('region')?.value||'';
+ const ufFilter=field('uf')?.value||'';
+ const hubs=(demographicsData?.items||[]).filter(h=>(!rFilter||h.region===rFilter)&&(!ufFilter||h.uf===ufFilter));
+ const stateTotals=new Map();
+ for(const h of hubs){
+  stateTotals.set(h.uf,(stateTotals.get(h.uf)||0)+(Number(h.population)||0));
+ }
+ const byState=[...stateTotals.entries()].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value);
+ return {
+  ...baseR,
+  byState:baseR?.byState?.length?baseR.byState:byState,
+  places:baseR?.places||[],
+  origin,
+  radius,
+  isOperationalFallback:true,
+  hubs
+ };
+}
+
+function map(r){
+ const enriched=buildOperationalMapPayload(r);
+ const target=$('map');target.replaceChildren();
+ const note=el('p',geo?.states?'Mapa da Base Geográfica Nacional com divisas municipais (use o scroll do mouse para zoom e clique em qualquer cidade para simular o raio comercial).':'Malha territorial não carregada. Execute a sincronização geográfica.');
+ note.textContent+=` ${fmt(geo?.total??0)} municípios cadastrados; ${fmt(geo?.coordinates??0)} com coordenadas.`;
+ target.append(note);
+ const s=svg('svg',{viewBox:'0 0 680 570',role:'img','aria-label':'Mapa nacional de audiência'});
+ if(typeof window.renderRadarMunicipalMesh==='function'&&geo?.municipalities?.length){
+  window.renderRadarMunicipalMesh(s,target,geo,{...enriched,uf:field('uf').value,explicitCities:[...selected]},m=>chooseCity(m.code,true),uf=>chooseState(uf));
+ }else{
+  const values=new Map(enriched.byState.map(x=>[x.name,x.value])),max=Math.max(1,...values.values());
+  for(const f of geo?.states?.features??[]){
+   const polys=f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates;
+   const d=polys.flatMap(poly=>poly.map(ring=>ring.map((p,i)=>(i?'L':'M')+project(p).join(' ')).join(' ')+'Z')).join(' '),uf=f.properties.uf,v=values.get(uf);
+   const p=svg('path',{d,tabindex:'0',role:'button','aria-label':'Selecionar estado '+uf,fill:v?`rgba(168,85,247,${.18+.72*v/max})`:'#303036',stroke:'#71717a','fill-rule':'evenodd'});
+   p.addEventListener('click',()=>chooseState(uf));
+   p.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();chooseState(uf)}});
+   s.append(p);
+  }
+  const chosen=geo?.states?.features?.find(f=>f.properties.uf===field('uf').value);
+  if(chosen){
+   const rings=chosen.geometry.type==='Polygon'?chosen.geometry.coordinates:chosen.geometry.coordinates.flat();
+   const points=rings.flat().map(project);
+   if(points.length){
+    const [x,y,maxX,maxY]=points.reduce(([x,y,X,Y],[a,b])=>[Math.min(x,a),Math.min(y,b),Math.max(X,a),Math.max(Y,b)],[Infinity,Infinity,-Infinity,-Infinity]),w=maxX-x,h=maxY-y,pad=8;
+    s.setAttribute('viewBox',[x-pad,y-pad,Math.max(20,w+pad*2),Math.max(20,h+pad*2)].join(' '));
+   }
+  }
+  if(enriched.origin){
+   const a=enriched.origin.lat*Math.PI/180,b=enriched.origin.lon*Math.PI/180,d=enriched.radius/6371;
+   const points=Array.from({length:97},(_,i)=>{const t=i/96*2*Math.PI,lat=Math.asin(Math.sin(a)*Math.cos(d)+Math.cos(a)*Math.sin(d)*Math.cos(t)),lon=b+Math.atan2(Math.sin(t)*Math.sin(d)*Math.cos(a),Math.cos(d)-Math.sin(a)*Math.sin(lat));return project([lon*180/Math.PI,lat*180/Math.PI]).join(',')}).join(' ');
+   s.append(svg('polygon',{points,fill:'#a855f722',stroke:'#d8b4fe','stroke-dasharray':'5 4'}));
+  }
+ }
+ if(enriched.isOperationalFallback&&enriched.hubs?.length){
+  const maxPop=Math.max(1,...enriched.hubs.map(h=>Number(h.population)||0));
+  for(const h of enriched.hubs){
+   if(h.lat==null||h.lon==null)continue;
+   const [cx,cy]=project([h.lon,h.lat]);
+   const isSelectedHub=selected.has(String(h.code))||field('center').value===String(h.code);
+   const rad=isSelectedHub?7.5:3.8+6.5*Math.sqrt((Number(h.population)||0)/maxPop);
+   const hubCircle=svg('circle',{
+    cx,
+    cy,
+    r:rad.toFixed(1),
+    fill:isSelectedHub?'#d946ef':'#00f0ff',
+    stroke:isSelectedHub?'#ffffff':'#a855f7',
+    'stroke-width':isSelectedHub?'2':'1.3',
+    'fill-opacity':isSelectedHub?'0.92':'0.78',
+    class:'ibge-hub-point',
+    tabindex:'0',
+    role:'button',
+    'aria-label':`Polo comercial ${h.name} / ${h.uf}`
+   });
+   const t=svg('title');
+   t.textContent=`Polo Comercial IBGE: ${h.name} / ${h.uf} (${h.region}) · População: ${fmt(h.population)} · PIB per capita: R$ ${fmt(Math.round(h.pib_per_capita||0))} · ${h.economic_profile||'Polo regional'} (clique para simular bacia de 100 km)`;
+   hubCircle.append(t);
+   hubCircle.addEventListener('click',e=>{e.stopPropagation();focusCommercialHub(h.code,100);});
+   s.append(hubCircle);
+  }
+ }
+ const maxCity=Math.max(1,...r.places.map(p=>p.value)),valuesByCity=new Map(r.places.map(p=>[p.code,p]));
+ const uf=field('uf').value,region=field('region').value;
+ const pointRows=new Map(r.places.map(p=>[p.code,p]));
+ for(const c of catalog){if(c.lat!=null&&(selected.has(c.code)||uf&&c.uf===uf||!uf&&region&&c.region===region))pointRows.set(c.code,valuesByCity.get(c.code)||c);}
+ for(const p of pointRows.values()){
+  if(p.lat==null)continue;
+  const [cx,cy]=project([p.lon,p.lat]),value=valuesByCity.get(p.code)?.value,c=svg('circle',{cx,cy,r:value==null?2.5:3+12*Math.sqrt(value/maxCity),fill:value==null?'#71717a':'#eab308',stroke:selected.has(p.code)?'#fff':value==null?'#a1a1aa':'#fef08a','fill-opacity':value==null?.65:.75,class:'municipality-point',tabindex:'0',role:'button','aria-pressed':String(selected.has(p.code)),'aria-label':p.name+' / '+p.uf});
+  const t=svg('title');t.textContent=p.name+' / '+p.uf+': '+(value==null?'Sem registro':fmt(value));
+  c.append(t);
+  c.addEventListener('click',()=>chooseCity(p.code));
+  c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();chooseCity(p.code)}});
+  s.append(c);
+ }
+ target.insertBefore(s,target.querySelector('.radius-summary'));
+ renderTerritoryInspector(enriched);
+}
+
+function renderOperationalSidebars(artistMap){
+ const hasVerified=Boolean(artistMap?.places?.length);
+ if($('side-regions-title'))$('side-regions-title').textContent=hasVerified?'Audiência por região':'Potencial demográfico por região (Polos IBGE)';
+ if($('side-artists-title'))$('side-artists-title').textContent=hasVerified?'Artistas por região':'PIB per capita médio por região (R$ · IBGE)';
+ if($('side-states-title'))$('side-states-title').textContent=hasVerified?'Audiência por estado':'Polos comerciais por estado (População IBGE)';
+ if($('detail-cities-title'))$('detail-cities-title').textContent=hasVerified?'Cidades com maior concentração':'Principais polos comerciais & capitais (IBGE · Clique para simular)';
+ if(hasVerified||mapLayerMode==='verified'){
+  bars('regions',artistMap?.byRegion||[]);
+  bars('region-artists',artistMap?.byRegionTalent||[]);
+  bars('states',artistMap?.byState||[]);
+  bars('cities',(artistMap?.places||[]).slice(0,30).map(x=>({name:x.name+' / '+x.uf,value:x.value,code:x.code})),row=>{if(row.code)focusCommercialHub(row.code,100);});
+  return;
+ }
+ const rFilter=field('region')?.value||'';
+ const ufFilter=field('uf')?.value||'';
+ const hubs=(demographicsData?.items||[]).filter(h=>(!rFilter||h.region===rFilter)&&(!ufFilter||h.uf===ufFilter));
+ const regPop=(demographicsData?.byRegion||[]).filter(r=>!rFilter||r.region===rFilter).map(r=>({name:r.region,value:Number(r.population)||0}));
+ const regPib=(demographicsData?.byRegion||[]).filter(r=>!rFilter||r.region===rFilter).map(r=>({name:r.region,value:Math.round(Number(r.avg_pib_per_capita)||0)}));
+ const stMap=new Map();
+ for(const h of hubs){stMap.set(h.uf,(stMap.get(h.uf)||0)+(Number(h.population)||0));}
+ const stRows=[...stMap.entries()].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value);
+ const cityRows=hubs.slice(0,30).map(h=>({name:`${h.name} / ${h.uf}`,value:Number(h.population)||0,code:h.code}));
+ bars('regions',regPop,row=>{field('region').value=field('region').value===row.name?'':row.name;updateUF();clearCities();filterCities();search();},' hab');
+ bars('region-artists',regPib,row=>{field('region').value=field('region').value===row.name?'':row.name;updateUF();clearCities();filterCities();search();});
+ bars('states',stRows,row=>chooseState(row.name),' hab');
+ bars('cities',cityRows,row=>{if(row.code)focusCommercialHub(row.code,100);},' hab');
+}
+
+function selectionSummary(r){
+ const demByCode=new Map((demographicsData?.items||[]).map(d=>[String(d.code),d]));
+ const rows=[...selected].map(code=>{
+  const c=catalog.find(x=>x.code===code);
+  const place=r?.places?.find(x=>x.code===code);
+  const dem=demByCode.get(String(code));
+  const label=c?`${c.name} / ${c.uf} (${c.region})`:code;
+  const valText=place
+   ?fmt(place.value)
+   :dem
+     ?`Pop. IBGE: ${fmt(dem.population)} · PIB/hab: R$ ${fmt(Math.round(dem.pib_per_capita||0))}`
+     :`Bacia Regional (${c?.region||'Brasil'})`;
+  const simBtn=el('button','⚡ Simular Show');
+  simBtn.type='button';
+  simBtn.className='secondary-button';
+  simBtn.addEventListener('click',()=>focusCommercialHub(code,100));
+  return [label,valText,simBtn];
+ });
+ const known=r?.places?.filter(p=>selected.has(p.code))??[];
+ if(selected.size&&known.length){
+  rows.push(['Total observado ('+known.length+' de '+selected.size+' cidades)',fmt(known.reduce((a,b)=>a+b.value,0)),'—']);
+ }
+ table('selection-summary',['Município / UF','Audiência / Potencial IBGE','Ação no Mapa'],rows);
+}
+
+async function renderTerritoryInspector(enrichedMap){
+ const host=$('map-territory-inspector');
+ if(!host)return;
+ const seq=++inspectorSeq;
+ const centerCode=field('center')?.value||([...selected][0]||'');
+ const ufFilter=field('uf')?.value||'';
+ const rFilter=field('region')?.value||'';
+ const demItems=demographicsData?.items||[];
+ const activeHub=
+  (centerCode&&(demItems.find(d=>String(d.code)===String(centerCode))||catalog.find(c=>String(c.code)===String(centerCode))))||
+  (ufFilter&&demItems.find(d=>d.uf===ufFilter))||
+  (rFilter&&demItems.find(d=>d.region===rFilter))||
+  demItems[0]||
+  null;
+ if(!activeHub){
+  host.replaceChildren(el('p','Clique em qualquer estado ou município no mapa para inspecionar o potencial da praça e simular a viabilidade comercial.'));
+  return;
+ }
+ const radiusKm=Number(field('radius')?.value)||100;
+ const chosenTalentId=field('talent')?.value||'';
+ const activeArtist=
+  lastCrossItems.find(a=>a.id===chosenTalentId)||
+  active360Artist||
+  lastCrossItems.find(a=>Object.values(a.media||{}).some(m=>m?.value!=null))||
+  lastCrossItems[0]||
+  null;
+ const demInfo=demItems.find(d=>String(d.code)===String(activeHub.code))||activeHub;
+ host.replaceChildren();
+ const head=el('div');head.className='inspector-head';
+ const titleGroup=el('div');titleGroup.className='inspector-title-group';
+ titleGroup.append(
+  el('strong',`⌖ Praça em Foco no Mapa: ${activeHub.name} / ${activeHub.uf} (${activeHub.region||'Brasil'}) · Bacia de ${radiusKm} km`),
+  el('small',demInfo.population?`Base Oficial IBGE · População: ${fmt(demInfo.population)} hab · PIB per capita: R$ ${fmt(Math.round(demInfo.pib_per_capita||0))} · Perfil: ${demInfo.economic_profile||'Polo comercial'}`:`Município oficial IBGE (${activeHub.name}/${activeHub.uf}) · Clique em "Ativar Raio 100 km" ou simule a compatibilidade comercial`)
+ );
+ const scoreBadge=el('div','Calculando viabilidade artista × praça…');
+ scoreBadge.className='inspector-score-badge';
+ head.append(titleGroup,scoreBadge);
+ host.append(head);
+
+ const metricsGrid=el('div');metricsGrid.className='inspector-metrics-grid';
+ const addMetricBox=(label,val,sub)=>{
+  const box=el('div');box.className='inspector-metric-box';
+  box.append(el('span',label),el('strong',val),el('small',sub));
+  metricsGrid.append(box);
+ };
+ addMetricBox(
+  'População do Polo (IBGE)',
+  demInfo.population?`${fmt(demInfo.population)} hab`:'Catálogo Municipal',
+  demInfo.economic_profile||`UF: ${activeHub.uf} · Região ${activeHub.region||'Brasil'}`
+ );
+ addMetricBox(
+  'PIB per Capita / Renda',
+  demInfo.pib_per_capita?`R$ ${fmt(Math.round(demInfo.pib_per_capita))}`:'Base Territorial IBGE',
+  demInfo.avg_income?`Renda média est.: R$ ${fmt(Math.round(demInfo.avg_income))}/mês`:'Indicador econômico municipal'
+ );
+ addMetricBox(
+  'Artista em Simulação',
+  activeArtist?activeArtist.name:'Catálogo Nacional',
+  activeArtist?`YouTube: ${activeArtist.media?.YouTube?.formatted||'—'} · Spotify: ${activeArtist.media?.Spotify?.formatted||'—'}`:'Selecione um artista'
+ );
+ addMetricBox(
+  'Raio Comercial no Mapa',
+  `${radiusKm} km`,
+  field('center')?.value===String(activeHub.code)?'Anel de bacia regional ativo no mapa':'Clique abaixo para traçar o raio no mapa'
+ );
+ host.append(metricsGrid);
+
+ const actionsRow=el('div');actionsRow.className='inspector-actions';
+ const topArtistsBar=el('div');topArtistsBar.className='inspector-top-artists';
+ topArtistsBar.append(el('span','Simular outro artista nesta praça:'));
+ for(const a of lastCrossItems.slice(0,6)){
+  const pill=el('button',a.name);
+  pill.type='button';
+  pill.className='inspector-artist-pill';
+  pill.addEventListener('click',()=>{
+   field('talent').value=a.id;
+   if($('artist-quick-search'))$('artist-quick-search').value=a.name;
+   search(true);
+  });
+  topArtistsBar.append(pill);
+ }
+ const btnGroup=el('div');btnGroup.style.display='flex';btnGroup.style.gap='6px';btnGroup.style.flexWrap='wrap';
+ if(field('center')?.value!==String(activeHub.code)){
+  const radiusBtn=el('button',`📍 Traçar Bacia de 100 km em ${activeHub.name}`);
+  radiusBtn.type='button';
+  radiusBtn.addEventListener('click',()=>focusCommercialHub(activeHub.code,100));
+  btnGroup.append(radiusBtn);
+ }
+ const commLink=el('a',`↗ Abrir Simulador Comercial (${activeArtist?.name||'Artista'} × ${activeHub.name})`);
+ commLink.className='secondary-button';
+ commLink.style.textDecoration='none';
+ commLink.style.padding='4px 10px';
+ commLink.style.borderRadius='6px';
+ commLink.style.fontSize='11.5px';
+ const simParams=new URLSearchParams({
+  q:activeArtist?.name||'',
+  city:String(activeHub.code),
+  cityQuery:`${activeHub.name} / ${activeHub.uf}`,
+  radius:String(radiusKm)
+ });
+ commLink.href='/commercial.html?'+simParams.toString()+'#compatibility-simulator';
+ btnGroup.append(commLink);
+ actionsRow.append(topArtistsBar,btnGroup);
+ host.append(actionsRow);
+
+ if(activeArtist){
+  try{
+   const cp=new URLSearchParams({talent:activeArtist.id,city:String(activeHub.code),radius:String(radiusKm)});
+   const compat=await get('/api/commercial/compatibility?'+cp);
+   if(seq!==inspectorSeq)return;
+   const sc=compat?.compatibility?.score;
+   const cls=compat?.compatibility?.classification||'Potencial calculado';
+   scoreBadge.textContent=sc!=null
+    ?`⚡ Compatibilidade Comercial (${activeArtist.name} × ${activeHub.name}/${activeHub.uf}): ${sc}/100 · ${cls}`
+    :`⚡ Praça pronta para simulação comercial (${activeHub.name}/${activeHub.uf})`;
+   if(compat?.territory?.basin?.municipalitiesCount){
+    const basinBox=metricsGrid.children[3];
+    if(basinBox){
+     basinBox.replaceChildren(
+      el('span',`Bacia Regional (${radiusKm} km)`),
+      el('strong',`${fmt(compat.territory.basin.municipalitiesCount)} municípios`),
+      el('small',compat.territory.basin.coveredPopulation?`População nos polos do raio: ${fmt(compat.territory.basin.coveredPopulation)} hab`:`Alcance territorial a partir de ${activeHub.name}`)
+     );
+    }
+   }
+  }catch{
+   if(seq===inspectorSeq){
+    scoreBadge.textContent=`⚡ Praça monitorada: ${activeHub.name} / ${activeHub.uf}`;
+   }
+  }
+ }else{
+  scoreBadge.textContent=`⚡ Praça monitorada: ${activeHub.name} / ${activeHub.uf}`;
+ }
+}
 
 const names={views:'Visualizações',followers:'Seguidores',reach:'Alcance',listeners:'Ouvintes',streams:'Reproduções',subscribers:'Inscritos'};let reports=[],activeReports=[],reportSeq=0;
 function params(){const r=activeReports[Number(field('report').value)];if(!r||field('report').value==='')return null;return new URLSearchParams({network:r.network,metric:r.metric,start:r.period_start,end:r.period_end,source:r.source,quality:r.quality});}
@@ -277,7 +673,7 @@ async function search(keepPage=false){
  }
  const k=$('audience-kpis');
  if(!p){
-  $('message').textContent='Consultando indicadores nacionais. Audiência por município exige relatório regional verificado…';
+  $('message').textContent='Consultando indicadores nacionais e camada operacional de polos comerciais (IBGE)…';
   k.replaceChildren();
   categoryCards(categoryCatalog,'Cadastro nacional de talentos — indicadores consolidados das 4 mídias e presença territorial',catalogTotal);
   selectionSummary(null);
@@ -288,29 +684,29 @@ async function search(keepPage=false){
    if(qInput&&!field('talent').value)cp.set('q',qInput);
    const cross=await get('/api/radar/cross-summary?'+cp);
    if(n!==request)return;
+   lastCrossItems=cross.items||[];
    if(field('talent').options.length<=1&&cross.items?.length){
     options(field('talent'),cross.items.map(t=>({id:t.id,name:t.name})),'Todos com dados');
     const dl=$('talent-datalist');
     if(dl)dl.replaceChildren(...cross.items.map(r=>{const o=document.createElement('option');o.value=r.name;return o;}));
    }
-   for(const [label,value] of [
-    ['Talentos no recorte',cross.total],
-    ['Com estatísticas verificadas',cross.counts?.withCollectedMetrics??0],
-    ['Perfis oficiais vinculados',cross.counts?.withOfficialProfiles??0],
-    ['Registros de Audiência por Cidade',cross.counts?.regionalRecords??0]
+   for(const [label,value,sub] of [
+    ['Talentos no recorte',cross.total,'Catálogo ativo filtrado'],
+    ['Com estatísticas verificadas',cross.counts?.withCollectedMetrics??0,'Métricas reais auditadas'],
+    ['Perfis oficiais vinculados',cross.counts?.withOfficialProfiles??0,'Instagram, Spotify, YouTube e TikTok'],
+    ['Polos Comerciais IBGE / Registros',cross.counts?.regionalRecords||demographicsData?.items?.length||0,cross.counts?.regionalRecords?'Registros de audiência municipal':'Capitais e polos IBGE ativos no mapa']
    ]){
-    const box=el('div');box.className='kpi';box.append(el('span',label),el('strong',fmt(value)));k.append(box);
+    const box=el('div');box.className='kpi';box.append(el('span',label),el('strong',fmt(value)),el('small',sub));k.append(box);
    }
    const pageItems=(cross.items||[]).slice(offset,offset+100);
    renderOverview20(cross);
    table('artists',['Artista','Instagram','Spotify','YouTube','TikTok','Audiência por Cidade'],pageItems.map(a=>{
     const b=el('button',a.name);b.type='button';b.className='link';
     b.addEventListener('click',()=>{
-     if($('artist-360-body')){
-      selectOverviewArtist360(a);
-     }else{
-      location.href='/commercial.html?q='+encodeURIComponent(a.name);
-     }
+     field('talent').value=a.id;
+     if($('artist-quick-search'))$('artist-quick-search').value=a.name;
+     if($('artist-360-body'))selectOverviewArtist360(a);
+     search(true);
     });
     const cellFor=net=>{
      const m=a.media?.[net];
@@ -322,7 +718,7 @@ async function search(keepPage=false){
      }
      return m.statusLabel;
     };
-    return [b,cellFor('Instagram'),cellFor('Spotify'),cellFor('YouTube'),cellFor('TikTok'),a.regionalAudience?.hasData?a.regionalAudience.statusLabel:'Aguardando dados verificados'];
+    return [b,cellFor('Instagram'),cellFor('Spotify'),cellFor('YouTube'),cellFor('TikTok'),a.regionalAudience?.hasData?a.regionalAudience.statusLabel:'Simulador de Praça IBGE ativo'];
    }));
    const growingRows=[];
    for(const a of (cross.items||[])){
@@ -365,10 +761,7 @@ async function search(keepPage=false){
      }
     }
    }
-   bars('regions',artistMap?.byRegion||[]);
-   bars('states',artistMap?.byState||[]);
-   bars('cities',(artistMap?.places||[]).slice(0,30).map(x=>({name:x.name+' / '+x.uf,value:x.value})));
-   bars('region-artists',artistMap?.byRegionTalent||[]);
+   renderOperationalSidebars(artistMap);
    total=cross.total||0;
    $('page').textContent=total?`${offset+1}–${Math.min(offset+100,total)} de ${total}`:'Sem dados';
    $('prev').disabled=offset===0;
@@ -377,8 +770,8 @@ async function search(keepPage=false){
    $('message').textContent=artistMap
      ?`Bolinhas amarelas: audiência por município de ${selectedArtist.name}. ${artistReport.network} / ${artistReport.metric}, relatório verificado de ${artistReport.period_start} a ${artistReport.period_end}. Círculos maiores = maior volume observado.`
      :selectedArtist
-       ?`Sem audiência municipal verificada para ${selectedArtist.name}. Os números nacionais não identificam em que cidades estão seus espectadores. O mapa permanece sem bolinhas amarelas até existir relatório regional.`
-       :'Selecione um artista para destacar automaticamente suas cidades com audiência verificada. Sem relatório regional, o mapa não inventa localização de público.';
+       ?`Modo Operacional IBGE ativo para ${selectedArtist.name}: clique em qualquer polo ou cidade no mapa para simular a bacia regional (100 km) e a compatibilidade comercial. Bolinhas amarelas acendem automaticamente quando há relatório municipal verificado.`
+       :'Mapa Operacional ativo com Polos Comerciais IBGE e Simulador de Bacia Regional (100 km). Clique em qualquer estado, polo ou município no mapa para simular a viabilidade comercial.';
   }catch{
    $('message').textContent='Nenhum relatório municipal disponível para esta mídia. Importe uma fonte autorizada.';
    table('artists',[],[]);
@@ -406,13 +799,10 @@ async function search(keepPage=false){
   const radiusLabel=(field('center').value&&field('radius').value&&Number(field('radius').value)>0)?`Raio de ${field('radius').value} km aplicado. `:'Consulta sem restrição de raio. ';
   $('message').textContent=(r.total?'Dados do relatório selecionado. ':'Nenhum registro neste recorte. ')+radiusLabel+r.notice+(r.excludedCoordinates?` ${r.excludedCoordinates} registros sem coordenadas foram excluídos do raio.`:'');
   k.replaceChildren();
-  for(const [label,value] of [[names[r.metric]??r.metric,count],['Artistas com dados',r.total],['Municípios com dados',r.places.length]]){
-   const box=el('div');box.className='kpi';box.append(el('span',label),el('strong',r.total?fmt(value):'—'));k.append(box);
+  for(const [label,value,sub] of [[names[r.metric]??r.metric,count,'Volume verificado no recorte'],['Artistas com dados',r.total,'Talentos com audiência regional'],['Municípios com dados',r.places.length,'Cidades com registro positivo']]){
+   const box=el('div');box.className='kpi';box.append(el('span',label),el('strong',r.total?fmt(value):'—'),el('small',sub));k.append(box);
   }
-  bars('regions',r.byRegion);
-  bars('region-artists',r.byRegionTalent||[]);
-  bars('states',r.byState);
-  bars('cities',r.places.slice(0,30).map(x=>({name:x.name+' / '+x.uf,value:x.value})));
+  renderOperationalSidebars(r);
   table('artists',['Posição','Artista','Valor','Municípios'],r.items.map(a=>{
    const b=el('button',a.name);b.type='button';b.className='link';
    b.addEventListener('click',()=>{field('talent').value=a.id;if($('artist-quick-search'))$('artist-quick-search').value=a.name;search()});
@@ -633,4 +1023,4 @@ for(const btn of document.querySelectorAll('.win-switch[data-evo-days]')){
  });
 }
 form.addEventListener('submit',e=>{e.preventDefault();search()});field('network').addEventListener('change',networkChanged);field('report').addEventListener('change',reportChanged);field('days').addEventListener('change',metricChanged);field('metric').addEventListener('change',metricChanged);$('radius-slider').addEventListener('input',()=>{const v=Number($('radius-slider').value);field('radius').value=v>0?String(v):'';});field('radius').addEventListener('input',()=>{const v=Number(field('radius').value);$('radius-slider').value=Number.isFinite(v)&&v>0?String(v):'0';});$('reload').addEventListener('click',()=>loadReports().catch(e=>$('message').textContent=e.message));$('prev').addEventListener('click',()=>{offset=Math.max(0,offset-100);search(true)});$('next').addEventListener('click',()=>{if(offset+100<total){offset+=100;search(true)}});
-(async()=>{try{let cats,municipal;[mods,geo,cats,municipal]=await Promise.all([get('/api/radar/modalities'),get('/api/radar/geography'),get('/api/regional/categories'),get('/api/radar/municipalities')]);categoryCatalog=cats.categories;catalogTotal=cats.total;catalog=municipal.items;options(field('category'),categoryCatalog.map(c=>({id:String(c.id),name:c.name})),'Todas');options(field('modality'),mods,'Todas');subs();filterCities();filterCenters();categoryCards(categoryCatalog,'Cadastro nacional de talentos',catalogTotal);await loadReports()}catch(e){$('message').textContent=e.message}})();
+(async()=>{try{let cats,municipal,demog;[mods,geo,cats,municipal,demog]=await Promise.all([get('/api/radar/modalities'),get('/api/radar/geography'),get('/api/regional/categories'),get('/api/radar/municipalities'),get('/api/radar/demographics').catch(()=>({items:[],byRegion:[]}))]);categoryCatalog=cats.categories;catalogTotal=cats.total;catalog=municipal.items;demographicsData=demog||{items:[],byRegion:[]};renderQuickHubsBar();options(field('category'),categoryCatalog.map(c=>({id:String(c.id),name:c.name})),'Todas');options(field('modality'),mods,'Todas');subs();filterCities();filterCenters();categoryCards(categoryCatalog,'Cadastro nacional de talentos',catalogTotal);await loadReports()}catch(e){$('message').textContent=e.message}})();

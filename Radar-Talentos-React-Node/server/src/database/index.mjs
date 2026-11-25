@@ -122,6 +122,28 @@ export function openDatabase(filename = databasePath()) {
       origin_table TEXT NOT NULL,
       reason TEXT NOT NULL,
       quarantined_at TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS radar_users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL,
+      email TEXT NOT NULL DEFAULT '',
+      role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin','user')),
+      password_hash TEXT NOT NULL,
+      password_salt TEXT NOT NULL,
+      must_change_password INTEGER NOT NULL DEFAULT 1 CHECK(must_change_password IN (0,1)),
+      active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+      permissions_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      last_login_at TEXT
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS radar_sessions (
+      token TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES radar_users(id) ON DELETE CASCADE,
+      impersonated_user_id TEXT REFERENCES radar_users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
     ) STRICT;`);
     return db;
   } catch (error) {

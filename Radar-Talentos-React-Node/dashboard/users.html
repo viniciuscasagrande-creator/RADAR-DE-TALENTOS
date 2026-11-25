@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Usuários &amp; Permissões | Radar de Talentos</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/talent-home.css" />
+  <link rel="stylesheet" href="/rising.css" />
+  <script defer src="/users.js"></script>
+  <script defer src="/rising-notifications.js"></script>
+</head>
+<body class="dashboard talent-home rising-page users-page">
+  <a class="skip-link" href="#users-overview">Ir para o conteúdo</a>
+  <header class="sidebar">
+    <a class="brand" href="/">
+      <span aria-hidden="true" class="radar-mark"><img src="/radar-logo-mark.png" alt="" class="brand-logo-img" /></span>
+      <span>RADAR DE<br /><b>TALENTOS</b></span>
+    </a>
+    <p class="brand-sub">Inteligência de mercado</p>
+    <nav aria-label="Navegação principal">
+      <span class="nav-label">AMBIENTE EXECUTIVO</span>
+      <a href="/">◉ &nbsp; Visão Geral</a>
+      <a href="/audience.html">⌖ &nbsp; Audiência Geográfica</a>
+      <a href="/commercial.html">↗ &nbsp; Oportunidade Comercial</a>
+      <a href="/rising.html">★ &nbsp; Talentos Emergentes</a>
+      <span class="nav-label">NESTE PAINEL</span>
+      <a href="#users-overview">Resumo &amp; Sessão Ativa</a>
+      <a href="#create-user-panel">Criar Novo Usuário</a>
+      <a href="#users-matrix-panel">Usuários &amp; Check de Permissões</a>
+      <span class="nav-label">AMBIENTE ADMINISTRATIVO</span>
+      <a href="/acquisition.html">⚙ &nbsp; Motor de Dados</a>
+      <a href="/discovery.html">✓ &nbsp; Prospecção e Aprovação</a>
+      <a aria-current="page" href="/users.html">👥 &nbsp; Usuários</a>
+      <span class="nav-label">CONSULTAS OPCIONAIS</span>
+      <a href="/events.html">▥ &nbsp; Eventos e Ticketeiras</a>
+    </nav>
+    <div class="side-status" data-state="online">
+      <span class="status-dot"></span>
+      <span id="connection-status" role="status">Controle de Acesso Ativo</span>
+      <small>Login, Senhas &amp; Permissões</small>
+    </div>
+  </header>
+
+  <main class="dashboard-main">
+    <section class="overview" id="users-overview">
+      <div class="topline">
+        <div class="topline-brand">
+          <span class="eyebrow">CONTROLE DE ACESSO CORPORATIVO · LOGIN, TROCA DE PERFIL &amp; MATRIZ DE PERMISSÕES <b class="env-badge">Segurança</b></span>
+          <h1>Gestão de Usuários, Senhas e Permissões</h1>
+        </div>
+        <div class="top-search-bar">
+          <button id="open-login-modal-btn" class="secondary-button" type="button">🔐 Entrar com outro Login</button>
+          <button id="open-change-pwd-btn" class="btn-simulate-show" type="button">🔑 Alterar Minha Senha</button>
+        </div>
+      </div>
+
+      <!-- 4 KPIs Executivos de Controle de Acesso -->
+      <div class="exec-kpi-grid rising-kpis" aria-label="Indicadores de usuários e segurança">
+        <article class="exec-kpi-card">
+          <span class="exec-kpi-label">Usuários Cadastrados</span>
+          <strong id="kpi-users-total">1</strong>
+          <small id="kpi-users-sub">Contas ativas no Radar</small>
+        </article>
+        <article class="exec-kpi-card">
+          <span class="exec-kpi-label">Perfil Logado / Ativo</span>
+          <strong id="kpi-active-user">Administrador Radar</strong>
+          <small id="kpi-active-role">@admin · Acesso Total</small>
+        </article>
+        <article class="exec-kpi-card">
+          <span class="exec-kpi-label">Troca Obrigatória de Senha</span>
+          <strong id="kpi-pending-pwd">0</strong>
+          <small id="kpi-pending-pwd-sub">Aguardando 1º login seguro</small>
+        </article>
+        <article class="exec-kpi-card">
+          <span class="exec-kpi-label">Política de Segurança</span>
+          <strong>8+ Caracteres</strong>
+          <small>Maiúscula, minúscula, número e símbolo</small>
+        </article>
+      </div>
+
+      <p class="query-status" id="users-status-banner" role="status">Painel de Controle de Acesso pronto. O Administrador pode criar usuários, liberar permissões em formato de check, resetar senhas e alternar para o perfil de qualquer usuário em 1 clique.</p>
+    </section>
+
+    <!-- 1. Formulário do Administrador: Criar Novo Usuário + Checkboxes de Permissões -->
+    <section class="rising-card neon-card cyan-card" id="create-user-panel">
+      <div class="rising-head">
+        <div>
+          <span class="eyebrow">CADASTRO ADMINISTRATIVO · LIBERAÇÃO IMEDIATA COM SENHA PROVISÓRIA</span>
+          <h2>➕ Criar Novo Usuário &amp; Definir Permissões (Check)</h2>
+          <p>Assim que criado, o usuário já tem acesso imediato ao Radar nos módulos marcados abaixo. No primeiro login, o sistema exigirá automaticamente o cadastro de uma **nova senha pessoal forte** seguindo os padrões de segurança.</p>
+        </div>
+      </div>
+
+      <form id="create-user-form" style="display:flex;flex-direction:column;gap:14px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+          <label class="filter-card" style="height:auto;padding:8px 10px">
+            <span class="filter-label">Nome Completo / Identificação</span>
+            <input id="new-user-name" type="text" required autocomplete="off" />
+          </label>
+          <label class="filter-card" style="height:auto;padding:8px 10px">
+            <span class="filter-label">Login de Acesso (usuário)</span>
+            <input id="new-user-username" type="text" required autocomplete="off" />
+          </label>
+          <label class="filter-card" style="height:auto;padding:8px 10px">
+            <span class="filter-label">E-mail Corporativo (opcional)</span>
+            <input id="new-user-email" type="email" autocomplete="off" />
+          </label>
+          <label class="filter-card" style="height:auto;padding:8px 10px">
+            <span class="filter-label">Senha Inicial Provisória</span>
+            <input id="new-user-password" type="text" required value="Mudar@123" autocomplete="off" />
+          </label>
+          <label class="filter-card" style="height:auto;padding:8px 10px">
+            <span class="filter-label">Nível de Conta</span>
+            <select id="new-user-role">
+              <option value="user" selected>👤 Usuário Padrão (Permissões via Check)</option>
+              <option value="admin">🛡 Administrador (Acesso Total)</option>
+            </select>
+          </label>
+        </div>
+
+        <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+            <strong style="font-size:12px;color:#e9d5ff">☑ Selecione as Permissões Liberadas para este Usuário:</strong>
+            <div style="display:flex;gap:6px">
+              <button type="button" id="chk-all-new-perms" class="secondary-button" style="height:24px;font-size:10.5px">Marcar Tudo</button>
+              <button type="button" id="chk-exec-new-perms" class="secondary-button" style="height:24px;font-size:10.5px">Somente Ambiente Executivo</button>
+            </div>
+          </div>
+          <div id="new-user-permissions-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:8px"></div>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <label style="display:inline-flex;align-items:center;gap:8px;font-size:12px;color:#a5f3fc;cursor:pointer">
+            <input id="new-user-must-change" type="checkbox" checked style="width:16px;height:16px" />
+            <span>Exigir obrigatoriamente o cadastro de nova senha forte no primeiro login do usuário</span>
+          </label>
+          <button type="submit" class="btn-simulate-show" style="height:36px;padding:0 18px;font-size:12.5px">🚀 Criar Usuário e Liberar Acesso</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 2. Lista de Usuários, Checkboxes de Permissões em Tempo Real, Reset de Senha e Troca de Perfil -->
+    <section class="rising-card neon-card" id="users-matrix-panel">
+      <div class="rising-head">
+        <div>
+          <span class="eyebrow">CONTROLE EM TEMPO REAL · PERMISSÕES EM CHECK · RESET DE SENHA · ACESSO COMO USUÁRIO</span>
+          <h2>👥 Usuários Cadastrados, Matriz de Permissões e Troca de Perfil</h2>
+          <p>Marque ou desmarque as permissões de cada usuário a qualquer momento, resete a senha quando solicitado ou clique em <b>"🎭 Acessar com este Perfil"</b> para navegar no Radar exatamente com a visão e permissões dele.</p>
+        </div>
+      </div>
+      <div id="users-cards-container" style="display:flex;flex-direction:column;gap:12px"></div>
+    </section>
+  </main>
+
+  <!-- Modal de Reset de Senha pelo Admin -->
+  <dialog aria-labelledby="reset-pwd-title" class="palette show-sim-modal" id="admin-reset-pwd-modal">
+    <div id="admin-reset-pwd-content" style="max-width:460px;margin:0 auto"></div>
+  </dialog>
+</body>
+</html>

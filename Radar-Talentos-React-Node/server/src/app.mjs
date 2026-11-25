@@ -5,6 +5,7 @@ import { currentDashboard } from './discovery/current-dashboard.mjs';
 import { acquisitionStatus } from './acquisition.mjs';
 import { getCrossMenuSummary, getDemographicsSummary, getArtistMediaStats } from './menu-integration.mjs';
 import { handleDiscovery } from './discovery/http.mjs';
+import { handleUsersApi } from './users.mjs';
 import { openDiscovery, listCandidates } from './discovery/engine.mjs';
 import { discoveryStatus } from './discovery.mjs';
 import { commercialCompatibility } from './commercial-compatibility.mjs';
@@ -108,6 +109,10 @@ export function createRadarServer({
     }
 
     if ((security || req.url !== '/api/discovery/status') && (await handleDiscovery(req, res, { radar: database, security }))) {
+      return;
+    }
+
+    if (await handleUsersApi(req, res, { database, security })) {
       return;
     }
 

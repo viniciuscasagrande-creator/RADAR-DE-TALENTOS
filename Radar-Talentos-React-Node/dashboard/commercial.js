@@ -778,14 +778,21 @@ function renderCompatibilityResult(d){
 
   const left=el('div',null,banner);
   const cats=[...(d.artist.categories||[]),...(d.artist.modalities||[])];
-  el('small',`Simulação de Viabilidade Comercial · ${d.city.name} / ${d.city.uf} (${d.city.region}) · Raio ${d.radiusKm} km (${d.catchment.totalMunicipalities} municípios)`+(cats.length?` · ${[...new Set(cats)].join(' / ')}`:''),left);
+  const travelInfo=d.roadTravelEstimate?` · Deslocamento est.: ${d.roadTravelEstimate.formattedDriveTime} (~${d.roadTravelEstimate.estimatedHighwayKm} km rodoviários)`:'';
+  el('small',`Simulação de Viabilidade Comercial · ${d.city.name} / ${d.city.uf} (${d.city.region}) · Raio ${d.radiusKm} km (${d.catchment.totalMunicipalities} municípios)${travelInfo}`+(cats.length?` · ${[...new Set(cats)].join(' / ')}`:''),left);
   el('h3',`${d.artist.name} × ${d.city.name} / ${d.city.uf} — ${d.verdict.label}`,left);
   el('p',d.verdict.recommendation,left);
+  if(d.confidenceIndicator){
+    const confLine=el('small',`🛡 Confiança Independente dos Dados: ${d.confidenceIndicator.score}% (${d.confidenceIndicator.level}) · Faixa Radar Score: ${d.radarScore?.bandLabel||d.verdict.label}`,left);
+    confLine.style.color='#67e8f9';
+    confLine.style.display='block';
+    confLine.style.marginTop='4px';
+  }
 
   const badge=el('div',null,banner);
   badge.className='compat-score-badge';
-  el('strong',d.score!=null?`${d.score}/100`:'—',badge);
-  el('small','Score Comercial',badge);
+  el('strong',d.score!=null?`${d.score}/100`:'Neutro',badge);
+  el('small','Radar Score Comercial',badge);
 
   const execGrid=el('div',null,compatResult);
   execGrid.className='compat-exec-grid';
@@ -842,11 +849,91 @@ function renderCompatibilityResult(d){
   if(d.city?.demographics||d.territorialPresence){
     const demoText=[];
     if(d.city?.demographics?.population)demoText.push(`População ${d.city.name}/${d.city.uf}: ${number(d.city.demographics.population)} hab. (IBGE)`);
+    if(d.roadTravelEstimate?.peaPopulation)demoText.push(`PEA estimada (Pop. Economicamente Ativa): ${number(d.roadTravelEstimate.peaPopulation)} hab.`);
     if(d.city?.demographics?.gdp_per_capita)demoText.push(`PIB per capita: R$ ${number(Math.round(d.city.demographics.gdp_per_capita))}`);
     if(d.catchment?.knownPopulation)demoText.push(`População polos no raio (${d.radiusKm} km): ${number(d.catchment.knownPopulation)} hab.`);
     if(d.territorialPresence)demoText.push(`Eventos publicados: ${d.territorialPresence.statusLabel}`);
     if(demoText.length)el('small',demoText.join(' · '),rightBox);
   }
+
+  // Simulador Financeiro de Viabilidade Econômica do Evento (Item 8 da Avaliação)
+  const finDefaults=d.financialDefaults||{artistFee:50000,operationalCosts:30000,venueCapacity:2000,averageTicket:100,expectedOccupancyPct:70,taxAndFeePct:10};
+  const finBox=el('div',null,compatResult);
+  finBox.className='compat-panel-box';
+  finBox.style.marginTop='12px';
+  finBox.style.border='1.5px solid #00f0ff';
+  finBox.style.boxShadow='0 0 18px rgba(0,240,255,0.22)';
+  const finHead=el('div',null,finBox);
+  finHead.className='city-header';
+  el('h4',`💰 Simulador Financeiro de Viabilidade de Eventos — ${d.artist.name} em ${d.city.name}/${d.city.uf}`,finHead);
+  el('small','Altere cachê, custos operacionais, capacidade, ingresso médio, ocupação e taxas para calcular ponto de equilíbrio e resultado operacional em tempo real.',finHead);
+
+  const finControls=el('div',null,finBox);
+  finControls.style.display='grid';
+  finControls.style.gridTemplateColumns='repeat(auto-fit,minmax(150px,1fr))';
+  finControls.style.gap='10px';
+  finControls.style.margin='10px 0';
+
+  function makeFinInput(labelText,initVal,step=100,min=0,max=10000000){
+    const lbl=el('label',null,finControls);
+    lbl.style.display='flex';lbl.style.flexDirection='column';lbl.style.gap='4px';
+    lbl.style.padding='8px 10px';lbl.style.background='#141022';lbl.style.border='1px solid #a855f7';lbl.style.borderRadius='8px';
+    el('span',labelText,lbl);
+    const inp=el('input',null,lbl);
+    inp.type='number';inp.value=String(initVal);inp.step=String(step);inp.min=String(min);inp.max=String(max);
+    return inp;
+  }
+
+  const inpFee=makeFinInput('Cachê artístico (R$)',finDefaults.artistFee,5000,0,5000000);
+  const inpOther=makeFinInput('Outros custos (R$)',finDefaults.operationalCosts,2000,0,5000000);
+  const inpCap=makeFinInput('Capacidade do local',finDefaults.venueCapacity,100,100,100000);
+  const inpTicket=makeFinInput('Ingresso médio (R$)',finDefaults.averageTicket,5,10,5000);
+  const inpOcc=makeFinInput('Ocupação esperada (%)',finDefaults.expectedOccupancyPct,5,10,100);
+  const inpTax=makeFinInput('Taxas e impostos (%)',finDefaults.taxAndFeePct,1,0,50);
+
+  const finResults=el('div',null,finBox);
+  finResults.style.display='grid';
+  finResults.style.gridTemplateColumns='repeat(auto-fit,minmax(170px,1fr))';
+  finResults.style.gap='10px';
+
+  function updateFinProjection(){
+    const fee=Math.max(0,Number(inpFee.value)||0);
+    const otherCosts=Math.max(0,Number(inpOther.value)||0);
+    const cap=Math.max(1,Number(inpCap.value)||1);
+    const ticket=Math.max(1,Number(inpTicket.value)||1);
+    const occPct=Math.max(1,Math.min(100,Number(inpOcc.value)||70));
+    const taxPct=Math.max(0,Math.min(90,Number(inpTax.value)||0));
+
+    const soldTickets=Math.round(cap*(occPct/100));
+    const grossRev=soldTickets*ticket;
+    const netRev=Math.round(grossRev*(1-taxPct/100));
+    const fixedCosts=fee+otherCosts;
+    const opResult=netRev-fixedCosts;
+    const opMarginPct=grossRev>0?(opResult/grossRev)*100:0;
+    const netPerTicket=ticket*(1-taxPct/100);
+    const breakEvenTickets=netPerTicket>0?Math.ceil(fixedCosts/netPerTicket):cap;
+    const minOccPct=(breakEvenTickets/cap)*100;
+
+    finResults.replaceChildren();
+    const cards=[
+      ['Resultado operacional estimado',`R$ ${number(opResult)}`,opResult>=0?'Lucro líquido projetado':'Déficit projetado no cenário',opResult>=0?'#22c55e':'#ef4444'],
+      ['Faturamento bruto',`R$ ${number(grossRev)}`,`Receita líquida: R$ ${number(netRev)}`,'#fafafa'],
+      ['Custos fixos totais',`R$ ${number(fixedCosts)}`,`Cachê R$ ${number(fee)} + Prod. R$ ${number(otherCosts)}`,'#e9d5ff'],
+      ['Ingressos vendidos',`${number(soldTickets)} ing.`,`Ocupação simulada: ${occPct}% de ${number(cap)}`,'#00f0ff'],
+      ['Margem operacional',`${opMarginPct.toFixed(1)}%`,`Após taxas/impostos de ${taxPct}%`,opMarginPct>=20?'#22c55e':'#facc15'],
+      ['Ponto de equilíbrio (Break-even)',`${number(breakEvenTickets)} ingressos`,`Ocupação mínima necessária: ${minOccPct.toFixed(1)}%`,minOccPct<=60?'#22c55e':minOccPct<=80?'#facc15':'#ef4444']
+    ];
+    for(const [kTitle,kVal,kSub,kColor] of cards){
+      const c=el('div',null,finResults);
+      c.style.padding='10px 12px';c.style.background='#110d1c';c.style.border='1px solid rgba(192,132,252,0.5)';c.style.borderRadius='8px';
+      c.style.display='flex';c.style.flexDirection='column';c.style.gap='3px';
+      const s1=el('small',kTitle,c);s1.style.textTransform='uppercase';s1.style.fontSize='9.5px';s1.style.color='#c4b5fd';
+      const st=el('strong',kVal,c);st.style.fontSize='17px';st.style.color=kColor;
+      const s2=el('small',kSub,c);s2.style.fontSize='10.5px';
+    }
+  }
+  [inpFee,inpOther,inpCap,inpTicket,inpOcc,inpTax].forEach(i=>i.addEventListener('input',updateFinProjection));
+  updateFinProjection();
 
   if(topCatchmentCities.length>1){
     el('small',`Cidades-polo na bacia de ${d.radiusKm} km (clique para simular individualmente):`,rightBox);

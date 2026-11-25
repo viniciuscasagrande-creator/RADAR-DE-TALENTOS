@@ -49,17 +49,31 @@
       ytViews != null && ytSubs != null && ytSubs > 0 ? Math.round(ytViews / ytSubs) : null;
 
     const maxReach = Math.max(0, igVal || 0, spListeners || 0, ytSubs || 0, tkVal || 0);
-    const tierKey = maxReach === 0 ? 'catalog' : maxReach <= 2500000 ? 'emerging' : maxReach <= 10000000 ? 'mid' : 'mega';
-    const tierBadge =
-      tierKey === 'emerging'
-        ? { label: '🌱 Emergente em Tração', cls: 'emerging' }
-        : tierKey === 'mid'
-          ? { label: '🚀 Tração Consolidada', cls: 'viral' }
-          : tierKey === 'mega'
-            ? { label: '⭐ Headliner Alta Demanda', cls: 'consolidated' }
-            : { label: '⏳ Linha de Base / Catálogo', cls: 'consolidated' };
-
     const activeNets = ['Instagram', 'Spotify', 'YouTube', 'TikTok'].filter(n => artist.media?.[n]?.value != null);
+    const tierKey = maxReach === 0 ? 'catalog' : maxReach <= 2500000 ? 'emerging' : maxReach <= 10000000 ? 'mid' : 'mega';
+
+    // 6 Estágios de Desenvolvimento recomendados na Avaliação (Seção 2.6)
+    let stageBadge = { label: '⏳ Linha de Base / Catálogo', cls: 'consolidated' };
+    if (maxReach > 0) {
+      if ((discoveryRatioPct != null && discoveryRatioPct >= 115) || (viewsPerSub != null && viewsPerSub >= 280)) {
+        stageBadge = { label: '⚡ Em aceleração', cls: 'viral' };
+      } else if (tierKey === 'emerging') {
+        stageBadge = { label: '🌱 Emergente', cls: 'emerging' };
+      } else if (tierKey === 'mid') {
+        stageBadge = { label: '📈 Em expansão', cls: 'viral' };
+      } else {
+        stageBadge = { label: '⭐ Consolidado', cls: 'consolidated' };
+      }
+    }
+    const platformBalanceLabel =
+      activeNets.length >= 3
+        ? `Equilíbrio Multi-Mídia (${activeNets.length}/4)`
+        : activeNets.length === 2
+          ? 'Presença Dual (2/4 mídias)'
+          : activeNets.length === 1
+            ? `Dependente de 1 plataforma (${activeNets[0]})`
+            : 'Aguardando 1ª coleta';
+
     const latestDate =
       ['Instagram', 'Spotify', 'YouTube', 'TikTok']
         .map(n => artist.media?.[n]?.observed_on)
@@ -86,7 +100,8 @@
       viewsPerSub,
       maxReach,
       tierKey,
-      tierBadge,
+      tierBadge: stageBadge,
+      platformBalanceLabel,
       activeNets,
       latestDate,
       tractionScore
@@ -246,7 +261,7 @@
       const badge = el('span', `traction-badge ${a.tierBadge.cls}`, a.tierBadge.label);
       tdTier.append(badge);
       if (a.tractionScore > 0) {
-        const scSmall = el('small', null, `Índice de tração: ${a.tractionScore}/100`);
+        const scSmall = el('small', null, `Tração: ${a.tractionScore}/100 · ${a.platformBalanceLabel}`);
         scSmall.style.fontSize = '10px';
         scSmall.style.color = '#67e8f9';
         scSmall.style.marginTop = '3px';

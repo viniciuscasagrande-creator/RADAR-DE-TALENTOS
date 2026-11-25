@@ -918,13 +918,43 @@ async function openShowSimulatorModal(cityCode,customArtistId=null,customRadiusK
  const occBox=el('div');occBox.className='show-sim-slider-box';
  const occTop=el('div');occTop.className='show-sim-slider-top';
  occTop.append(el('span','Ocupação / Venda Estimada (%)'));
- const occNum=el('input');occNum.type='number';occNum.min='30';occNum.max='100';occNum.step='5';occNum.value='85';
- const occRange=el('input');occRange.type='range';occRange.min='40';occRange.max='100';occRange.step='5';occRange.value='85';
+ const occNum=el('input');occNum.type='number';occNum.min='30';occNum.max='100';occNum.step='5';occNum.value='70';
+ const occRange=el('input');occRange.type='range';occRange.min='40';occRange.max='100';occRange.step='5';occRange.value='70';
  occTop.append(occNum);
  occBox.append(occTop,occRange);
 
- tunerGrid.append(capBox,tktBox,occBox);
+ // Controles Financeiros: Cachê Artístico, Outros Custos e Taxas/Impostos (Seção 8 da Avaliação)
+ const defaultFee=compat?.financialDefaults?.artistFee||Math.round((plan.recommendedCapacity*plan.recommendedBaseTicket*1.3*0.32)/1000)*1000;
+ const defaultOtherCosts=compat?.financialDefaults?.operationalCosts||Math.round((plan.recommendedCapacity*plan.recommendedBaseTicket*1.3*0.21)/1000)*1000;
+
+ const feeBox=el('div');feeBox.className='show-sim-slider-box';
+ const feeTop=el('div');feeTop.className='show-sim-slider-top';
+ feeTop.append(el('span','Cachê Artístico Estimado (R$)'));
+ const feeNum=el('input');feeNum.type='number';feeNum.min='0';feeNum.max='5000000';feeNum.step='5000';feeNum.value=String(defaultFee);
+ feeTop.append(feeNum);
+ feeBox.append(feeTop);
+
+ const costBox=el('div');costBox.className='show-sim-slider-box';
+ const costTop=el('div');costTop.className='show-sim-slider-top';
+ costTop.append(el('span','Outros Custos Operacionais (R$)'));
+ const costNum=el('input');costNum.type='number';costNum.min='0';costNum.max='5000000';costNum.step='2000';costNum.value=String(defaultOtherCosts);
+ costTop.append(costNum);
+ costBox.append(costTop);
+
+ const taxBox=el('div');taxBox.className='show-sim-slider-box';
+ const taxTop=el('div');taxTop.className='show-sim-slider-top';
+ taxTop.append(el('span','Taxas e Impostos s/ Receita (%)'));
+ const taxNum=el('input');taxNum.type='number';taxNum.min='0';taxNum.max='50';taxNum.step='1';taxNum.value='10';
+ taxTop.append(taxNum);
+ taxBox.append(taxTop);
+
+ tunerGrid.append(capBox,tktBox,occBox,feeBox,costBox,taxBox);
  tuner.append(tunerGrid);
+
+ const pnlCardsHost=el('div');
+ pnlCardsHost.className='show-sim-kpi-grid';
+ pnlCardsHost.style.marginBottom='10px';
+ tuner.append(pnlCardsHost);
 
  const sectorTableHost=el('div');
  tuner.append(sectorTableHost);
@@ -934,8 +964,11 @@ async function openShowSimulatorModal(cityCode,customArtistId=null,customRadiusK
  function recalculateFinancials(){
   const cap=Math.max(100,Number(capNum.value)||plan.recommendedCapacity);
   const basePrice=Math.max(10,Number(tktNum.value)||plan.recommendedBaseTicket);
-  const occPct=Math.max(10,Math.min(100,Number(occNum.value)||85));
+  const occPct=Math.max(10,Math.min(100,Number(occNum.value)||70));
   const occRatio=occPct/100;
+  const artistFee=Math.max(0,Number(feeNum.value)||0);
+  const otherCosts=Math.max(0,Number(costNum.value)||0);
+  const taxPct=Math.max(0,Math.min(90,Number(taxNum.value)||0));
 
   let totalBuyers=0,totalGross=0;
   const sectorRows=[];
@@ -960,23 +993,44 @@ async function openShowSimulatorModal(cityCode,customArtistId=null,customRadiusK
   const minPrice=sectorPrices[0]?.price||basePrice;
   const maxPrice=sectorPrices.at(-1)?.price||basePrice;
 
-  kpiCapStrong.textContent=`${fmt(totalBuyers)} pagantes (${occPct}%)`;
-  kpiCapSmall.textContent=`Capacidade instalada: ${fmt(cap)} lugares · Conservador (70%): ${fmt(Math.round(cap*0.7))} · Lotação máxima: ${fmt(cap)}`;
+  const netRevenue=Math.round(totalGross*(1-taxPct/100));
+  const fixedCosts=artistFee+otherCosts;
+  const opResult=netRevenue-fixedCosts;
+  const opMarginPct=totalGross>0?(opResult/totalGross)*100:0;
+  const netTicket=weightedAvg*(1-taxPct/100);
+  const breakEvenTickets=netTicket>0?Math.ceil(fixedCosts/netTicket):cap;
+  const breakEvenOccPct=(breakEvenTickets/cap)*100;
+
+  kpiCapStrong.textContent=`${fmt(totalBuyers)} ingressos (${occPct}%)`;
+  kpiCapSmall.textContent=`Capacidade: ${fmt(cap)} lugares · Ponto de equilíbrio: ${fmt(breakEvenTickets)} ing. (${breakEvenOccPct.toFixed(1)}%)`;
 
   kpiTicketStrong.textContent=`Ticket Médio: R$ ${fmt(weightedAvg)},00`;
-  kpiTicketSmall.textContent=`Faixa por setor: R$ ${fmt(minPrice)},00 (Base) a R$ ${fmt(maxPrice)},00 (Premium) · Calibrado pelo PIB/Renda IBGE`;
+  kpiTicketSmall.textContent=`Faixa por setor: R$ ${fmt(minPrice)},00 a R$ ${fmt(maxPrice)},00 · Calibrado pelo PIB IBGE`;
 
-  const gross70=Math.round(totalGross*(0.70/occRatio));
-  const gross100=Math.round(totalGross*(1.00/occRatio));
-  kpiRevStrong.textContent=`R$ ${fmt(totalGross)},00`;
-  kpiRevSmall.textContent=`Cenário 70%: R$ ${fmt(gross70)} · Sold Out (100%): R$ ${fmt(gross100)}`;
+  kpiRevStrong.textContent=`R$ ${fmt(opResult)},00 (${opMarginPct.toFixed(1)}%)`;
+  kpiRevSmall.textContent=`Faturamento Bruto: R$ ${fmt(totalGross)} · Receita Líquida: R$ ${fmt(netRevenue)} · Custos Fixos: R$ ${fmt(fixedCosts)}`;
+  kpiRevTag.textContent='4. Resultado Operacional Líquido';
+
+  pnlCardsHost.replaceChildren();
+  for(const [pTitle,pVal,pSub] of [
+   ['Resultado Operacional Estimado',`R$ ${fmt(opResult)},00`,`Margem operacional: ${opMarginPct.toFixed(1)}% (após ${taxPct}% taxas/impostos)`],
+   ['Receita Líquida vs. Custos Fixos',`R$ ${fmt(netRevenue)} vs. R$ ${fmt(fixedCosts)}`,`Cachê: R$ ${fmt(artistFee)} + Custos: R$ ${fmt(otherCosts)}`],
+   ['Ponto de Equilíbrio (Break-even)',`${fmt(breakEvenTickets)} ingressos`,`Ocupação mínima necessária: ${breakEvenOccPct.toFixed(1)}% da casa`],
+   ['Risco Financeiro da Operação',breakEvenOccPct<=55?'🟢 Baixo Risco':breakEvenOccPct<=75?'🟡 Risco Moderado':'🔴 Alto Risco',`Confiança dos dados: ${compat?.confidenceIndicator?.score??80}%`]
+  ]){
+   const pc=el('div');pc.className='show-sim-kpi-card';
+   pc.style.minHeight='78px';
+   const pt=el('span',pTitle);pt.className='kpi-tag';
+   pc.append(pt,el('strong',pVal),el('small',pSub));
+   pnlCardsHost.append(pc);
+  }
 
   sectorRows.push([
    'TOTAL CONSOLIDADO DO SHOW',
    `${fmt(cap)} lugares (100%)`,
    `${fmt(totalBuyers)} pagantes (${occPct}%)`,
    `Ticket Médio: R$ ${fmt(weightedAvg)},00`,
-   `R$ ${fmt(totalGross)},00`
+   `Bruto: R$ ${fmt(totalGross)},00 | Líquido: R$ ${fmt(netRevenue)},00`
   ]);
 
   sectorTableHost.replaceChildren();
@@ -995,14 +1049,16 @@ async function openShowSimulatorModal(cityCode,customArtistId=null,customRadiusK
   sectorTableHost.append(tbl);
 
   currentSummaryText=[
-   `⚡ SIMULAÇÃO DE SHOW & VIABILIDADE — RADAR DE TALENTOS`,
+   `⚡ SIMULAÇÃO FINANCEIRA DE SHOW & VIABILIDADE — RADAR DE TALENTOS`,
    `• Artista: ${activeArtist?.name||'Catálogo Nacional'} (${plan.tierLabel})`,
-   `• Praça Sede: ${cityObj.name} / ${cityObj.uf} (${cityObj.region||'Brasil'}) — Raio da Bacia: ${radiusKm} km (${plan.catchmentCount} municípios abrangidos)`,
-   `• Score Comercial: ${scVal!=null?scVal+'/100':'Qualificado'} (${compat?.verdict?.label||'Análise Territorial'})`,
+   `• Praça Sede: ${cityObj.name} / ${cityObj.uf} (${cityObj.region||'Brasil'}) — Raio da Bacia: ${radiusKm} km (${plan.catchmentCount} municípios · Deslocamento est.: ${compat?.roadTravelEstimate?.formattedDriveTime||'~1h40min via rodovia'})`,
+   `• Radar Score Comercial: ${scVal!=null?scVal+'/100':'Qualificado'} | Confiança dos Dados: ${compat?.confidenceIndicator?.score??80}%`,
    `• Sugestão de Local: ${plan.venueType} — ${plan.stageFormat}`,
-   `• Capacidade Instalada: ${fmt(cap)} lugares | Público Estimado (${occPct}%): ${fmt(totalBuyers)} pagantes`,
-   `• Valores Sugeridos: ${sectorPrices.map(s=>`${s.name}: R$ ${fmt(s.price)},00`).join(' | ')} (Ticket Médio: R$ ${fmt(weightedAvg)},00)`,
-   `• Receita Bruta Estimada de Bilheteria: R$ ${fmt(totalGross)},00 (Cenário 70%: R$ ${fmt(gross70)} | 100%: R$ ${fmt(gross100)})`
+   `• Capacidade: ${fmt(cap)} lugares | Ingressos Vendidos (${occPct}%): ${fmt(totalBuyers)} | Ticket Médio: R$ ${fmt(weightedAvg)},00`,
+   `• Faturamento Bruto: R$ ${fmt(totalGross)},00 | Receita Líquida (-${taxPct}%): R$ ${fmt(netRevenue)},00`,
+   `• Custos Fixos: R$ ${fmt(fixedCosts)},00 (Cachê: R$ ${fmt(artistFee)} + Produção: R$ ${fmt(otherCosts)})`,
+   `• Resultado Operacional Estimado: R$ ${fmt(opResult)},00 (Margem: ${opMarginPct.toFixed(1)}%)`,
+   `• Ponto de Equilíbrio (Break-even): ${fmt(breakEvenTickets)} ingressos (${breakEvenOccPct.toFixed(1)}% de ocupação mínima)`
   ].join('\n');
  }
 
@@ -1020,6 +1076,9 @@ async function openShowSimulatorModal(cityCode,customArtistId=null,customRadiusK
  tktRange.addEventListener('input',()=>{tktNum.value=tktRange.value;recalculateFinancials();});
  occNum.addEventListener('input',()=>{occRange.value=occNum.value;recalculateFinancials();});
  occRange.addEventListener('input',()=>{occNum.value=occRange.value;recalculateFinancials();});
+ feeNum.addEventListener('input',recalculateFinancials);
+ costNum.addEventListener('input',recalculateFinancials);
+ taxNum.addEventListener('input',recalculateFinancials);
  recalculateFinancials();
 
  // 5. Painéis Inferiores: Informações de Eventos, Locais e Bacia de Municípios + Força nas 4 Mídias & Argumentário
@@ -1028,9 +1087,12 @@ async function openShowSimulatorModal(cityCode,customArtistId=null,customRadiusK
  const leftBox=el('div');leftBox.className='show-sim-box';
  leftBox.append(el('h3',`📍 Informações de Eventos, Sugestão de Local & Bacia Regional (${radiusKm} km)`));
  const venueList=el('ul');venueList.className='show-sim-list';
+ const driveStr=compat?.roadTravelEstimate?.formattedDriveTime||`${Math.round(radiusKm*1.28/75*60)} min via rodovia (~${Math.round(radiusKm*1.28)} km)`;
+ const peaStr=compat?.roadTravelEstimate?.peaPopulation?` · PEA estimada (Pop. Economicamente Ativa): ${fmt(compat.roadTravelEstimate.peaPopulation)} hab.`:'';
  venueList.append(
   el('li',`Tipologia Principal Recomendada: ${plan.venueType}.`),
   el('li',`Referência Complementar: ${plan.venueSecondary}.`),
+  el('li',`Deslocamento Rodoviário Estimado no Raio (${radiusKm} km): até ${driveStr}${peaStr}`),
   el('li',`Eventos Monitorados na Bacia (${radiusKm} km): ${compat?.competition?.radiusEventsCount??0} evento(s) mapeado(s) no raio e ${compat?.competition?.cityEventsCount??0} diretamente em ${cityObj.name}/${cityObj.uf}.`),
   el('li',`Economia Regional (Base IBGE): PIB per capita de referência R$ ${fmt(Math.round(plan.pibPerCapita))}/hab · Renda média estimada R$ ${fmt(Math.round(plan.avgIncome))}/mês.`)
  );

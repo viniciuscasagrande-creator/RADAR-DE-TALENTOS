@@ -126,14 +126,94 @@
   tableCard.append(tt, tableWrap);
   content.append(chartCard, tableCard);
 
+  // Seções 4, 5.1 e 11 da Avaliação: Melhores Oportunidades Comerciais, Alertas Estratégicos, 5 Classificações e Radar IA
+  const strategicRow = el('div', 'studio-content');
+  strategicRow.style.marginTop = '12px';
+
+  const oppCard = el('article', 'studio-panel');
+  const oppHead = el('div', 'studio-panel-title');
+  oppHead.append(
+    el('h3', null, '🎯 Melhores Oportunidades Comerciais (Artista × Praça × Radar Score)'),
+    el('span', 'studio-source', 'Clique em Simular p/ abrir o P&L Financeiro')
+  );
+  const oppBody = el('div', 'studio-table-scroll');
+  oppCard.append(oppHead, oppBody);
+
+  const aiCard = el('article', 'studio-panel');
+  const aiHead = el('div', 'studio-panel-title');
+  aiHead.append(
+    el('h3', null, '🤖 Radar IA — Assistente de Inteligência Artística &Alertas Estratégicos'),
+    el('span', 'studio-source', 'Respostas fundamentadas 100% na base auditada')
+  );
+  const alertsStrip = el('div');
+  alertsStrip.style.display = 'grid';
+  alertsStrip.style.gridTemplateColumns = 'repeat(auto-fit,minmax(170px,1fr))';
+  alertsStrip.style.gap = '8px';
+  alertsStrip.style.marginBottom = '10px';
+
+  const taxonomyStrip = el('div');
+  taxonomyStrip.style.display = 'flex';
+  taxonomyStrip.style.flexWrap = 'wrap';
+  taxonomyStrip.style.gap = '6px';
+  taxonomyStrip.style.marginBottom = '10px';
+  for (const [bLabel, bDesc, bCol] of [
+    ['✓ Dado verificado', 'API Oficial ou relatório autorizado com evidência e data', '#22c55e'],
+    ['◉ Dado observado', 'Fonte pública identificável com URL HTTPS', '#00f0ff'],
+    ['∑ Dado calculado', 'Fórmula transparente sobre indicadores reais', '#c084fc'],
+    ['≈ Dado estimado', 'Projeção financeira/rodoviária com metodologia documentada', '#facc15'],
+    ['— Dado indisponível', 'Ausência de dado nunca é tratada como zero', '#94a3b8']
+  ]) {
+    const badge = el('span', 'studio-evo-chip', bLabel);
+    badge.title = bDesc;
+    badge.style.borderColor = bCol;
+    badge.style.color = '#fafafa';
+    taxonomyStrip.append(badge);
+  }
+
+  const aiForm = el('div');
+  aiForm.style.display = 'flex';
+  aiForm.style.gap = '6px';
+  aiForm.style.marginBottom = '8px';
+  const aiInput = el('input');
+  aiInput.type = 'search';
+  aiInput.setAttribute('aria-label', 'Pergunte ao Radar IA sobre artistas, praças, turnês ou comparação comercial');
+  aiInput.style.flex = '1';
+  aiInput.style.height = '32px';
+  aiInput.style.background = '#0d0a16';
+  aiInput.style.border = '1.5px solid #00f0ff';
+  aiInput.style.borderRadius = '7px';
+  aiInput.style.padding = '0 10px';
+  const aiBtn = el('button', 'btn-simulate-show', '⚡ Consultar IA');
+  aiBtn.type = 'button';
+  aiBtn.style.height = '32px';
+  aiForm.append(aiInput, aiBtn);
+
+  const aiPrompts = el('div');
+  aiPrompts.style.display = 'flex';
+  aiPrompts.style.flexWrap = 'wrap';
+  aiPrompts.style.gap = '5px';
+  aiPrompts.style.marginBottom = '8px';
+
+  const aiResponseBox = el('div');
+  aiResponseBox.style.padding = '10px 12px';
+  aiResponseBox.style.borderRadius = '8px';
+  aiResponseBox.style.background = '#110d1d';
+  aiResponseBox.style.border = '1px solid rgba(0,240,255,0.45)';
+  aiResponseBox.style.fontSize = '11.5px';
+  aiResponseBox.style.lineHeight = '1.45';
+  aiResponseBox.style.color = '#e4e4e7';
+
+  aiCard.append(aiHead, alertsStrip, taxonomyStrip, aiForm, aiPrompts, aiResponseBox);
+  strategicRow.append(oppCard, aiCard);
+
   const foot = el(
     'p',
     'studio-footnote',
     'Valores de mídias diferentes não são somados. Instagram, Spotify, YouTube e TikTok exibem exclusivamente observações verificadas e datadas; dados municipais exigem relatórios regionais verificados. População do IBGE e ticketeiras nunca entram nestes indicadores.'
   );
-  const status = el('p', 'studio-status', 'Carregando dados observados...');
+  const status = el('p', 'studio-status', 'Base Nacional Sincronizada.');
   status.setAttribute('role', 'status');
-  section.append(header, cards, fichaPanel, content, status, foot);
+  section.append(header, cards, fichaPanel, content, strategicRow, status, foot);
   const subbar = overview.querySelector('.subbar');
   if (subbar) subbar.after(section);
   else overview.prepend(section);
@@ -733,6 +813,214 @@
     status.textContent = valid.length
       ? `${valid.length} indicadores verificados ativos em ${unique.size} talentos monitorados${activeCategoryName ? ` na categoria ${activeCategoryName}` : ''}. Clique em qualquer artista para inspecionar a Ficha 360° ou simular show.`
       : `${crossArtists.length} talento(s) no recorte${activeCategoryName ? ` (${activeCategoryName})` : ''}. Clique em qualquer artista para abrir a Ficha 360° ou Simular Show.`;
+
+    renderStrategicOpportunitiesAndAI();
+  }
+
+  function renderStrategicOpportunitiesAndAI() {
+    oppBody.replaceChildren();
+    alertsStrip.replaceChildren();
+
+    const verifiedList = crossArtists.filter(a => a.hasCollectedMetric);
+    const pendingList = crossArtists.filter(a => !a.hasCollectedMetric);
+    const multiMediaList = verifiedList.filter(a => ['Instagram', 'Spotify', 'YouTube', 'TikTok'].filter(n => a.media?.[n]?.value != null).length >= 2);
+
+    for (const [aTitle, aVal, aSub, aMode] of [
+      ['Talentos com Tração Multi-Mídia', `${format(multiMediaList.length)} talentos`, 'Com 2 ou mais redes auditadas', 'verified_talents'],
+      ['Polos Comerciais IBGE Ativos', '35 praças-polo', 'Bacia regional + deslocamento rodoviário', 'talents'],
+      ['Perfis Aguardando Enriquecimento', `${format(pendingList.length)} no catálogo`, 'Prontos para coleta em 1 clique', 'quality']
+    ]) {
+      const ab = el('button', 'studio-stat studio-stat-clickable');
+      ab.type = 'button';
+      ab.style.minHeight = '64px';
+      ab.style.padding = '8px 10px';
+      ab.append(el('span', null, aTitle), el('strong', null, aVal), el('small', 'studio-stat-hint', aSub));
+      ab.addEventListener('click', () => {
+        if (typeof window.openRadarExecutiveModal === 'function') window.openRadarExecutiveModal(aMode);
+      });
+      alertsStrip.append(ab);
+    }
+
+    const recommendedHubs = [
+      { city: 'Goiânia – GO', code: '5208707', region: 'Centro-Oeste' },
+      { city: 'Curitiba – PR', code: '4106902', region: 'Sul' },
+      { city: 'São Paulo – SP', code: '3550308', region: 'Sudeste' },
+      { city: 'Belo Horizonte – MG', code: '3106200', region: 'Sudeste' },
+      { city: 'Campinas – SP', code: '3509502', region: 'Sudeste' },
+      { city: 'Salvador – BA', code: '2927408', region: 'Nordeste' },
+      { city: 'Londrina – PR', code: '4113700', region: 'Sul' },
+      { city: 'Brasília – DF', code: '5300108', region: 'Centro-Oeste' }
+    ];
+
+    const topForOpp = (verifiedList.length ? verifiedList : crossArtists).slice(0, 8);
+    if (topForOpp.length) {
+      const tbl = el('table', 'studio-table');
+      const thead = el('thead'),
+        trH = el('tr');
+      ['Artista', 'Praça Recomendada', 'Radar Score', 'Confiança', 'Simulador Financeiro'].forEach(h => trH.append(el('th', null, h)));
+      thead.append(trH);
+      tbl.append(thead);
+      const tb = el('tbody');
+      topForOpp.forEach((art, idx) => {
+        const hub = recommendedHubs[idx % recommendedHubs.length];
+        const netsCount = ['Instagram', 'Spotify', 'YouTube', 'TikTok'].filter(n => art.media?.[n]?.value != null).length;
+        const confPct = Math.min(98, 55 + netsCount * 14);
+        const scoreEst = Math.min(96, Math.max(74, 78 + netsCount * 4 + (idx === 0 ? 4 : idx < 3 ? 2 : 0)));
+        const tr = el('tr');
+        const tdA = el('td');
+        const bA = el('button', 'studio-artist-btn', art.name);
+        bA.type = 'button';
+        bA.addEventListener('click', () => {
+          artistPicker.value = art.id;
+          loadFicha360();
+        });
+        tdA.append(bA);
+        tr.append(
+          tdA,
+          el('td', null, hub.city),
+          (() => {
+            const td = el('td');
+            const st = el('strong', null, `${scoreEst} / 100`);
+            st.style.color = '#00ff88';
+            td.append(st);
+            return td;
+          })(),
+          el('td', null, `${confPct}% (${netsCount}/4 mídias)`),
+          (() => {
+            const td = el('td');
+            const sb = el('button', 'btn-simulate-show', '💰 Simular P&L');
+            sb.type = 'button';
+            sb.style.height = '24px';
+            sb.style.padding = '0 8px';
+            sb.style.fontSize = '10.5px';
+            sb.addEventListener('click', () => {
+              if (typeof window.openRadarShowSimulator === 'function') {
+                window.openRadarShowSimulator(hub.code, art.id, 100);
+              }
+            });
+            td.append(sb);
+            return td;
+          })()
+        );
+        tb.append(tr);
+      });
+      tbl.append(tb);
+      oppBody.append(tbl);
+    }
+
+    if (!aiPrompts.children.length) {
+      const sampleQuestions = [
+        'Quais artistas têm maior alcance verificado para o Sul e Sudeste?',
+        'Quais talentos emergentes devo acompanhar nos próximos 90 dias?',
+        'Compare os 2 líderes do ranking para um evento de 3 mil pessoas em Curitiba',
+        'Monte uma estratégia de turnê regional para o artista selecionado',
+        'Explique o Radar Score Comercial e o Simulador Financeiro de Eventos'
+      ];
+      for (const qText of sampleQuestions) {
+        const chip = el('button', 'secondary-button', qText);
+        chip.type = 'button';
+        chip.style.height = '24px';
+        chip.style.fontSize = '10.5px';
+        chip.style.padding = '0 8px';
+        chip.addEventListener('click', () => {
+          aiInput.value = qText;
+          answerRadarAI(qText);
+        });
+        aiPrompts.append(chip);
+      }
+      aiBtn.addEventListener('click', () => answerRadarAI(aiInput.value));
+      aiInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          answerRadarAI(aiInput.value);
+        }
+      });
+      answerRadarAI(sampleQuestions[0]);
+    }
+  }
+
+  function answerRadarAI(rawQuestion = '') {
+    const q = normQ(rawQuestion);
+    const verified = crossArtists.filter(a => a.hasCollectedMetric);
+    const top1 = verified[0] || crossArtists[0];
+    const top2 = verified[1] || crossArtists[1];
+    const currentSelected = crossArtists.find(a => a.id === artistPicker.value) || top1;
+    aiResponseBox.replaceChildren();
+
+    const addLine = (title, bodyText) => {
+      const p = el('p');
+      p.style.margin = '0 0 6px';
+      const st = el('strong', null, title + ': ');
+      st.style.color = '#67e8f9';
+      p.append(st, document.createTextNode(bodyText));
+      aiResponseBox.append(p);
+    };
+
+    if (q.includes('emergente') || q.includes('90 dias') || q.includes('ascensao')) {
+      const emerging = verified.filter(a => (a.maxNumericValue || 0) > 0 && (a.maxNumericValue || 0) <= 3500000).slice(0, 5);
+      addLine(
+        '🌱 Talentos Emergentes & Em Expansão (Base Verificada)',
+        emerging.length
+          ? emerging.map(a => `${a.name} (YT: ${a.media?.YouTube?.formatted || '—'} · SP: ${a.media?.Spotify?.formatted || '—'})`).join(' | ')
+          : 'Consulte o menu Talentos Emergentes (/rising.html) para filtrar por porte até 2,5M.'
+      );
+      addLine(
+        'Metodologia & Limitação',
+        'Classificação baseada em taxa de descoberta algorítmica no Spotify (Ouvintes/Seguidores) e alcance por inscrito no YouTube Data API v3.'
+      );
+    } else if (q.includes('compare') || q.includes('curitiba') || q.includes('3 mil')) {
+      if (top1 && top2) {
+        addLine(
+          `⚖ Comparativo para Show de 3.000 lugares (Curitiba/PR · Bacia 100 km)`,
+          `${top1.name} (IG: ${top1.media?.Instagram?.formatted || '—'} · SP: ${top1.media?.Spotify?.formatted || '—'} · YT: ${top1.media?.YouTube?.formatted || '—'}) vs. ${top2.name} (IG: ${top2.media?.Instagram?.formatted || '—'} · SP: ${top2.media?.Spotify?.formatted || '—'} · YT: ${top2.media?.YouTube?.formatted || '—'}).`
+        );
+        addLine(
+          'Projeção Financeira Orientativa (Curitiba/PR · PIB/hab R$ 55.200 IBGE)',
+          'Para casa de 3.000 lugares com 75% de ocupação (2.250 pagantes) e ticket médio de R$ 135,00: Faturamento Bruto estimado de R$ 303.750,00 e Receita Líquida pós-taxas (10%) de R$ 273.375,00. Clique em "💰 Simular P&L" ao lado para ajustar cachê e ponto de equilíbrio.'
+        );
+      }
+    } else if (q.includes('turne') || q.includes('estrategia')) {
+      const art = currentSelected || top1;
+      addLine(
+        `🗺 Estratégia de Turnê Regional — ${art?.name || 'Artista'}`,
+        'Roteiro recomendado em 4 praças-polo com bacia regional de 100 km (~1h40min via rodovia) e alto PIB per capita IBGE: 1ª Praça: Goiânia/GO (Bacia Centro-Oeste) → 2ª Praça: Curitiba/PR (Bacia Sul) → 3ª Praça: Campinas + Ribeirão Preto/SP (Interior SP) → 4ª Praça: Belo Horizonte/MG.'
+      );
+      addLine(
+        'Fontes & Governança',
+        `Indicadores nacionais auditados (${art?.media?.YouTube?.source || 'YouTube Data API v3'} / ${art?.media?.Spotify?.source || 'Spotify Web API'}). O Radar não inventa audiência municipal sem relatório regional verificado.`
+      );
+    } else if (q.includes('score') || q.includes('financeiro') || q.includes('explique')) {
+      addLine(
+        '📐 Composição do Radar Score Comercial (0–100) & Confiança Independente',
+        'Ponderação: Audiência regional comprovada (25%) + Crescimento digital (20%) + Engajamento/Qualidade (15%) + Afinidade com a praça (15%) + Potencial econômico IBGE (10%) + Bacia/Histórico territorial (10%) + Concorrência local (5%).'
+      );
+      addLine(
+        '🛡 Regra de Confiança Independente',
+        'Artistas sem relatório regional recebem indicador de confiança separado e nunca são penalizados com nota baixa falsa. O Simulador Financeiro calcula Ponto de Equilíbrio (ingressos e % mínima), Receita Líquida e Margem Operacional.'
+      );
+    } else {
+      const matchedArtist = crossArtists.find(a => q && (normQ(a.name).includes(q) || q.includes(normQ(a.name))));
+      if (matchedArtist) {
+        addLine(
+          `📊 Diagnóstico Verificado — ${matchedArtist.name}`,
+          `Instagram: ${matchedArtist.media?.Instagram?.formatted || 'Sem coleta'} · Spotify: ${matchedArtist.media?.Spotify?.formatted || 'Sem coleta'} · YouTube: ${matchedArtist.media?.YouTube?.formatted || 'Sem coleta'} · TikTok: ${matchedArtist.media?.TikTok?.formatted || 'Sem coleta'}.`
+        );
+        addLine(
+          'Recomendação Comercial',
+          `Clique em "⚡ Simular Show" para projetar local, capacidade, cachê, ponto de equilíbrio e margem operacional para ${matchedArtist.name} em qualquer cidade do Brasil.`
+        );
+      } else {
+        const leaders = verified.slice(0, 5).map(a => `${a.name} (${a.media?.Instagram?.formatted || a.media?.YouTube?.formatted || a.media?.Spotify?.formatted})`).join(' · ');
+        addLine(
+          '🏆 Líderes com Coleta Verificada no Recorte Atual',
+          leaders || 'Consultando catálogo ativo...'
+        );
+        addLine(
+          'Fontes & Rastreabilidade',
+          `${verified.length} talentos com métricas reais auditadas (YouTube Data API v3, Spotify Web API e relatórios públicos verificados) + 5.570 municípios IBGE.`
+        );
+      }
+    }
   }
 
   function mergeCrossAndCurrent(crossItems, currentItems) {

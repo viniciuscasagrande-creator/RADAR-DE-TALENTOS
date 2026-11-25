@@ -554,6 +554,37 @@ export function commercialCompatibility(db, p) {
     return artistEventIds.has(r.id) || (artistNameKey.length >= 4 && tNorm.includes(artistNameKey));
   });
 
+  const maxNationalReach = Math.max(0, ...media.map(m => Number(m.national?.value || 0)));
+  const isSeatedCategory = categories.some(c => /Humor|Palestr|Ator|Mágic|Teatro/i.test(c.name));
+  const estTier = maxNationalReach >= 10000000 ? 'A' : maxNationalReach >= 2500000 ? 'B' : maxNationalReach >= 400000 ? 'C' : 'D';
+  const estPib = Number(cityDemo?.gdp_per_capita || 45000);
+  const estIncomeFactor = Math.max(0.8, Math.min(1.4, estPib / 46000));
+  const estCapacity = isSeatedCategory
+    ? (estTier === 'A' ? 2000 : estTier === 'B' ? 1300 : 800)
+    : (estTier === 'A' ? 6000 : estTier === 'B' ? 3500 : estTier === 'C' ? 2000 : 1200);
+  const estAvgTicket = Math.max(50, Math.round(((estTier === 'A' ? 120 : estTier === 'B' ? 95 : 75) * estIncomeFactor) / 5) * 5);
+  const estArtistFee = Math.round((estCapacity * estAvgTicket * 0.34) / 1000) * 1000;
+  const estOtherCosts = Math.round((estCapacity * estAvgTicket * 0.22) / 1000) * 1000;
+
+  const roadKm = Number((radius * 1.28).toFixed(1));
+  const roadMinutes = Math.round((roadKm / 75) * 60);
+  const peaEstimate = catchmentKnownPop > 0 ? Math.round(catchmentKnownPop * 0.64) : (cityDemo?.population ? Math.round(cityDemo.population * 0.64) : null);
+
+  const confScore = v7ConfidenceScore ?? Math.min(95, networksWithNational * 22 + networksWithRadius * 12);
+  const confLevel = confScore >= 85 ? 'Identidade & Coleta Confirmadas (95–100%)' : confScore >= 65 ? 'Alta Cobertura Verificada (70–94%)' : confScore >= 40 ? 'Cobertura Parcial — Necessita Complementação (40–69%)' : 'Dados Regionais Pendentes (0–39%)';
+
+  const scoreBand = overallScore == null
+    ? 'Dados regionais pendentes (Avaliação neutra — não penaliza por ausência)'
+    : overallScore >= 85
+      ? '85–100 · Excelente compatibilidade'
+      : overallScore >= 70
+        ? '70–84 · Forte oportunidade'
+        : overallScore >= 55
+          ? '55–69 · Oportunidade moderada'
+          : overallScore >= 40
+            ? '40–54 · Necessita investigação'
+            : '0–39 · Baixa compatibilidade';
+
   return {
     artist: {
       id: artist.id,
@@ -579,6 +610,7 @@ export function commercialCompatibility(db, p) {
       lon: city.lon,
       demographics: cityDemo ? {
         population: cityDemo.population,
+        pea_estimated: Math.round(cityDemo.population * 0.64),
         gdp_per_capita: cityDemo.gdp_per_capita,
         avg_income: cityDemo.avg_income,
         urban_rate: cityDemo.urban_rate,
@@ -590,6 +622,48 @@ export function commercialCompatibility(db, p) {
     days,
     score: overallScore,
     verdict,
+    radarScore: {
+      score: overallScore,
+      bandLabel: scoreBand,
+      weights: [
+        { key: 'regional_audience', label: 'Audiência regional comprovada', weightPct: 25, score: v1DirectScore ?? v2RadiusScore },
+        { key: 'digital_growth', label: 'Crescimento digital', weightPct: 20, score: v3GrowthScore },
+        { key: 'engagement_quality', label: 'Engajamento e qualidade da audiência', weightPct: 15, score: v6DigitalPresenceScore },
+        { key: 'category_affinity', label: 'Afinidade artística com a praça', weightPct: 15, score: v4AffinityScore },
+        { key: 'economic_potential', label: 'Potencial econômico regional (IBGE)', weightPct: 10, score: v5SocioeconomicScore },
+        { key: 'event_history', label: 'Bacia regional e histórico territorial', weightPct: 10, score: v2RadiusScore },
+        { key: 'competition_saturation', label: 'Concorrência e saturação local', weightPct: 5, score: cityCompetingEvents.length === 0 ? 90 : Math.max(40, 90 - cityCompetingEvents.length * 10) }
+      ]
+    },
+    confidenceIndicator: {
+      score: confScore,
+      level: confLevel,
+      verifiedNetworksCount: networksWithNational,
+      regionalNetworksCount: networksWithRadius,
+      independentRule: 'Indicador independente de confiança: a ausência de relatório regional nunca penaliza o artista com pontuação falsa.'
+    },
+    roadTravelEstimate: {
+      straightRadiusKm: radius,
+      estimatedHighwayKm: roadKm,
+      estimatedDriveMinutes: roadMinutes,
+      formattedDriveTime: roadMinutes >= 60 ? `${Math.floor(roadMinutes / 60)}h${String(roadMinutes % 60).padStart(2, '0')}min via rodovia` : `${roadMinutes} min via rodovia`,
+      peaPopulation: peaEstimate
+    },
+    financialDefaults: {
+      artistFee: estArtistFee,
+      operationalCosts: estOtherCosts,
+      venueCapacity: estCapacity,
+      averageTicket: estAvgTicket,
+      expectedOccupancyPct: 70,
+      taxAndFeePct: 10
+    },
+    dataTaxonomy: [
+      { code: 'verificado', label: 'Dado verificado', rule: 'Fonte oficial ou relatório autorizado com evidência e data.' },
+      { code: 'observado', label: 'Dado observado', rule: 'Registrado a partir de fonte pública identificável.' },
+      { code: 'calculado', label: 'Dado calculado', rule: 'Fórmula transparente aplicada sobre indicadores disponíveis.' },
+      { code: 'estimado', label: 'Dado estimado', rule: 'Projeção parametrizada com metodologia documentada.' },
+      { code: 'indisponivel', label: 'Dado indisponível', rule: 'Ausência de informação nunca é tratada como zero.' }
+    ],
     variables: [
       {
         key: 'direct_audience',

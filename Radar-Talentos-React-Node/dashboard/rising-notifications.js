@@ -73,12 +73,12 @@
    const apkLink=document.createElement('a');
    apkLink.id='radar-sidebar-apk-download';
    apkLink.className='nav-link';
-   apkLink.href='/radar-de-talentos.apk';
-   apkLink.setAttribute('download','radar-de-talentos.apk');
+   apkLink.href='/radar-de-talentos.apk?v=302';
+   apkLink.setAttribute('download','radar-de-talentos-v3.0.2.apk');
    apkLink.style.marginTop='8px';
    apkLink.style.border='1px solid rgba(183, 68, 255, 0.35)';
    apkLink.style.background='rgba(154, 50, 239, 0.14)';
-   apkLink.innerHTML='<span class="nav-link-icon">&#128241;</span><span class="nav-link-copy"><strong>Baixar App (.APK)</strong><small>Android Mobile &amp; Tablet</small></span>';
+   apkLink.innerHTML='<span class="nav-link-icon">&#128241;</span><span class="nav-link-copy"><strong>Baixar App (.APK v3.0.2)</strong><small>Android Mobile &amp; Tablet</small></span>';
    const sideFooter=sidebarEl.querySelector('.sidebar-footer');
    if(sideFooter)sidebarEl.insertBefore(apkLink,sideFooter);
    else sidebarEl.append(apkLink);

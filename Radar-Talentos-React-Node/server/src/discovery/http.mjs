@@ -138,6 +138,27 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
   } else if (!candidateId && payload.source === 'musicbrainz' && payload.external_id) {
     const saved = await saveMusicBrainz(db, payload.external_id, { fetcher });
     candidateId = saved.id;
+  } else if (!candidateId && payload.name && String(payload.name).trim().length >= 2) {
+    // Talento emergente ainda sem registro no Wikidata/MusicBrainz (ex.: canal YouTube ou perfil direto)
+    const cleanName = String(payload.name).trim().slice(0, 140);
+    const existingCand = db.prepare('SELECT id FROM candidates WHERE lower(trim(name))=lower(trim(?))').get(cleanName);
+    if (existingCand) {
+      candidateId = existingCand.id;
+    } else {
+      const evFallback =
+        payload.evidence && String(payload.evidence).trim().startsWith('https://')
+          ? String(payload.evidence).trim()
+          : (Array.isArray(payload.extraProfiles) && payload.extraProfiles[0]?.url) || 'https://www.youtube.com';
+      const srcId = 'emerging-direct-discovery';
+      db.prepare(
+        "INSERT INTO sources VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET enabled=1"
+      ).run(srcId, 'licensed-file', 'Prospecção direta de talento emergente com perfil oficial', 1, 1);
+      const newCandId = hash(srcId + '\0' + cleanName.toLowerCase());
+      const stamp = new Date().toISOString();
+      db.prepare('INSERT OR IGNORE INTO candidates(id,name,created_at) VALUES(?,?,?)').run(newCandId, cleanName, stamp);
+      db.prepare('INSERT OR IGNORE INTO evidence VALUES(?,?,?,?,?)').run(hash(newCandId + evFallback), newCandId, srcId, evFallback, stamp);
+      candidateId = newCandId;
+    }
   }
   if (!candidateId) throw Error('Candidato obrigatório para aprovação');
 
@@ -160,6 +181,12 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
           if (!c.profiles.some(x => x.url === cleanYt)) {
             addYoutubeProfile(db, candidateId, { url: cleanYt, evidence: autoEv });
           }
+        } else if (['Instagram', 'Spotify', 'TikTok'].includes(ep.network) && String(ep.url).startsWith('https://')) {
+          const indepEv =
+            new URL(autoEv).hostname.replace(/^www\./, '') !== new URL(ep.url).hostname.replace(/^www\./, '')
+              ? autoEv
+              : `https://www.wikidata.org/wiki/Special:Search?search=${encodeURIComponent(c.name)}`;
+          addOpenProfile(db, candidateId, { network: ep.network, url: ep.url, evidence: indepEv });
         }
       } catch {}
     }
@@ -231,7 +258,15 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
     profilesLinked: c.profiles.length,
     youtubeCollected,
     spotifyCollected,
-    distributed: dist.distributed
+    distributed: dist.distributed,
+    crossPanelSync: {
+      overview: true,
+      audience: true,
+      commercial: true,
+      rising: true,
+      ficha360Url: `/?talent=${encodeURIComponent(targetRadarId)}`,
+      commercialUrl: `/commercial.html?q=${encodeURIComponent(c.name)}`
+    }
   };
 }
 

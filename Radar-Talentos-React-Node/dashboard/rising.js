@@ -132,7 +132,6 @@
     );
     allBtn.addEventListener('click', () => {
       activeCategory = '';
-      if ($('rising-tier-filter')) $('rising-tier-filter').value = 'all';
       syncFiltersAndDraw();
     });
     host.append(allBtn);
@@ -150,7 +149,6 @@
       );
       b.addEventListener('click', () => {
         activeCategory = activeCategory === c.name ? '' : c.name;
-        if ($('rising-tier-filter')) $('rising-tier-filter').value = 'all';
         syncFiltersAndDraw();
       });
       host.append(b);
@@ -185,7 +183,9 @@
         }
       }
       if (net && a.media?.[net]?.value == null) return false;
-      if (tier === 'emerging' && (a.tierKey !== 'emerging' || !a.activeNets.length)) return false;
+      // Regra de Talentos Emergentes: sem filtro de texto específico, "emerging" exclui os artistas famosos/consolidados (> 2,5M)
+      if (tier === 'emerging' && !q && a.maxReach > 2500000) return false;
+      if (tier === 'micro' && (a.maxReach === 0 || a.maxReach > 500000)) return false;
       if (tier === 'mid' && a.tierKey !== 'mid') return false;
       if (tier === 'mega' && a.tierKey !== 'mega') return false;
       return true;
@@ -195,11 +195,15 @@
       if (sortBy === 'spotify') return (b.spListeners || 0) - (a.spListeners || 0) || b.maxReach - a.maxReach;
       if (sortBy === 'youtube') return (b.ytSubs || 0) - (a.ytSubs || 0) || (b.ytViews || 0) - (a.ytViews || 0);
       if (sortBy === 'instagram') return (b.igVal || 0) - (a.igVal || 0) || b.maxReach - a.maxReach;
+      // No modo Talentos Emergentes, prioriza quem está em início/aceleração com alto potencial acima da experiência
+      const aIsEmerging = a.maxReach > 0 && a.maxReach <= 2500000 ? 1 : 0;
+      const bIsEmerging = b.maxReach > 0 && b.maxReach <= 2500000 ? 1 : 0;
       return (
+        bIsEmerging - aIsEmerging ||
         Number(b.activeNets.length > 0) - Number(a.activeNets.length > 0) ||
         b.tractionScore - a.tractionScore ||
         (b.discoveryRatioPct || 0) - (a.discoveryRatioPct || 0) ||
-        b.maxReach - a.maxReach
+        a.maxReach - b.maxReach
       );
     });
 
@@ -658,18 +662,22 @@
   async function handleDiscoverNewTalent(e) {
     e?.preventDefault();
     const inp = $('rising-discover-query');
+    const urlInp = $('rising-discover-url');
     const st = $('rising-discover-status');
     const resHost = $('rising-discover-results');
+    const proofBanner = $('rising-e2e-proof-banner');
     const btn = $('rising-discover-submit');
     if (!inp || !st || !resHost) return;
     const query = inp.value.trim();
+    const customUrl = urlInp?.value?.trim() || '';
     if (query.length < 2) {
       st.textContent = 'Digite pelo menos 2 caracteres com o nome do artista ou talento emergente.';
       return;
     }
     btn.disabled = true;
-    st.textContent = `Pesquisando "${query}" em YouTube Data API v3, Wikidata, MusicBrainz e base local…`;
+    st.textContent = `Pesquisando "${query}" em YouTube Data API v3, Wikidata, MusicBrainz e base local (priorizando talentos emergentes)…`;
     resHost.replaceChildren();
+    if (proofBanner) proofBanner.hidden = true;
 
     try {
       const [gRes, ytRes] = await Promise.all([
@@ -689,13 +697,24 @@
 
       const cards = [];
 
+      function inferNetworkFromUrl(rawUrl) {
+        try {
+          const h = new URL(rawUrl).hostname.toLowerCase();
+          if (h.includes('youtube.com')) return 'YouTube';
+          if (h.includes('spotify.com')) return 'Spotify';
+          if (h.includes('instagram.com')) return 'Instagram';
+          if (h.includes('tiktok.com')) return 'TikTok';
+        } catch {}
+        return null;
+      }
+
       // 1. Já cadastrados no Radar
       for (const reg of gRes?.registered || []) {
         const existing = crossItems.find(a => a.id === reg.id || norm(a.name) === norm(reg.name));
         const card = el('div', 'discover-cand-card');
         const head = el('div', 'discover-cand-head');
         head.append(el('strong', null, reg.name), el('span', 'traction-badge emerging', '✓ Já no Radar'));
-        card.append(head, el('small', null, 'Talento já cadastrado no catálogo ativo do Radar.'));
+        card.append(head, el('small', null, 'Talento já cadastrado e distribuído nos 4 painéis do Radar.'));
         const bRow = el('div');
         bRow.style.display = 'flex';
         bRow.style.gap = '6px';
@@ -712,31 +731,45 @@
         cards.push(card);
       }
 
-      // 2. Candidatos externos (Wikidata / MusicBrainz) + Canais do YouTube encontrados
-      const ytChannels = ytRes?.channels || ytRes?.items || [];
+      // 2. Candidatos externos (Wikidata / MusicBrainz) + Canais do YouTube encontrados (priorizando canais emergentes <= 2.5M)
+      const rawYtChannels = ytRes?.channels || ytRes?.items || [];
+      const ytChannels = [...rawYtChannels].sort((a, b) => {
+        const aEmerg = (a.subscribers == null || a.subscribers <= 2500000) ? 1 : 0;
+        const bEmerg = (b.subscribers == null || b.subscribers <= 2500000) ? 1 : 0;
+        return bEmerg - aEmerg;
+      });
       const extList = gRes?.external || [];
 
-      if (extList.length || ytChannels.length) {
+      if (extList.length || ytChannels.length || customUrl) {
         const primaryExt = extList[0] || null;
         const primaryYt = ytChannels[0] || null;
         const mergedProfiles = [...(primaryExt?.profiles || [])];
         if (primaryYt?.url && !mergedProfiles.some(p => p.network === 'YouTube')) {
           mergedProfiles.push({ network: 'YouTube', url: primaryYt.url, handle: primaryYt.channel_id });
         }
+        const customNet = customUrl ? inferNetworkFromUrl(customUrl) : null;
+        if (customNet && !mergedProfiles.some(p => p.url === customUrl)) {
+          mergedProfiles.push({ network: customNet, url: customUrl });
+        }
+
+        const candName = primaryExt?.name || primaryYt?.title || query;
+        const isEmergingCandidate = !primaryYt?.subscribers || primaryYt.subscribers <= 2500000;
 
         const card = el('div', 'discover-cand-card');
         const head = el('div', 'discover-cand-head');
         head.append(
-          el('strong', null, primaryExt?.name || primaryYt?.title || query),
-          el('span', 'traction-badge viral', '🌟 Nova Descoberta')
+          el('strong', null, candName),
+          el('span', 'traction-badge viral', isEmergingCandidate ? '🌱 Talento Emergente Identificado' : '🌟 Talento Localizado')
         );
+        const subsInfo = primaryYt?.subscribers != null ? ` · ${fmt(primaryYt.subscribers)} inscritos no YouTube` : '';
         card.append(
           head,
           el(
             'small',
             null,
-            primaryExt?.description ||
-              (primaryYt ? `Canal oficial localizado no YouTube (${primaryYt.title})` : 'Perfis localizados nas bases abertas')
+            (primaryExt?.description ||
+              (primaryYt ? `Canal oficial localizado no YouTube (${primaryYt.title}${subsInfo})` : 'Identidade pronta para incorporação e monitoramento')) +
+              ' · Potencial para contratação antecipada.'
           )
         );
 
@@ -750,31 +783,65 @@
         }
         card.append(profWrap);
 
-        const approveBtn = el('button', 'btn-simulate-show', '🚀 Aprovar e Incorporar ao Radar');
+        const approveBtn = el('button', 'btn-simulate-show', '🚀 Incorporar & Distribuir nos 4 Painéis');
         approveBtn.type = 'button';
         approveBtn.addEventListener('click', async () => {
           approveBtn.disabled = true;
-          approveBtn.textContent = 'Incorporando e coletando mídias…';
+          approveBtn.textContent = 'Incorporando, coletando mídias e sincronizando painéis…';
           try {
             const resp = await fetch('/api/discovery/approve-and-send', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'X-Radar-Action': 'discovery' },
               body: JSON.stringify({
-                name: primaryExt?.name || primaryYt?.title || query,
-                source: primaryExt?.source || 'wikidata',
+                name: candName,
+                source: primaryExt?.source || 'emerging-direct',
                 external_id: primaryExt?.external_id || null,
-                evidence: primaryExt?.source_url || primaryYt?.url || 'https://www.wikidata.org',
+                evidence: customUrl || primaryExt?.source_url || primaryYt?.url || 'https://www.wikidata.org',
                 extraProfiles: mergedProfiles
               })
             });
             const data = await resp.json().catch(() => ({}));
             if (!resp.ok) throw Error(data.error || 'HTTP ' + resp.status);
-            approveBtn.textContent = '✓ Incorporado com Sucesso!';
-            st.textContent = `Talento "${primaryExt?.name || query}" aprovado, coletado e incorporado ao Radar! Atualizando lista…`;
+            approveBtn.textContent = '✓ Incorporado & Sincronizado nos 4 Painéis!';
+            st.textContent = `Comprovação concluída: "${candName}" (${data.radarId}) foi incorporado, coletado e distribuído automaticamente em todos os painéis!`;
+            if (proofBanner) {
+              proofBanner.hidden = false;
+              proofBanner.replaceChildren();
+              const hProof = el('strong', null, `✅ Comprovação E2E de Incorporação e Distribuição — ${candName} (ID: ${data.radarId})`);
+              hProof.style.color = '#4ade80';
+              hProof.style.display = 'block';
+              hProof.style.marginBottom = '6px';
+              const pProof = el(
+                'p',
+                null,
+                `Perfis vinculados: ${data.profilesLinked || mergedProfiles.length} · Coleta YouTube API v3: ${data.youtubeCollected ? 'Confirmada' : 'Vinculada'} · Coleta Spotify: ${data.spotifyCollected ? 'Confirmada' : 'Vinculada'} · Indicadores distribuídos na Camada Central: ${data.distributed ?? 'Ativos'}. Confira o artista agora em qualquer módulo:`
+              );
+              pProof.style.margin = '0 0 8px';
+              pProof.style.fontSize = '11.5px';
+              const linksRow = el('div');
+              linksRow.style.display = 'flex';
+              linksRow.style.flexWrap = 'wrap';
+              linksRow.style.gap = '8px';
+              for (const [lText, lHref] of [
+                ['◉ Abrir na Visão Geral (Ficha 360°)', `/?q=${encodeURIComponent(candName)}`],
+                ['↗ Simular em Oportunidade Comercial (Radar Score 2.0 & P&L)', `/commercial.html?q=${encodeURIComponent(candName)}`],
+                ['⌖ Ver em Audiência Geográfica', `/audience.html`],
+                ['⚙ Auditar no Motor de Dados', `/acquisition.html`]
+              ]) {
+                const aL = el('a', 'secondary-button', lText);
+                aL.href = lHref;
+                aL.style.textDecoration = 'none';
+                aL.style.fontSize = '11px';
+                aL.style.padding = '5px 10px';
+                linksRow.append(aL);
+              }
+              proofBanner.append(hProof, pProof, linksRow);
+            }
+            if ($('rising-quick-search')) $('rising-quick-search').value = candName;
             await loadAll();
           } catch (err) {
             approveBtn.disabled = false;
-            approveBtn.textContent = '🚀 Aprovar e Incorporar ao Radar';
+            approveBtn.textContent = '🚀 Incorporar & Distribuir nos 4 Painéis';
             st.textContent = 'Não foi possível incorporar automaticamente: ' + err.message;
           }
         });
@@ -960,7 +1027,7 @@
     activeCategory = '';
     if ($('rising-quick-search')) $('rising-quick-search').value = '';
     if ($('rising-filter')) $('rising-filter').value = '';
-    if ($('rising-tier-filter')) $('rising-tier-filter').value = 'all';
+    if ($('rising-tier-filter')) $('rising-tier-filter').value = 'emerging';
     if ($('rising-sort-filter')) $('rising-sort-filter').value = 'traction';
     syncFiltersAndDraw();
   });

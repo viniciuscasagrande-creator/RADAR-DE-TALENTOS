@@ -48,13 +48,24 @@
     <section class="overview" id="rising-overview">
       <div class="topline">
         <div class="topline-brand">
-          <span class="eyebrow">MOTOR DE DADOS · SINAIS EMERGENTES &amp; TRAÇÃO DIGITAL <b class="env-badge">Ativo</b></span>
-          <h1>Descobertas em Ascensão</h1>
+          <span class="eyebrow">DESCOBERTA ANTECIPADA DE OPORTUNIDADES · POTENCIAL ACIMA DA EXPERIÊNCIA <b class="env-badge">High Potentials</b></span>
+          <h1>Talentos Emergentes &amp; Descobertas em Ascensão</h1>
         </div>
         <div class="top-search-bar">
-          <input aria-label="Pesquisar talento em ascensão" autocomplete="off" id="rising-quick-search" type="search" value="" />
+          <input aria-label="Pesquisar talento emergente" autocomplete="off" id="rising-quick-search" type="search" value="" />
           <button id="rising-quick-btn" type="button">Filtrar</button>
           <button id="rising-collect-now-btn" class="btn-simulate-show" type="button">⚡ Atualizar Coletas</button>
+        </div>
+      </div>
+
+      <!-- Manifesto Operacional: Regra de Talentos Emergentes (Sem Mega-Famosos por padrão) -->
+      <div class="rising-card neon-card" style="padding:12px 16px;margin-bottom:4px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div>
+            <strong style="color:#67e8f9;font-size:12.5px">🌱 Regra Ativa de Talentos Emergentes — Identificar Oportunidades Antes do Mercado</strong>
+            <p style="margin:3px 0 0;font-size:11.5px;color:#e2e8f0">Foco exclusivo em artistas e profissionais em início de carreira ou fase de aceleração (até 2,5M de alcance, fora do mainstream consolidado) que demonstram <b>potencial acima da média</b>, alta taxa de descoberta algorítmica e melhor relação custo-benefício para contratação antecipada.</p>
+          </div>
+          <span class="studio-badge-pill">Filtro Padrão: Fora da Elite / Mainstream (&le; 2,5M)</span>
         </div>
       </div>
 
@@ -108,10 +119,11 @@
           <label class="filter-card">
             <span class="filter-label">Porte do Talento (Recorte)</span>
             <select id="rising-tier-filter">
-              <option value="all">Todos os portes</option>
-              <option value="emerging">🌱 Emergentes &amp; Em Ascensão (Até 2,5M)</option>
-              <option value="mid">🚀 Tração Consolidada (2,5M a 10M)</option>
-              <option value="mega">⭐ Grandes Atrações (&gt; 10M)</option>
+              <option value="emerging" selected>🌱 Somente Emergentes &amp; Em Ascensão (Até 2,5M — Sem Famosos)</option>
+              <option value="micro">🔬 Início de Carreira &amp; Micro-Tração (Até 500 mil)</option>
+              <option value="all">🌐 Todo o Catálogo (Incluir Consolidados &gt; 2,5M)</option>
+              <option value="mid">🚀 Em Expansão Intermediária (2,5M a 10M)</option>
+              <option value="mega">⭐ Consolidados / Mainstream (&gt; 10M)</option>
             </select>
           </label>
           <label class="filter-card">
@@ -151,21 +163,23 @@
       <div class="rising-table-wrap" id="rising-traction-results"></div>
     </section>
 
-    <!-- 2. Descobrir & Incorporar Novo Talento Direto na Página -->
+    <!-- 2. Descobrir & Incorporar Novo Talento Direto na Página (Prova E2E de Incorporação e Distribuição) -->
     <section class="rising-card neon-card cyan-card" id="rising-new-discovery-panel">
       <div class="rising-head">
         <div>
-          <span class="eyebrow">PROSPECÇÃO INSTANTÂNEA DE SINAIS EMERGENTES · YOUTUBE API + WIKIDATA + MUSICBRAINZ</span>
-          <h2>🔎 Descobrir &amp; Incorporar Novo Talento em Ascensão</h2>
-          <p>Pesquise qualquer artista, banda, humorista, DJ ou palestrante emergente para localizar seus perfis oficiais e incorporá-lo imediatamente ao monitoramento de ascensão com 1 clique.</p>
+          <span class="eyebrow">PROVA DE INCORPORAÇÃO UNIVERSAL · DESCOBERTA → COLETA → DISTRIBUIÇÃO NOS 4 PAINÉIS</span>
+          <h2>🔎 Descobrir, Incorporar &amp; Comprovar Novo Talento Emergente</h2>
+          <p>Qualquer artista devidamente identificado (mesmo em início de carreira e sem Wikidata) pode ser pesquisado ou informado por link oficial, incorporado ao banco, coletado automaticamente (YouTube + Spotify) e disponibilizado de maneira consistente em <b>Visão Geral</b>, <b>Audiência Geográfica</b>, <b>Oportunidade Comercial</b> e <b>Talentos Emergentes</b>.</p>
         </div>
       </div>
       <form id="rising-discover-form" class="rising-discover-bar">
-        <input id="rising-discover-query" type="search" autocomplete="off" aria-label="Digite o nome do artista ou talento emergente para descobrir" value="" />
-        <button type="submit" id="rising-discover-submit" class="btn-simulate-show">🔎 Buscar Novo Talento nas Fontes Oficiais</button>
+        <input id="rising-discover-query" type="search" autocomplete="off" aria-label="Digite o nome do talento emergente para descobrir" value="" />
+        <input id="rising-discover-url" type="url" autocomplete="off" aria-label="Link oficial opcional (YouTube, Spotify, Instagram ou TikTok)" value="" style="flex:1 1 260px" />
+        <button type="submit" id="rising-discover-submit" class="btn-simulate-show">🔎 Buscar &amp; Validar Talento Emergente</button>
       </form>
-      <p id="rising-discover-status" class="rising-note" role="status">Digite o nome de um artista acima e clique em Buscar para consultar YouTube Data API v3, Wikidata e MusicBrainz em tempo real.</p>
+      <p id="rising-discover-status" class="rising-note" role="status">Digite o nome de qualquer artista emergente (e opcionalmente cole o link do canal YouTube ou perfil Spotify/Instagram) para localizar, incorporar e comprovar a sincronização imediata em todos os painéis.</p>
       <div id="rising-discover-results" class="rising-discover-grid"></div>
+      <div id="rising-e2e-proof-banner" hidden style="margin-top:12px;padding:12px 14px;border-radius:10px;background:#101b2b;border:1.5px solid #38bdf8"></div>
     </section>
 
     <!-- 3. Artistas Acelerando (2 períodos de 30 dias) -->

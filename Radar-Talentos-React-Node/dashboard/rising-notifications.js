@@ -488,22 +488,8 @@
 
  // =========================================================================
  // ARQUITETURA HÍBRIDA: EDGE-TO-EDGE (E2E) WEBSOCKET CLIENT (RFC 6455)
- // Conexão persistente, Heartbeat (25s), Reconexão Automática, Deduplicação e ACK
+ // Conexão persistente invisível em segundo plano, Heartbeat (25s), Reconexão Automática, Deduplicação e ACK
  // =========================================================================
- let e2eChip=document.getElementById('radar-e2e-socket-chip');
- if(!e2eChip){
-  e2eChip=el('button','secondary-button','🟡 E2E Socket');
-  e2eChip.id='radar-e2e-socket-chip';
-  e2eChip.type='button';
-  e2eChip.style.height='30px';
-  e2eChip.style.padding='0 10px';
-  e2eChip.style.fontSize='11px';
-  e2eChip.style.borderRadius='8px';
-  e2eChip.style.borderColor='rgba(168, 85, 247, 0.45)';
-  e2eChip.title='Arquitetura Híbrida REST + WebSocket Edge-to-Edge (Clique para inspecionar telemetria em tempo real)';
-  host.insertBefore(e2eChip,authChip||box);
- }
-
  let wsInstance=null;
  let wsReconnectAttempts=0;
  let wsHeartbeatTimer=null;
@@ -511,18 +497,10 @@
  const seenEventIds=new Set();
 
  function updateE2eChipState(state,detail=''){
-  if(!e2eChip)return;
+  const sideConn=document.getElementById('connection-status');
+  if(!sideConn)return;
   if(state==='connected'){
-   e2eChip.textContent='🟢 E2E Socket';
-   e2eChip.style.borderColor='rgba(74, 222, 128, 0.55)';
-   e2eChip.title=`Edge-to-Edge WebSocket Ativo (${wsConnectedClientId||'WSS'}) · ${detail||'Baixa latência'}`;
-  }else if(state==='reconnecting'){
-   e2eChip.textContent='🟡 E2E Reconectando';
-   e2eChip.style.borderColor='rgba(250, 204, 21, 0.55)';
-   e2eChip.title=`Reconectando canal Edge-to-Edge WebSocket (tentativa ${wsReconnectAttempts})...`;
-  }else{
-   e2eChip.textContent='⚪ E2E Standby';
-   e2eChip.style.borderColor='rgba(148, 163, 184, 0.4)';
+   sideConn.title=`Edge-to-Edge WebSocket Ativo (${wsConnectedClientId||'WSS'}) · ${detail||'Baixa latência'}`;
   }
  }
 
@@ -632,54 +610,6 @@
    });
   }catch{}
  }
-
- e2eChip?.addEventListener('click',async()=>{
-  try{
-   const r=await fetch('/api/realtime/status',{cache:'no-store'});
-   if(!r.ok)return;
-   const st=await r.json();
-   panel.replaceChildren();
-   const h=el('strong',null,`⚡ Arquitetura Híbrida E2E (${st.activeConnections||0} borda(s) ativa(s))`);
-   panel.append(h);
-   const p1=el('p',null,`Protocolo: ${st.architecture} · Endpoint: ${st.endpoint}`);
-   const p2=el('p',null,`Mensagens Enviadas: ${st.metrics?.totalMessagesSent||0} · Recebidas: ${st.metrics?.totalMessagesReceived||0} · ACKs Confirmados: ${st.metrics?.totalAcksReceived||0}`);
-   const p3=el('p',null,'Recursos ativos: Conexão persistente · Heartbeat 25s · Reconexão automática · Deduplicação por eventId · Confirmação ACK · Auditoria SQLite.');
-   panel.append(p1,p2,p3);
-   for(const edge of (st.activeEdges||[]).slice(0,5)){
-    panel.append(el('p',null,`🟢 Borda: ${edge.edgeNode} (${edge.clientId}) · RTT: ${edge.rttMs||0}ms`));
-   }
-   const testBtn=el('button','secondary-button','Disparar Evento E2E em Tempo Real');
-   testBtn.type='button';
-   testBtn.style.marginTop='6px';
-   testBtn.style.width='100%';
-   testBtn.addEventListener('click',async e=>{
-    e.stopPropagation();
-    testBtn.disabled=true;
-    testBtn.textContent='Transmitindo evento via Socket...';
-    try{
-     await fetch('/api/realtime/publish',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-       topic:'edge.telemetry_ping',
-       sourceEdge:wsConnectedClientId||'radar-ui',
-       payload:{action:'manual_verification',timestamp:new Date().toISOString()}
-      })
-     });
-     const r2=await fetch('/api/realtime/status',{cache:'no-store'});
-     const st2=await r2.json();
-     p2.textContent=`Mensagens Enviadas: ${st2.metrics?.totalMessagesSent||0} · Recebidas: ${st2.metrics?.totalMessagesReceived||0} · ACKs Confirmados: ${st2.metrics?.totalAcksReceived||0}`;
-     testBtn.textContent='✓ Evento transmitido e confirmado (ACK)!';
-    }catch{
-     testBtn.textContent='Falha ao transmitir';
-    }finally{
-     setTimeout(()=>{testBtn.disabled=false;testBtn.textContent='Disparar Evento E2E em Tempo Real';},1800);
-    }
-   });
-   panel.append(testBtn);
-   panel.hidden=false;
-  }catch{}
- });
 
  connectEdgeToEdgeSocket();
 })();

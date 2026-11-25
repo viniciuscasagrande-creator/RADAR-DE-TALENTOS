@@ -224,8 +224,9 @@
   const isImpersonating=Boolean(authData?.impersonating);
   if(authChip){
    authChip.textContent=isImpersonating
-    ?`🎭 ${u.displayName} (Voltar Admin)`
-    :`👤 ${u.displayName} (@${u.username})`;
+    ?`🎭 ${u.displayName} (Voltar)`
+    :`👤 ${u.displayName}`;
+   authChip.title=`Logado como ${u.displayName} (@${u.username}) — Clique para trocar de perfil ou gerenciar permissões`;
    authChip.style.borderColor=isImpersonating?'#facc15':'#38bdf8';
   }
 

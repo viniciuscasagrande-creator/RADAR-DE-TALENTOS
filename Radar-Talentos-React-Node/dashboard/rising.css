@@ -357,8 +357,46 @@
   font-size: 11px;
 }
 
-/* Sino de notificações no topo */
-.radar-notify{position:relative;display:inline-flex;align-items:center;flex-shrink:0;margin-left:4px}
+/* Sino de notificações e botões da barra superior sem sobreposição */
+.talent-home .top-search-bar,
+.compat-topbar-actions,
+.ac-actions,
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  max-width: none !important;
+  flex: 1 1 auto !important;
+  justify-content: flex-end;
+}
+.talent-home #artist-quick-search {
+  flex: 1 1 170px !important;
+  min-width: 130px;
+  max-width: 260px;
+}
+.talent-home #artist-quick-btn,
+.talent-home .search-trigger,
+#radar-e2e-socket-chip,
+#radar-user-session-chip,
+#radar-user-logout-btn {
+  flex-shrink: 0 !important;
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  box-sizing: border-box;
+  line-height: 1;
+}
+#radar-user-session-chip {
+  max-width: 195px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block !important;
+  line-height: 28px !important;
+}
+.radar-notify{position:relative;display:inline-flex;align-items:center;flex-shrink:0;margin-left:2px}
 .radar-notify>button{font-size:15px;background:linear-gradient(145deg,#2a163d,#170f24);border:1.5px solid #d946ef;box-shadow:0 0 12px rgba(217,70,239,0.5),inset 0 0 8px rgba(168,85,247,0.28);border-radius:8px;position:relative;width:34px;height:30px;padding:0;display:inline-flex;align-items:center;justify-content:center;transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}
 .radar-notify>button:hover{border-color:#00f0ff;box-shadow:0 0 16px rgba(0,240,255,0.7),0 0 24px rgba(217,70,239,0.4);transform:translateY(-1px)}
 .radar-notify-count{position:absolute;top:-6px;right:-6px;background:#ef4444;color:#fff;border:1px solid #fecaca;border-radius:20px;min-width:17px;padding:1px 4px;font-size:9.5px;font-weight:800;box-shadow:0 0 8px rgba(239,68,68,0.75)}

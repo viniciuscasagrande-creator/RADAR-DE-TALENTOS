@@ -1140,7 +1140,7 @@
       const q = document.getElementById('artist-quick-search')?.value?.trim() || '';
       const catSelect = document.querySelector('#filters select[name="category"]');
       activeCategoryId = catSelect?.value || activeCategoryId || '';
-      const cp = new URLSearchParams({ q, limit: '200' });
+      const cp = new URLSearchParams({ q, limit: '300' });
       if (activeCategoryId) cp.set('category', activeCategoryId);
       const [response, crossRes] = await Promise.all([
         fetch('/api/current-media?' + new URLSearchParams({ q }), { cache: 'no-store' }).catch(() => null),
@@ -1186,6 +1186,13 @@
   document.getElementById('artist-quick-btn')?.addEventListener('click', () => load(false));
   document.getElementById('artist-quick-search')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') load(false);
+  });
+  window.addEventListener('radar:socket-event', ev => {
+    const t = ev?.detail?.topic || '';
+    if (t === 'discovery.updated' || t === 'operations.sync_completed') load(false);
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') load(false);
   });
   load(false);
 })();

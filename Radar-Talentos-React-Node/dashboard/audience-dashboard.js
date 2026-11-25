@@ -1480,14 +1480,24 @@ async function search(keepPage=false){
   categoryCards(categoryCatalog,'Cadastro nacional de talentos — indicadores consolidados das 4 mídias e presença territorial',catalogTotal);
   selectionSummary(null);
   try{
-   const cp=new URLSearchParams({limit:'200'});
+   const cp=new URLSearchParams({limit:'300'});
    for(const key of ['talent','category','modality'])if(field(key)?.value)cp.set(key,field(key).value);
    const qInput=$('artist-quick-search')?.value?.trim()||'';
    if(qInput&&!field('talent').value)cp.set('q',qInput);
-   const cross=await get('/api/radar/cross-summary?'+cp);
+   const [cross,freshCats]=await Promise.all([
+    get('/api/radar/cross-summary?'+cp),
+    get('/api/regional/categories').catch(()=>null)
+   ]);
    if(n!==request)return;
+   if(freshCats?.categories){
+    categoryCatalog=freshCats.categories;
+    catalogTotal=freshCats.total??cross?.counts?.talents??catalogTotal;
+   }else if(cross?.counts?.talents!=null){
+    catalogTotal=cross.counts.talents;
+   }
+   categoryCards(categoryCatalog,'Cadastro nacional de talentos — indicadores consolidados das 4 mídias e presença territorial',catalogTotal);
    lastCrossItems=cross.items||[];
-   if(field('talent').options.length<=1&&cross.items?.length){
+   if(cross.items?.length&&!field('category')?.value&&!qInput){
     options(field('talent'),cross.items.map(t=>({id:t.id,name:t.name})),'Todos com dados');
     const dl=$('talent-datalist');
     if(dl)dl.replaceChildren(...cross.items.map(r=>{const o=document.createElement('option');o.value=r.name;return o;}));
@@ -2103,4 +2113,6 @@ for(const btn of document.querySelectorAll('.win-switch[data-evo-days]')){
  });
 }
 form.addEventListener('submit',e=>{e.preventDefault();search()});field('network').addEventListener('change',networkChanged);field('report').addEventListener('change',reportChanged);field('days').addEventListener('change',metricChanged);field('metric').addEventListener('change',metricChanged);$('radius-slider').addEventListener('input',()=>{const v=Number($('radius-slider').value);field('radius').value=v>0?String(v):'';});field('radius').addEventListener('input',()=>{const v=Number(field('radius').value);$('radius-slider').value=Number.isFinite(v)&&v>0?String(v):'0';});$('reload').addEventListener('click',()=>loadReports().catch(e=>$('message').textContent=e.message));$('prev').addEventListener('click',()=>{offset=Math.max(0,offset-100);search(true)});$('next').addEventListener('click',()=>{if(offset+100<total){offset+=100;search(true)}});
+window.addEventListener('radar:socket-event',ev=>{const t=ev?.detail?.topic||'';if(t==='discovery.updated'||t==='operations.sync_completed'){search(true);}});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')search(true);});
 (async()=>{try{let cats,municipal,demog;[mods,geo,cats,municipal,demog]=await Promise.all([get('/api/radar/modalities'),get('/api/radar/geography'),get('/api/regional/categories'),get('/api/radar/municipalities'),get('/api/radar/demographics').catch(()=>({items:[],byRegion:[]}))]);categoryCatalog=cats.categories;catalogTotal=cats.total;catalog=municipal.items;demographicsData=demog||{items:[],byRegion:[]};renderQuickHubsBar();options(field('category'),categoryCatalog.map(c=>({id:String(c.id),name:c.name})),'Todas');options(field('modality'),mods,'Todas');subs();filterCities();filterCenters();categoryCards(categoryCatalog,'Cadastro nacional de talentos',catalogTotal);await loadReports()}catch(e){$('message').textContent=e.message}})();

@@ -129,6 +129,45 @@ async function autoCollectSpotifyForCandidate(radar, targetRadarId, profiles, ev
   return collected;
 }
 
+function slugifyTalentId(name) {
+  const slug = String(name || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(/&/g, ' e ')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+  return 't-' + (slug || 'novo-talento');
+}
+
+function inferAndAttachCategory(radar, talentId, description = '', sourceHint = '') {
+  if (!radar || !talentId) return;
+  try {
+    const hasCat = radar.prepare('SELECT 1 FROM talent_categories WHERE talent_id = ? LIMIT 1').get(talentId);
+    if (hasCat) return;
+    const text = `${description || ''} ${sourceHint || ''}`.toLowerCase();
+    let catName = 'Cantores';
+    if (/humorist|comediant|comedian|stand-up/.test(text)) catName = 'Humoristas';
+    else if (/palestrant|speaker|escritor|filósofo|filosofo|historiador|economista|mentor|pastor|padre/.test(text)) catName = 'Palestrantes';
+    else if (/influenciador|influencer|youtuber|streamer|criador|tiktoker|apresentador/.test(text)) catName = 'Influenciadores';
+    else if (/chef|cozinheir|gastronomia|culinária|culinaria/.test(text)) catName = 'Gastronomia';
+    else if (/infantil|criança|crianca|children/.test(text)) catName = 'Infantil e família';
+    else if (/teatro|musical|peça|peca|dramaturg/.test(text)) catName = 'Peças de teatro e musicais';
+    else if (/ator|atriz|actor|actress|artista plástico|muralista/.test(text)) catName = 'Artistas';
+    const catRow =
+      radar.prepare('SELECT id FROM categories WHERE lower(name) = lower(?) LIMIT 1').get(catName) ||
+      radar.prepare('SELECT id FROM categories ORDER BY id ASC LIMIT 1').get();
+    if (catRow?.id != null) {
+      radar.prepare('INSERT OR IGNORE INTO talent_categories(talent_id, category_id) VALUES (?, ?)').run(talentId, catRow.id);
+    }
+    const modRow = radar.prepare("SELECT id FROM modalities WHERE id = 'shows' OR lower(name) LIKE '%show%' LIMIT 1").get();
+    if (modRow?.id) {
+      radar.prepare('INSERT OR IGNORE INTO talent_modalities(talent_id, modality_id) VALUES (?, ?)').run(talentId, modRow.id);
+    }
+  } catch {}
+}
+
 export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer = 'admin', fetcher = fetch } = {}) {
   if (!radar) throw Error('Banco Radar indisponível');
   let candidateId = payload.id || null;
@@ -139,7 +178,7 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
     const saved = await saveMusicBrainz(db, payload.external_id, { fetcher });
     candidateId = saved.id;
   } else if (!candidateId && payload.name && String(payload.name).trim().length >= 2) {
-    // Talento emergente ainda sem registro no Wikidata/MusicBrainz (ex.: canal YouTube ou perfil direto)
+    // Talento emergente ou novo artista pesquisado diretamente no Motor de Dados
     const cleanName = String(payload.name).trim().slice(0, 140);
     const existingCand = db.prepare('SELECT id FROM candidates WHERE lower(trim(name))=lower(trim(?))').get(cleanName);
     if (existingCand) {
@@ -148,11 +187,12 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
       const evFallback =
         payload.evidence && String(payload.evidence).trim().startsWith('https://')
           ? String(payload.evidence).trim()
-          : (Array.isArray(payload.extraProfiles) && payload.extraProfiles[0]?.url) || 'https://www.youtube.com';
+          : (Array.isArray(payload.extraProfiles) && payload.extraProfiles[0]?.url) ||
+            `https://www.wikidata.org/wiki/Special:Search?search=${encodeURIComponent(cleanName)}`;
       const srcId = 'emerging-direct-discovery';
       db.prepare(
         "INSERT INTO sources VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET enabled=1"
-      ).run(srcId, 'licensed-file', 'Prospecção direta de talento emergente com perfil oficial', 1, 1);
+      ).run(srcId, 'licensed-file', 'Prospecção direta de talento com perfil oficial', 1, 1);
       const newCandId = hash(srcId + '\0' + cleanName.toLowerCase());
       const stamp = new Date().toISOString();
       db.prepare('INSERT OR IGNORE INTO candidates(id,name,created_at) VALUES(?,?,?)').run(newCandId, cleanName, stamp);
@@ -170,23 +210,37 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
         c.evidence.find(e => e.source_id === 'wikidata-cc0')?.url ||
         c.evidence[0]?.url ||
         c.profiles[0]?.url ||
-        'https://www.wikidata.org';
+        `https://www.wikidata.org/wiki/Special:Search?search=${encodeURIComponent(c.name)}`;
 
+  // Incorpora perfis extras (YouTube, Spotify, Instagram, TikTok) diretamente na ficha do candidato antes da revisão
   if (Array.isArray(payload.extraProfiles)) {
+    const directSrc = 'emerging-direct-discovery';
+    db.prepare(
+      "INSERT INTO sources VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET enabled=1"
+    ).run(directSrc, 'licensed-file', 'Prospecção direta de talento com perfil oficial', 1, 1);
     for (const ep of payload.extraProfiles) {
       if (!ep?.network || !ep?.url) continue;
       try {
         if (ep.network === 'YouTube' && /^https:\/\/(www\.)?youtube\.com\/channel\/UC[A-Za-z0-9_-]{22}$/.test(ep.url)) {
           const cleanYt = ep.url.replace('https://www.', 'https://');
           if (!c.profiles.some(x => x.url === cleanYt)) {
-            addYoutubeProfile(db, candidateId, { url: cleanYt, evidence: autoEv });
+            try {
+              addYoutubeProfile(db, candidateId, { url: cleanYt, evidence: autoEv });
+            } catch {
+              const pid = hash('YouTube\0' + cleanYt);
+              db.prepare('INSERT OR IGNORE INTO profiles VALUES(?,?,?,?,?)').run(pid, candidateId, 'YouTube', cleanYt, directSrc);
+            }
           }
         } else if (['Instagram', 'Spotify', 'TikTok'].includes(ep.network) && String(ep.url).startsWith('https://')) {
-          const indepEv =
-            new URL(autoEv).hostname.replace(/^www\./, '') !== new URL(ep.url).hostname.replace(/^www\./, '')
-              ? autoEv
-              : `https://www.wikidata.org/wiki/Special:Search?search=${encodeURIComponent(c.name)}`;
-          addOpenProfile(db, candidateId, { network: ep.network, url: ep.url, evidence: indepEv });
+          const cleanSocial = String(ep.url).replace('https://www.', 'https://').replace(/\/$/, '');
+          if (!c.profiles.some(x => x.url === cleanSocial)) {
+            try {
+              enrich(db, candidateId, directSrc, { network: ep.network, url: cleanSocial, evidence_url: autoEv });
+            } catch {
+              const pid = hash(ep.network + '\0' + cleanSocial);
+              db.prepare('INSERT OR IGNORE INTO profiles VALUES(?,?,?,?,?)').run(pid, candidateId, ep.network, cleanSocial, directSrc);
+            }
+          }
         }
       } catch {}
     }
@@ -194,33 +248,82 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
   }
 
   const rawRadarId = payload.radarId && !String(payload.radarId).includes('://') ? String(payload.radarId).trim() : null;
-  const resolvedRadarId =
+  let resolvedRadarId =
     rawRadarId ||
     (c.radar_id && !String(c.radar_id).includes('://') ? c.radar_id : null) ||
     suggestRadarId(radar, c.name) ||
     null;
 
-  if (c.status !== 'published') {
-    review(db, candidateId, {
-      approve: true,
-      reviewer,
-      evidence: autoEv,
-      radarId: resolvedRadarId
-    });
-  } else if (resolvedRadarId && c.radar_id !== resolvedRadarId) {
-    db.prepare('UPDATE candidates SET radar_id=? WHERE id=?').run(resolvedRadarId, candidateId);
+  // Se o talento ainda não existe na tabela talents do Radar, cria imediatamente para atualizar o contador global (ex.: 103 -> 104)
+  if (!resolvedRadarId) {
+    const baseId = slugifyTalentId(c.name);
+    const collision = radar.prepare('SELECT id, name FROM talents WHERE id = ?').get(baseId);
+    resolvedRadarId = collision && collision.name.toLowerCase() !== c.name.toLowerCase() ? `${baseId}-${candidateId.slice(0, 6)}` : baseId;
   }
-
-  c = detail(db, candidateId);
-  let pubResult;
+  const existingTalent = radar.prepare('SELECT id, name FROM talents WHERE id = ?').get(resolvedRadarId);
+  if (!existingTalent) {
+    radar.prepare("INSERT OR IGNORE INTO talents(id, name, entity_type, blocked) VALUES (?, ?, 'person', 0)").run(resolvedRadarId, c.name);
+  }
+  inferAndAttachCategory(radar, resolvedRadarId, payload.description || '', payload.source || '');
   try {
-    pubResult = publishIdentityOnly(db, radar, candidateId);
-  } catch {
-    pubResult = publish(db, radar, candidateId, importCommercial);
-  }
+    const qidMatch = /wikidata\.org\/wiki\/(Q\d+)/i.exec(autoEv);
+    const mbMatch = /musicbrainz\.org\/artist\/([0-9a-f-]{36})/i.exec(autoEv);
+    radar
+      .prepare(
+        `INSERT INTO talent_metadata(talent_id, wikidata_id, musicbrainz_id, description, updated_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(talent_id) DO UPDATE SET
+           wikidata_id = COALESCE(excluded.wikidata_id, talent_metadata.wikidata_id),
+           musicbrainz_id = COALESCE(excluded.musicbrainz_id, talent_metadata.musicbrainz_id),
+           description = CASE WHEN excluded.description != '' THEN excluded.description ELSE talent_metadata.description END,
+           updated_at = excluded.updated_at`
+      )
+      .run(
+        resolvedRadarId,
+        payload.source === 'wikidata' ? payload.external_id : qidMatch?.[1] || null,
+        payload.source === 'musicbrainz' ? payload.external_id : mbMatch?.[1] || null,
+        String(payload.description || '').slice(0, 400),
+        new Date().toISOString()
+      );
+  } catch {}
 
-  c = detail(db, candidateId);
-  const targetRadarId = c.radar_id || pubResult?.radarId;
+  let targetRadarId = resolvedRadarId;
+  if (c.profiles.length > 0) {
+    if (c.status !== 'published') {
+      try {
+        review(db, candidateId, {
+          approve: true,
+          reviewer,
+          evidence: autoEv,
+          radarId: resolvedRadarId
+        });
+      } catch {}
+    } else if (resolvedRadarId && c.radar_id !== resolvedRadarId) {
+      db.prepare('UPDATE candidates SET radar_id=? WHERE id=?').run(resolvedRadarId, candidateId);
+    }
+
+    c = detail(db, candidateId);
+    let pubResult;
+    try {
+      pubResult = publishIdentityOnly(db, radar, candidateId);
+    } catch {
+      try {
+        pubResult = publish(db, radar, candidateId, importCommercial);
+      } catch {}
+    }
+    c = detail(db, candidateId);
+    targetRadarId = c.radar_id || pubResult?.radarId || resolvedRadarId;
+  } else {
+    // Mesmo que ainda não haja URL de rede social no Wikidata, incorpora o artista aprovado ao Radar e atualiza os contadores
+    const stamp = new Date().toISOString();
+    db.prepare(
+      "UPDATE candidates SET status='published', reviewer=?, identity_evidence=?, reviewed_at=?, radar_id=? WHERE id=?"
+    ).run(reviewer, autoEv, stamp, resolvedRadarId, candidateId);
+    db.prepare(
+      'INSERT INTO approved_imports VALUES(?,?,?,0) ON CONFLICT(candidate_id) DO UPDATE SET published_at=excluded.published_at, radar_id=excluded.radar_id'
+    ).run(candidateId, resolvedRadarId, stamp);
+    c = detail(db, candidateId);
+  }
 
   const allowedConfirmNetworks = Array.isArray(payload.confirmNetworks)
     ? new Set(payload.confirmNetworks.map(n => String(n).trim()))
@@ -256,6 +359,7 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
     ? await autoCollectSpotifyForCandidate(radar, targetRadarId, confirmedSpotifyProfiles, autoEv, fetcher)
     : 0;
   const dist = distributeVerifiedDiscoveryToRadar(radar, db);
+  const totalTalents = radar.prepare('SELECT count(*) n FROM talents WHERE blocked = 0').get().n;
 
   return {
     ok: true,
@@ -263,6 +367,7 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
     name: c.name,
     radarId: targetRadarId,
     status: 'published',
+    totalTalents,
     profilesLinked: c.profiles.length,
     platformValidationMatrix: buildPlatformValidationMatrix(db, detail(db, candidateId)),
     youtubeCollected,
@@ -615,8 +720,8 @@ export async function handleDiscovery(req, res, { radar, security } = {}) {
         const cands = listCandidates(db);
         const rc = (t, w = '') => (radar ? radar.prepare(`SELECT count(*) n FROM ${t} ${w}`).get().n : 0);
         const funnel = {
-          searched: Math.max(cands.length, dc('collection_jobs')),
-          confirmed: cands.filter(c => ['approved', 'published'].includes(c.status)).length,
+          searched: Math.max(rc('talents', 'WHERE blocked=0'), cands.length, dc('collection_jobs')),
+          confirmed: Math.max(rc('talents', 'WHERE blocked=0'), cands.filter(c => ['approved', 'published'].includes(c.status)).length),
           collected: rc('metric_current', 'WHERE value IS NOT NULL'),
           distributed: rc('media_metric_series')
         };
@@ -705,11 +810,13 @@ export async function handleDiscovery(req, res, { radar, security } = {}) {
         });
       } else if (action === 'global-search') {
         result = await globalSearch(db, radar, v.query, { includeMusicBrainzLive: Boolean(v.includeMusicBrainzLive) });
-        // Se autoApprove estiver ativo, já aprova, coleta YouTube + Spotify e distribui automaticamente para Oportunidade Comercial e demais menus
+        // Se autoApprove estiver ativo, já aprova, cadastra em talents, coleta YouTube + Spotify e distribui automaticamente para todos os menus
         if (Boolean(v.autoApprove) && radar) {
           const extraYt = Array.isArray(result.youtubeChannels) && result.youtubeChannels.length ? [result.youtubeChannels[0]] : [];
-          const bestExt = result.external?.[0] || null;
-          const bestMb = result.musicbrainz?.[0] || null;
+          const cvProfiles = Array.isArray(result.crossValidation?.profiles) ? result.crossValidation.profiles : [];
+          const mergedExtras = [...extraYt, ...cvProfiles];
+          const bestExt = result.external?.find(e => e.profiles?.length > 0) || result.external?.[0] || null;
+          const bestMb = result.musicbrainz?.find(m => m.profiles?.length > 0) || result.musicbrainz?.[0] || null;
           let autoPublished = null;
           try {
             if (bestExt?.external_id) {
@@ -717,22 +824,24 @@ export async function handleDiscovery(req, res, { radar, security } = {}) {
                 id: bestExt.candidate_id || null,
                 source: 'wikidata',
                 external_id: bestExt.external_id,
+                description: bestExt.description || '',
                 evidence: bestExt.evidence_url,
-                extraProfiles: bestExt.profiles?.some(pr => pr.network === 'YouTube') ? [] : extraYt
+                extraProfiles: mergedExtras
               });
             } else if (bestMb?.external_id) {
               autoPublished = await approveAndSendToRadar(db, radar, {
                 id: bestMb.candidate_id || null,
                 source: 'musicbrainz',
                 external_id: bestMb.external_id,
+                description: bestMb.description || '',
                 evidence: bestMb.evidence_url,
-                extraProfiles: bestMb.profiles?.some(pr => pr.network === 'YouTube') ? [] : extraYt
+                extraProfiles: mergedExtras
               });
-            } else if (extraYt.length && v.query && String(v.query).trim().length >= 2) {
+            } else if (v.query && String(v.query).trim().length >= 2) {
               autoPublished = await approveAndSendToRadar(db, radar, {
                 name: String(v.query).trim(),
-                evidence: extraYt[0].url,
-                extraProfiles: extraYt
+                evidence: extraYt[0]?.url || `https://www.wikidata.org/wiki/Special:Search?search=${encodeURIComponent(String(v.query).trim())}`,
+                extraProfiles: mergedExtras
               });
             }
           } catch {}
@@ -742,8 +851,14 @@ export async function handleDiscovery(req, res, { radar, security } = {}) {
         }
       } else if (action === 'global-save') {
         result = await saveWikidata(db, v.id);
+        if (Boolean(v.autoApprove) && radar) {
+          result = await approveAndSendToRadar(db, radar, { id: result.id, source: 'wikidata', external_id: v.id });
+        }
       } else if (action === 'musicbrainz-save') {
         result = await saveMusicBrainz(db, v.id);
+        if (Boolean(v.autoApprove) && radar) {
+          result = await approveAndSendToRadar(db, radar, { id: result.id, source: 'musicbrainz', external_id: v.id });
+        }
       } else if (action === 'search') {
         const s = db.prepare('SELECT kind FROM sources WHERE id=?').get(v.source);
         result = await discover(db, v.source, v.query, {

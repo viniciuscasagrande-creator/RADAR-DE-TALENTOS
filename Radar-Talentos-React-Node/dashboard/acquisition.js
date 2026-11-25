@@ -167,7 +167,7 @@ $('ac-global-search-form')?.addEventListener('submit',async e=>{
       autoBox.style.marginBottom='10px';
       const msg=document.createElement('strong');
       msg.style.color='#86efac';
-      msg.textContent=`⚡ Aprovado e Distribuído Automaticamente: ${ap.name} (${ap.radarId}) · Perfis: ${ap.profilesLinked??0} · YouTube: ${ap.youtubeCollected??0} · Spotify: ${ap.spotifyCollected??0}`;
+      msg.textContent=`⚡ Aprovado e Incorporado ao Radar: ${ap.name} (${ap.radarId})${ap.totalTalents?` · Total de Talentos Monitorados: ${ap.totalTalents}`:''} · Perfis: ${ap.profilesLinked??0} · YouTube: ${ap.youtubeCollected??0} · Spotify: ${ap.spotifyCollected??0}`;
       autoBox.append(msg);
       const qName=encodeURIComponent(ap.name||q);
       const tId=encodeURIComponent(ap.radarId);
@@ -217,33 +217,28 @@ $('ac-global-search-form')?.addEventListener('submit',async e=>{
 
     const actionsRow=document.createElement('div');
     actionsRow.className='ac-search-actions';
+    const extraYt=Array.isArray(r.youtubeChannels)&&r.youtubeChannels.length?[r.youtubeChannels[0]]:[];
     for(const ext of (r.external||[]).slice(0,3)){
       const btn=document.createElement('button');
       btn.type='button';
-      btn.textContent=ext.candidate_id?`Já em revisão: ${ext.name} (${ext.external_id})`:`Importar Wikidata: ${ext.name} (${ext.external_id})`;
+      btn.textContent=`⚡ Aprovar e Incorporar Wikidata: ${ext.name} (${ext.external_id})`;
       btn.onclick=async()=>{
-        if(!ext.candidate_id){
-          btn.disabled=true;
-          await postDiscovery('global-save',{id:ext.external_id});
-          $('ac-status').textContent=`Candidato ${ext.name} (${ext.external_id}) enviado para revisão em Prospecção e aprovação.`;
-          refresh();
-        }
-        location.href='/discovery.html';
+        btn.disabled=true;
+        const ap=await postDiscovery('approve-and-send',{id:ext.candidate_id||null,source:'wikidata',external_id:ext.external_id,description:ext.description||'',evidence:ext.evidence_url,extraProfiles:extraYt});
+        $('ac-status').textContent=`✓ ${ap.name} incorporado ao Radar (${ap.radarId}) · Total de Talentos Monitorados: ${ap.totalTalents??'Atualizado'}.`;
+        await refresh();
       };
       actionsRow.append(btn);
     }
     for(const mb of (r.musicbrainz||[]).slice(0,3)){
       const btn=document.createElement('button');
       btn.type='button';
-      btn.textContent=mb.candidate_id?`MusicBrainz em revisão: ${mb.name}`:`Importar MusicBrainz: ${mb.name}`;
+      btn.textContent=`⚡ Aprovar e Incorporar MusicBrainz: ${mb.name}`;
       btn.onclick=async()=>{
-        if(!mb.candidate_id){
-          btn.disabled=true;
-          await postDiscovery('musicbrainz-save',{id:mb.external_id});
-          $('ac-status').textContent=`Artista ${mb.name} importado do MusicBrainz para revisão.`;
-          refresh();
-        }
-        location.href='/discovery.html';
+        btn.disabled=true;
+        const ap=await postDiscovery('approve-and-send',{id:mb.candidate_id||null,source:'musicbrainz',external_id:mb.external_id,description:mb.description||'',evidence:mb.evidence_url,extraProfiles:extraYt});
+        $('ac-status').textContent=`✓ ${ap.name} incorporado ao Radar (${ap.radarId}) · Total de Talentos Monitorados: ${ap.totalTalents??'Atualizado'}.`;
+        await refresh();
       };
       actionsRow.append(btn);
     }

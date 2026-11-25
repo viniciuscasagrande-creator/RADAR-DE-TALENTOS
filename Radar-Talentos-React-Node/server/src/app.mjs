@@ -454,8 +454,8 @@ export function createRadarServer({
                 open_social_observations: dc('observations', "WHERE source_id='open-social-current'")
               },
               funnel: {
-                searched: Math.max(cands.length, dc('collection_jobs')),
-                confirmed: cands.filter(c => ['approved', 'published'].includes(c.status)).length,
+                searched: Math.max(rc('talents', 'WHERE blocked=0'), cands.length, dc('collection_jobs')),
+                confirmed: Math.max(rc('talents', 'WHERE blocked=0'), cands.filter(c => ['approved', 'published'].includes(c.status)).length),
                 collected: rc('metric_current', 'WHERE value IS NOT NULL'),
                 distributed: rc('media_metric_series')
               }
@@ -573,7 +573,7 @@ export function createRadarServer({
         }
         const result = regionalDashboard(database, path, new URL(req.url, 'http://localhost').searchParams);
         if (result !== undefined) {
-          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' }).end(
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(
             req.method === 'HEAD' ? undefined : JSON.stringify(result)
           );
           return;

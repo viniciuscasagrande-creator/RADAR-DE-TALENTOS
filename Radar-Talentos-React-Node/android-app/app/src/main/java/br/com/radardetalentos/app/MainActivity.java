@@ -12,6 +12,7 @@ import android.graphics.Insets;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
+import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -25,6 +26,7 @@ import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
+import android.webkit.SslErrorHandler;
 import android.webkit.URLUtil;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -69,53 +71,56 @@ public class MainActivity extends Activity {
     }
 
     private void configureEdgeToEdgeWindow() {
-        Window window = getWindow();
-        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
-        window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
-        window.setStatusBarColor(Color.TRANSPARENT);
-        window.setNavigationBarColor(Color.TRANSPARENT);
+        try {
+            Window window = getWindow();
+            window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+            window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+            window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
+            window.setStatusBarColor(Color.TRANSPARENT);
+            window.setNavigationBarColor(Color.TRANSPARENT);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            WindowManager.LayoutParams lp = window.getAttributes();
-            lp.layoutInDisplayCutoutMode =
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-            window.setAttributes(lp);
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.setStatusBarContrastEnforced(false);
-            window.setNavigationBarContrastEnforced(false);
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false);
-            WindowInsetsController controller = window.getInsetsController();
-            if (controller != null) {
-                controller.setSystemBarsAppearance(
-                    0,
-                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                        | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
-                );
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                WindowManager.LayoutParams lp = window.getAttributes();
+                lp.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                window.setAttributes(lp);
             }
-        } else {
-            int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
-            window.getDecorView().setSystemUiVisibility(flags);
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.setStatusBarContrastEnforced(false);
+                window.setNavigationBarContrastEnforced(false);
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(false);
+                WindowInsetsController controller = window.getInsetsController();
+                if (controller != null) {
+                    controller.setSystemBarsAppearance(
+                        0,
+                        WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                            | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                    );
+                }
+            } else {
+                int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+                window.getDecorView().setSystemUiVisibility(flags);
+            }
+        } catch (Throwable ignored) {
         }
     }
 
     private void buildUserInterface() {
         rootContainer = new FrameLayout(this);
-        rootContainer.setBackgroundColor(Color.parseColor("#06030F"));
+        rootContainer.setBackgroundColor(Color.parseColor("#0A0414"));
         rootContainer.setLayoutParams(new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         ));
 
         webView = new WebView(this);
-        webView.setBackgroundColor(Color.parseColor("#06030F"));
+        webView.setBackgroundColor(Color.parseColor("#0A0414"));
         webView.setLayoutParams(new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
@@ -144,7 +149,7 @@ public class MainActivity extends Activity {
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setGravity(Gravity.CENTER);
-        layout.setBackgroundColor(Color.parseColor("#06030F"));
+        layout.setBackgroundColor(Color.parseColor("#0A0414"));
         int pad = dpToPx(28);
         layout.setPadding(pad, pad, pad, pad);
         layout.setLayoutParams(new FrameLayout.LayoutParams(
@@ -205,7 +210,7 @@ public class MainActivity extends Activity {
         settings.setDisplayZoomControls(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
 
         boolean isTablet = isTabletDevice();
         String baseUa = settings.getUserAgentString();
@@ -245,13 +250,23 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                String url = error != null ? error.getUrl() : "";
+                if (url != null && (url.contains("34.70.140.94") || url.contains("sslip.io"))) {
+                    handler.proceed();
+                } else {
+                    super.onReceivedSslError(view, handler, error);
+                }
+            }
+
+            @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 if (uri == null) return false;
                 String scheme = uri.getScheme() != null ? uri.getScheme().toLowerCase() : "";
                 if ("http".equals(scheme) || "https".equals(scheme)) {
                     String host = uri.getHost() != null ? uri.getHost().toLowerCase() : "";
-                    if (host.contains("34.70.140.94") || host.contains("radardetalentos") || host.contains("localhost")) {
+                    if (host.contains("34.70.140.94") || host.contains("sslip.io") || host.contains("radardetalentos") || host.contains("localhost")) {
                         return false;
                     }
                     try {
@@ -348,7 +363,7 @@ public class MainActivity extends Activity {
     private void injectEdgeToEdgeInsetsIntoDom() {
         if (webView == null) return;
         boolean tablet = isTabletDevice();
-        String js = "javascript:(function(){"
+        final String js = "(function(){"
             + "var r=document.documentElement;"
             + "if(!r)return;"
             + "r.style.setProperty('--safe-top','" + insetTopDp + "px');"
@@ -361,7 +376,10 @@ public class MainActivity extends Activity {
         webView.post(new Runnable() {
             @Override
             public void run() {
-                webView.evaluateJavascript(js, null);
+                try {
+                    webView.evaluateJavascript(js, null);
+                } catch (Throwable ignored) {
+                }
             }
         });
     }

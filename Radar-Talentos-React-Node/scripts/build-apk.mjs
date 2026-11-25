@@ -36,11 +36,25 @@ function ensureDirs() {
   fs.mkdirSync(releaseDir, { recursive: true });
 }
 
-function copyLauncherIcon() {
+function generateCompactLauncherIcon() {
   const logoSrc = path.join(rootDir, "dashboard", "radar-logo-mark.png");
   const iconDest = path.join(drawableDir, "ic_launcher.png");
-  fs.copyFileSync(logoSrc, iconDest);
-  console.log("[APK] Launcher icon copied to", iconDest);
+  try {
+    execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-Command",
+        `Add-Type -AssemblyName System.Drawing; $src=[System.Drawing.Image]::FromFile('${logoSrc.replace(/'/g, "''")}'); $bmp=New-Object System.Drawing.Bitmap(192,192); $g=[System.Drawing.Graphics]::FromImage($bmp); $g.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic; $g.SmoothingMode=[System.Drawing.Drawing2D.SmoothingMode]::HighQuality; $g.Clear([System.Drawing.Color]::FromArgb(255,10,4,20)); $g.DrawImage($src,0,0,192,192); $bmp.Save('${iconDest.replace(/'/g, "''")}',[System.Drawing.Imaging.ImageFormat]::Png); $g.Dispose(); $bmp.Dispose(); $src.Dispose();`
+      ],
+      { stdio: "inherit" }
+    );
+    const sizeKb = (fs.statSync(iconDest).size / 1024).toFixed(1);
+    console.log(`[APK] 192x192 Launcher icon generated at ${iconDest} (${sizeKb} KB)`);
+  } catch {
+    fs.copyFileSync(logoSrc, iconDest);
+    console.log("[APK] Fallback launcher icon copied to", iconDest);
+  }
 }
 
 function listResourceFiles(dir) {
@@ -86,9 +100,9 @@ function compileAndLinkResources() {
       "--target-sdk-version",
       "35",
       "--version-code",
-      "300",
+      "301",
       "--version-name",
-      "3.0.0",
+      "3.0.1",
       ...flatFiles
     ],
     { stdio: "inherit" }
@@ -169,7 +183,10 @@ function packageAlignAndSign(unsignedApk) {
   const buildCopyDex = path.join(buildDir, "classes.dex");
   fs.copyFileSync(classesDex, buildCopyDex);
 
-  execFileSync(jarExe, ["-uf", unsignedApk, "-C", buildDir, "classes.dex"], {
+  // CRÍTICO: -0 (STORED / sem compressão) para classes.dex e resources.arsc!
+  // No Android 11..16 (targetSdk 30+), classes.dex ou resources.arsc comprimidos com DEFLATE
+  // causam falha de mmap na abertura do aplicativo ou rejeição silenciosa pelo PackageManager.
+  execFileSync(jarExe, ["-u0f", unsignedApk, "-C", buildDir, "classes.dex"], {
     stdio: "inherit"
   });
 
@@ -224,6 +241,12 @@ function packageAlignAndSign(unsignedApk) {
       "/c",
       apksignerBat,
       "sign",
+      "--v1-signing-enabled",
+      "true",
+      "--v2-signing-enabled",
+      "true",
+      "--v3-signing-enabled",
+      "true",
       "--ks",
       keystorePath,
       "--ks-key-alias",
@@ -251,7 +274,7 @@ function packageAlignAndSign(unsignedApk) {
 }
 
 ensureDirs();
-copyLauncherIcon();
+generateCompactLauncherIcon();
 const unsignedApk = compileAndLinkResources();
 compileJavaAndDex();
 packageAlignAndSign(unsignedApk);

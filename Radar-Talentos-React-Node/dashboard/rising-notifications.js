@@ -8,6 +8,82 @@
   logoImg.alt='';
   mark.append(logoImg);
  }
+ // Suporte nativo Edge-to-Edge (Android 15/16 WindowCompat + Safe Area Insets) para Mobile e Tablet
+ const vpMeta=document.querySelector('meta[name="viewport"]');
+ if(vpMeta&&!String(vpMeta.content).includes('viewport-fit')){
+  vpMeta.content=vpMeta.content+', viewport-fit=cover';
+ }
+ if(!document.querySelector('link[rel="manifest"]')){
+  const mf=document.createElement('link');
+  mf.rel='manifest';
+  mf.href='/manifest.json';
+  document.head.append(mf);
+ }
+ const sidebarEl=document.querySelector('.sidebar');
+ if(sidebarEl&&!document.getElementById('radar-mobile-menu-btn')){
+  const backdrop=document.createElement('div');
+  backdrop.className='radar-sidebar-backdrop';
+  backdrop.id='radar-sidebar-backdrop';
+  document.body.append(backdrop);
+  const topHeaderHost=
+   document.querySelector('.topline')||
+   document.querySelector('.commercial-topbar')||
+   document.querySelector('.ac-top-header')||
+   document.querySelector('.disc-top-header')||
+   document.querySelector('main > :first-child');
+  if(topHeaderHost){
+   const menuBtn=document.createElement('button');
+   menuBtn.id='radar-mobile-menu-btn';
+   menuBtn.className='radar-mobile-menu-btn';
+   menuBtn.type='button';
+   menuBtn.setAttribute('aria-label','Abrir menu de navegação do Radar');
+   menuBtn.innerHTML='&#9776;';
+   topHeaderHost.prepend(menuBtn);
+   const toggleSidebar=()=>document.body.classList.toggle('radar-mobile-nav-open');
+   const closeSidebar=()=>document.body.classList.remove('radar-mobile-nav-open');
+   menuBtn.addEventListener('click',e=>{e.stopPropagation();toggleSidebar();});
+   backdrop.addEventListener('click',closeSidebar);
+   sidebarEl.querySelectorAll('a,button').forEach(a=>a.addEventListener('click',closeSidebar));
+  }
+  if(!document.getElementById('radar-mobile-bottom-nav')){
+   const bNav=document.createElement('nav');
+   bNav.id='radar-mobile-bottom-nav';
+   bNav.className='radar-mobile-bottom-nav';
+   bNav.setAttribute('aria-label','Navegação rápida mobile');
+   const curPath=location.pathname||'/';
+   for(const [icon,label,href] of [
+    ['◉','Visão Geral','/'],
+    ['⌖','Audiência','/audience.html'],
+    ['↗','Comercial','/commercial.html'],
+    ['★','Emergentes','/rising.html'],
+    ['👥','Usuários','/users.html']
+   ]){
+    const a=document.createElement('a');
+    a.href=href;
+    const isCur=(href==='/'&&(curPath==='/'||curPath==='/index.html'))||(href!=='/'&&curPath.endsWith(href));
+    if(isCur)a.setAttribute('aria-current','page');
+    const ic=document.createElement('span');ic.textContent=icon;
+    const lb=document.createElement('small');lb.textContent=label;
+    a.append(ic,lb);
+    bNav.append(a);
+   }
+   document.body.append(bNav);
+  }
+  if(!document.getElementById('radar-sidebar-apk-download')){
+   const apkLink=document.createElement('a');
+   apkLink.id='radar-sidebar-apk-download';
+   apkLink.className='nav-link';
+   apkLink.href='/radar-de-talentos.apk';
+   apkLink.setAttribute('download','radar-de-talentos.apk');
+   apkLink.style.marginTop='8px';
+   apkLink.style.border='1px solid rgba(183, 68, 255, 0.35)';
+   apkLink.style.background='rgba(154, 50, 239, 0.14)';
+   apkLink.innerHTML='<span class="nav-link-icon">&#128241;</span><span class="nav-link-copy"><strong>Baixar App (.APK)</strong><small>Android Mobile &amp; Tablet</small></span>';
+   const sideFooter=sidebarEl.querySelector('.sidebar-footer');
+   if(sideFooter)sidebarEl.insertBefore(apkLink,sideFooter);
+   else sidebarEl.append(apkLink);
+  }
+ }
  if(document.getElementById('radar-notification-bell'))return;
  const host=
   document.querySelector('.top-search-bar')||

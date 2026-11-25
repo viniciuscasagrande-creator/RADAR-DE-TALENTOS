@@ -1,0 +1,19 @@
+{
+  "name": "Radar de Talentos — Inteligência de Mercado",
+  "short_name": "Radar Talentos",
+  "description": "Plataforma corporativa de inteligência artística, monitoramento multi-mídia, audiência geográfica e viabilidade comercial.",
+  "start_url": "/login.html",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0a0414",
+  "theme_color": "#0a0414",
+  "icons": [
+    {
+      "src": "/radar-logo-mark.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

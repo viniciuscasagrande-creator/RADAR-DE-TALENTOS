@@ -67,11 +67,11 @@ body.ri-portal-body {
   border-right: 1px solid rgba(184, 132, 255, 0.14);
 }
 
-/* Topo Esquerdo: • INTELIGÊNCIA DE MERCADO */
+/* Topo Esquerdo: • INTELIGÊNCIA DE MERCADO (com Edge-to-Edge Safe Area) */
 .ri-top-tag {
   position: absolute;
-  top: 22px;
-  left: 28px;
+  top: calc(22px + env(safe-area-inset-top, 0px));
+  left: calc(28px + env(safe-area-inset-left, 0px));
   z-index: 5;
   display: inline-flex;
   align-items: center;
@@ -561,9 +561,9 @@ body.ri-portal-body {
 
 /* Barra Inferior Global: © 2026 Radar de Talentos | Inteligência estratégica */
 .ri-bottom-bar {
-  height: 36px;
+  min-height: calc(36px + env(safe-area-inset-bottom, 0px));
   flex-shrink: 0;
-  padding: 0 28px;
+  padding: 6px calc(28px + env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) calc(28px + env(safe-area-inset-left, 0px));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -573,15 +573,41 @@ body.ri-portal-body {
   color: #706387;
 }
 
+.ri-apk-download-link {
+  color: rgba(216, 150, 255, 0.88);
+  text-decoration: none;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(183, 68, 255, 0.28);
+  background: rgba(154, 50, 239, 0.12);
+  transition: all 0.2s ease;
+}
+
+.ri-apk-download-link:hover {
+  color: #ffffff;
+  border-color: rgba(216, 150, 255, 0.65);
+  background: rgba(154, 50, 239, 0.28);
+}
+
 @media (max-width: 900px) {
   body.ri-portal-body,
   .ri-page-shell,
   .ri-main-columns {
     height: auto;
+    min-height: 100dvh;
     max-height: none;
-    overflow: visible;
+    overflow-y: auto;
   }
   .ri-main-columns {
     grid-template-columns: 1fr;
+  }
+  .ri-visual-stage {
+    padding: calc(56px + env(safe-area-inset-top, 0px)) 20px 24px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(184, 132, 255, 0.14);
+  }
+  .ri-auth-stage {
+    padding: 24px 20px 32px;
   }
 }

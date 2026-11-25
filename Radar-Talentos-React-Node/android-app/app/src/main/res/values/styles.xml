@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tema Nativo Edge-to-Edge (Barras de status e navegação 100% transparentes + cutout shortEdges) -->
+    <style name="RadarEdgeToEdgeTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowBackground">#0A0414</item>
+        <item name="android:colorBackground">#0A0414</item>
+        <item name="android:statusBarColor">#00000000</item>
+        <item name="android:navigationBarColor">#00000000</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

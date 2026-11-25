@@ -16,3 +16,6 @@ data/*
 .vercel/
 /config/operations.json
 /migration-input/
+/android-app/build/apk-build/
+/android-app/*.jks
+

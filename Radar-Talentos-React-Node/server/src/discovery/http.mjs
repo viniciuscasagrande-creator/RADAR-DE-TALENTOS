@@ -270,6 +270,148 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
   };
 }
 
+/**
+ * Ciclo Automático de Prospecção, Aprovação, Coleta e Distribuição Multi-Menu:
+ * 1. Aprova, coleta (YouTube + Spotify) e envia ao Radar todos os candidatos pendentes/aprovados na fila.
+ * 2. Busca automaticamente no Wikidata + YouTube API v3 + Spotify os talentos do catálogo que ainda
+ *    não possuem métricas coletadas, aprovando e distribuindo para Oportunidade Comercial, Visão Geral,
+ *    Audiência Geográfica e Talentos Emergentes.
+ */
+export async function autoDiscoverApproveAndSyncCycle(db, radar, { limit = 6, category = '', talentId = '', force = false, fetcher = fetch } = {}) {
+  if (!db || !radar) return { ok: false, processed: 0 };
+  const ytBatch = await collectYoutube(db, { force: Boolean(force), fetcher }).catch(() => ({ collected: 0 }));
+  let ytExtra = 0;
+  let spExtra = 0;
+  let pendingApproved = 0;
+  const refreshedNames = [];
+
+  // Etapa 1: Aprova e distribui automaticamente candidatos pendentes na fila do Discovery que possuem perfil válido
+  const pendingCands = db
+    .prepare(
+      `SELECT c.id, c.name, c.radar_id
+       FROM candidates c
+       WHERE c.status IN ('pending', 'approved')
+         AND EXISTS (SELECT 1 FROM profiles p WHERE p.candidate_id = c.id)
+       ORDER BY c.created_at DESC
+       LIMIT ?`
+    )
+    .all(Math.max(1, Number(limit) || 6));
+
+  for (const pc of pendingCands) {
+    try {
+      const ap = await approveAndSendToRadar(
+        db,
+        radar,
+        { id: pc.id, radarId: pc.radar_id || suggestRadarId(radar, pc.name) || null },
+        { reviewer: 'auto-engine', fetcher }
+      );
+      pendingApproved++;
+      ytExtra += ap.youtubeCollected || 0;
+      spExtra += ap.spotifyCollected || 0;
+      if (!refreshedNames.includes(ap.name)) refreshedNames.push(ap.name);
+    } catch {}
+  }
+
+  // Etapa 2: Prospecção automática dos talentos do catálogo sem métrica verificada
+  const catFilter = typeof category === 'string' ? category.trim() : '';
+  const talentFilter = typeof talentId === 'string' ? talentId.trim() : '';
+  const candidatesToEnrich = radar
+    .prepare(
+      `SELECT t.id, t.name
+       FROM talents t
+       WHERE t.blocked = 0
+         AND (? = '' OR t.id = ?)
+         AND (? = '' OR EXISTS (
+           SELECT 1 FROM talent_categories tc
+           JOIN categories c ON c.id = tc.category_id
+           WHERE tc.talent_id = t.id AND lower(c.name) = lower(?)
+         ))
+         AND (
+           NOT EXISTS (SELECT 1 FROM metric_current mc WHERE mc.talent_id = t.id AND mc.value IS NOT NULL)
+           OR NOT EXISTS (SELECT 1 FROM metric_current mc WHERE mc.talent_id = t.id AND mc.network = 'Spotify' AND mc.value IS NOT NULL)
+           OR NOT EXISTS (SELECT 1 FROM metric_current mc WHERE mc.talent_id = t.id AND mc.network = 'YouTube' AND mc.value >= 1000)
+         )
+       ORDER BY
+         CASE WHEN EXISTS (SELECT 1 FROM metric_current mc WHERE mc.talent_id = t.id AND mc.value IS NOT NULL) THEN 1 ELSE 0 END ASC,
+         t.name ASC
+       LIMIT ?`
+    )
+    .all(talentFilter, talentFilter, catFilter, catFilter, Math.max(1, Number(limit) || 6));
+
+  for (const tal of candidatesToEnrich) {
+    try {
+      const gSearch = await globalSearch(db, radar, tal.name, { includeMusicBrainzLive: false, fetcher }).catch(() => null);
+      const ext = gSearch?.external?.[0] || null;
+      const extraProfiles = [];
+      if (process.env.YOUTUBE_API_KEY) {
+        const ytChans = await searchYoutube(tal.name, { fetcher }).catch(() => []);
+        if (ytChans?.[0]?.url) {
+          extraProfiles.push({ network: 'YouTube', url: ytChans[0].url });
+        }
+      }
+      const spComm = radar.prepare("SELECT url FROM commercial_accounts WHERE talent_id = ? AND network = 'Spotify' LIMIT 1").get(tal.id);
+      if (spComm?.url && /^https:\/\/open\.spotify\.com\/artist\/[A-Za-z0-9]{22}$/.test(spComm.url)) {
+        extraProfiles.push({ network: 'Spotify', url: spComm.url });
+      }
+      if (ext?.external_id) {
+        const ap = await approveAndSendToRadar(
+          db,
+          radar,
+          {
+            source: ext.source || 'wikidata',
+            external_id: ext.external_id,
+            radarId: tal.id,
+            extraProfiles
+          },
+          { reviewer: 'auto-engine', fetcher }
+        );
+        ytExtra += ap.youtubeCollected || 0;
+        spExtra += ap.spotifyCollected || 0;
+        if ((ap.youtubeCollected || 0) + (ap.spotifyCollected || 0) > 0 && !refreshedNames.includes(tal.name)) {
+          refreshedNames.push(tal.name);
+        }
+      } else if (extraProfiles.length) {
+        const ap = await approveAndSendToRadar(
+          db,
+          radar,
+          {
+            name: tal.name,
+            radarId: tal.id,
+            evidence: extraProfiles[0].url,
+            extraProfiles
+          },
+          { reviewer: 'auto-engine', fetcher }
+        );
+        ytExtra += ap.youtubeCollected || 0;
+        spExtra += ap.spotifyCollected || 0;
+        if ((ap.youtubeCollected || 0) + (ap.spotifyCollected || 0) > 0 && !refreshedNames.includes(tal.name)) {
+          refreshedNames.push(tal.name);
+        }
+      }
+    } catch {}
+  }
+
+  const dist = distributeVerifiedDiscoveryToRadar(radar, db);
+  const totalTalents = radar.prepare('SELECT count(*) n FROM talents WHERE blocked = 0').get().n;
+  const totalWithMetrics = radar.prepare('SELECT count(DISTINCT talent_id) n FROM metric_current WHERE value IS NOT NULL').get().n;
+  const totalMetrics = radar.prepare('SELECT count(*) n FROM metric_current WHERE value IS NOT NULL').get().n;
+
+  return {
+    ok: true,
+    status: 'completed',
+    pendingApproved,
+    collected: (ytBatch.collected || 0) + ytExtra + spExtra,
+    youtubeCollected: (ytBatch.collected || 0) + ytExtra,
+    spotifyCollected: spExtra,
+    distributed: dist.distributed,
+    refreshedNames,
+    totalTalents,
+    totalWithMetrics,
+    remainingPendingTalents: Math.max(0, totalTalents - totalWithMetrics),
+    totalMetrics
+  };
+}
+
 let busy = false;
 
 // Anexar antes do filtro de métodos da aplicação atual. Não aceita autenticação ausente.
@@ -385,100 +527,51 @@ export async function handleDiscovery(req, res, { radar, security } = {}) {
         if (typeof v.id !== 'string' || !v.id) throw Error('Candidato obrigatório');
         result = await collectYoutube(db, { candidateId: v.id, force: true });
         if (radar) distributeVerifiedDiscoveryToRadar(radar, db);
-      } else if (action === 'youtube-collect-all' || action === 'collect-all' || action === 'refresh-catalog') {
-        const ytBatch = await collectYoutube(db, { force: Boolean(v.force) }).catch(() => ({ collected: 0 }));
-        let ytExtra = 0;
-        let spExtra = 0;
-        const refreshedNames = [];
-        if (radar) {
-          const catFilter = typeof v.category === 'string' ? v.category.trim() : '';
-          const talentFilter = typeof v.talentId === 'string' ? v.talentId.trim() : '';
-          const candidatesToEnrich = radar
-            .prepare(
-              `SELECT t.id, t.name
-               FROM talents t
-               WHERE t.blocked = 0
-                 AND (? = '' OR t.id = ?)
-                 AND (? = '' OR EXISTS (
-                   SELECT 1 FROM talent_categories tc
-                   JOIN categories c ON c.id = tc.category_id
-                   WHERE tc.talent_id = t.id AND lower(c.name) = lower(?)
-                 ))
-                 AND (
-                   NOT EXISTS (SELECT 1 FROM metric_current mc WHERE mc.talent_id = t.id AND mc.network = 'Spotify' AND mc.value IS NOT NULL)
-                   OR NOT EXISTS (SELECT 1 FROM metric_current mc WHERE mc.talent_id = t.id AND mc.network = 'YouTube' AND mc.value >= 1000)
-                 )
-               ORDER BY t.name ASC
-               LIMIT 6`
-            )
-            .all(talentFilter, talentFilter, catFilter, catFilter);
-
-          for (const tal of candidatesToEnrich) {
-            try {
-              const gSearch = await globalSearch(db, radar, tal.name, { includeMusicBrainzLive: false }).catch(() => null);
-              const ext = gSearch?.external?.[0] || null;
-              let extraProfiles = [];
-              if (process.env.YOUTUBE_API_KEY) {
-                const ytChans = await searchYoutube(tal.name).catch(() => []);
-                if (ytChans?.[0]?.url) {
-                  extraProfiles.push({ network: 'YouTube', url: ytChans[0].url });
-                }
-              }
-              if (ext?.external_id) {
-                const ap = await approveAndSendToRadar(db, radar, {
-                  source: ext.source || 'wikidata',
-                  external_id: ext.external_id,
-                  radarId: tal.id,
-                  extraProfiles
-                });
-                ytExtra += ap.youtubeCollected || 0;
-                spExtra += ap.spotifyCollected || 0;
-                if ((ap.youtubeCollected || 0) + (ap.spotifyCollected || 0) > 0) {
-                  refreshedNames.push(tal.name);
-                }
-              } else if (extraProfiles.length) {
-                const existingCand = db.prepare('SELECT id FROM candidates WHERE radar_id = ? LIMIT 1').get(tal.id);
-                let candId = existingCand?.id || null;
-                if (!candId) {
-                  candId = `cand-${tal.id}`;
-                  const nowIso = new Date().toISOString();
-                  db.prepare(
-                    "INSERT OR IGNORE INTO sources(id,kind,name,url,terms_url,auth_kind,enabled,history_allowed,created_at) VALUES('youtube-public-current','youtube','YouTube Data API v3','https://www.googleapis.com/youtube/v3','https://developers.google.com/youtube/terms/api-services-terms-of-service','api_key',1,0,?)"
-                  ).run(nowIso);
-                  db.prepare(
-                    "INSERT OR IGNORE INTO candidates(id,name,normalized_name,entity_type,status,confidence,source_id,external_id,radar_id,identity_evidence,reviewed_by,reviewed_at,created_at,updated_at) VALUES(?,?,?,'person','approved',90,'youtube-public-current',?,?,?,'admin',?,?,?)"
-                  ).run(candId, tal.name, tal.name.toLowerCase(), tal.id, tal.id, extraProfiles[0].url, nowIso, nowIso, nowIso);
-                }
-                const ap = await approveAndSendToRadar(db, radar, {
-                  id: candId,
-                  radarId: tal.id,
-                  evidence: extraProfiles[0].url,
-                  extraProfiles
-                });
-                ytExtra += ap.youtubeCollected || 0;
-                if (ap.youtubeCollected > 0) refreshedNames.push(tal.name);
-              }
-            } catch {}
-          }
-          distributeVerifiedDiscoveryToRadar(radar, db);
-        }
-        const totalWithMetrics = radar
-          ? radar.prepare('SELECT count(DISTINCT talent_id) n FROM metric_current WHERE value IS NOT NULL').get().n
-          : 0;
-        const totalMetrics = radar
-          ? radar.prepare('SELECT count(*) n FROM metric_current WHERE value IS NOT NULL').get().n
-          : 0;
-        result = {
-          ok: true,
-          collected: (ytBatch.collected || 0) + ytExtra + spExtra,
-          youtubeCollected: (ytBatch.collected || 0) + ytExtra,
-          spotifyCollected: spExtra,
-          refreshedNames,
-          totalWithMetrics,
-          totalMetrics
-        };
+      } else if (action === 'youtube-collect-all' || action === 'collect-all' || action === 'refresh-catalog' || action === 'auto-pipeline') {
+        const lim = Number.isInteger(v.limit) && v.limit >= 1 && v.limit <= 30 ? v.limit : 8;
+        result = await autoDiscoverApproveAndSyncCycle(db, radar, {
+          limit: lim,
+          category: v.category || '',
+          talentId: v.talentId || '',
+          force: Boolean(v.force)
+        });
       } else if (action === 'global-search') {
         result = await globalSearch(db, radar, v.query, { includeMusicBrainzLive: Boolean(v.includeMusicBrainzLive) });
+        // Se autoApprove estiver ativo, já aprova, coleta YouTube + Spotify e distribui automaticamente para Oportunidade Comercial e demais menus
+        if (Boolean(v.autoApprove) && radar) {
+          const extraYt = Array.isArray(result.youtubeChannels) && result.youtubeChannels.length ? [result.youtubeChannels[0]] : [];
+          const bestExt = result.external?.[0] || null;
+          const bestMb = result.musicbrainz?.[0] || null;
+          let autoPublished = null;
+          try {
+            if (bestExt?.external_id) {
+              autoPublished = await approveAndSendToRadar(db, radar, {
+                id: bestExt.candidate_id || null,
+                source: 'wikidata',
+                external_id: bestExt.external_id,
+                evidence: bestExt.evidence_url,
+                extraProfiles: bestExt.profiles?.some(pr => pr.network === 'YouTube') ? [] : extraYt
+              });
+            } else if (bestMb?.external_id) {
+              autoPublished = await approveAndSendToRadar(db, radar, {
+                id: bestMb.candidate_id || null,
+                source: 'musicbrainz',
+                external_id: bestMb.external_id,
+                evidence: bestMb.evidence_url,
+                extraProfiles: bestMb.profiles?.some(pr => pr.network === 'YouTube') ? [] : extraYt
+              });
+            } else if (extraYt.length && v.query && String(v.query).trim().length >= 2) {
+              autoPublished = await approveAndSendToRadar(db, radar, {
+                name: String(v.query).trim(),
+                evidence: extraYt[0].url,
+                extraProfiles: extraYt
+              });
+            }
+          } catch {}
+          if (autoPublished) {
+            result.autoPublished = autoPublished;
+          }
+        }
       } else if (action === 'global-save') {
         result = await saveWikidata(db, v.id);
       } else if (action === 'musicbrainz-save') {

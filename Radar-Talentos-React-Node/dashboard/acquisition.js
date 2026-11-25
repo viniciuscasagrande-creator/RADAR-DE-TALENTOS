@@ -77,14 +77,13 @@ $('candidate-search')?.addEventListener('input',candidates);
 
 $('auto-prospect')?.addEventListener('click',async()=>{
   const btn=$('auto-prospect');btn.disabled=true;
-  $('ac-status').textContent='Executando prospecção automatizada em lote (Wikidata + YouTube API v3)...';
+  $('ac-status').textContent='Executando prospecção, aprovação, coleta (YouTube + Spotify) e distribuição automática para Oportunidade Comercial e demais menus...';
   try{
-    const res=await postDiscovery('youtube-bulk',{limit:5});
-    const b=res.bulk||{};
-    $('ac-status').textContent=`Prospecção em lote concluída: ${b.attempted??0} artistas verificados · ${b.queued??0} novos candidatos com perfil localizado · ${b.already??0} já confirmados · ${b.unmatched??0} sem correspondência direta.`;
+    const res=await postDiscovery('auto-pipeline',{limit:8,force:true});
+    $('ac-status').textContent=`⚡ Automação concluída: ${res.approvedAndPublished??0} artistas aprovados e publicados · ${res.youtubeCollected??0} coletas YouTube · ${res.spotifyCollected??0} coletas Spotify · ${res.distributed??0} indicadores distribuídos para Oportunidade Comercial e Visão Geral.`;
     setTimeout(refresh,600);
   }catch(e){
-    $('ac-status').textContent='Prospecção em lote não executada: '+e.message;
+    $('ac-status').textContent='Automação em lote não executada: '+e.message;
   }finally{btn.disabled=false;}
 });
 
@@ -130,12 +129,41 @@ $('ac-global-search-form')?.addEventListener('submit',async e=>{
   loading.textContent=`Consultando fontes abertas e cruzando identidades para "${q}"...`;
   host.append(loading);
   try{
-    const r=await postDiscovery('global-search',{query:q,includeMusicBrainzLive:Boolean($('ac-search-mb')?.checked)});
+    const r=await postDiscovery('global-search',{query:q,includeMusicBrainzLive:Boolean($('ac-search-mb')?.checked),autoApprove:true});
     host.replaceChildren();
     const summary=document.createElement('p');
     summary.className='ac-search-summary';
     summary.textContent=`Resultado para "${r.query}" · Cadastro Radar: ${r.registered?.length||0} · Wikidata: ${r.external?.length||0} · MusicBrainz: ${r.musicbrainz?.length||0} · Canais YouTube sugeridos: ${r.youtubeChannels?.length||0}`;
     host.append(summary);
+
+    if(r.autoPublished?.ok&&r.autoPublished?.radarId){
+      const ap=r.autoPublished;
+      const autoBox=document.createElement('div');
+      autoBox.className='ac-search-actions';
+      autoBox.style.marginBottom='10px';
+      const msg=document.createElement('strong');
+      msg.style.color='#86efac';
+      msg.textContent=`⚡ Aprovado e Distribuído Automaticamente: ${ap.name} (${ap.radarId}) · Perfis: ${ap.profilesLinked??0} · YouTube: ${ap.youtubeCollected??0} · Spotify: ${ap.spotifyCollected??0}`;
+      autoBox.append(msg);
+      const qName=encodeURIComponent(ap.name||q);
+      const tId=encodeURIComponent(ap.radarId);
+      for(const [lbl,href] of [
+        ['↗ Abrir na Oportunidade Comercial',`/commercial.html?q=${qName}&talent=${tId}`],
+        ['◉ Visão Geral (Ficha 360°)',`/?talent=${tId}`],
+        ['⌖ Audiência Geográfica',`/audience.html?q=${qName}`],
+        ['★ Talentos Emergentes',`/rising.html?q=${qName}`]
+      ]){
+        const a=document.createElement('a');
+        a.href=href;
+        a.className='ac-conn-pill';
+        a.style.textDecoration='none';
+        a.style.marginLeft='8px';
+        a.textContent=lbl;
+        autoBox.append(a);
+      }
+      host.append(autoBox);
+      refresh();
+    }
 
     if(r.crossValidation?.networks?.length){
       const grid=document.createElement('div');

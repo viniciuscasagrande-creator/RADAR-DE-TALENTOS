@@ -75,6 +75,27 @@ async function open(id) {
   const autoRadarId = rawRadarId ?? c.suggestedRadarId ?? '';
   add(p, 'p', `Status: ${stLabel}${autoRadarId ? ` · Vínculo Radar: ${autoRadarId}` : ''}`);
 
+  if (autoRadarId) {
+    const navBar = add(p, 'div', '');
+    navBar.className = 'disc-profile-pills';
+    navBar.style.marginBottom = '10px';
+    const qName = encodeURIComponent(c.name || '');
+    const tId = encodeURIComponent(autoRadarId);
+    const links = [
+      ['↗ Abrir na Oportunidade Comercial', `/commercial.html?q=${qName}&talent=${tId}`],
+      ['◉ Visão Geral (Ficha 360°)', `/?talent=${tId}`],
+      ['⌖ Audiência Geográfica', `/audience.html?q=${qName}`],
+      ['★ Talentos Emergentes', `/rising.html?q=${qName}`]
+    ];
+    for (const [label, href] of links) {
+      const a = add(navBar, 'a', label);
+      a.className = 'disc-profile-pill';
+      a.href = href;
+      a.style.borderColor = 'rgba(74, 222, 128, 0.45)';
+      a.style.color = '#86efac';
+    }
+  }
+
   const pills = add(p, 'div', '');
   pills.className = 'disc-profile-pills';
   for (const x of c.profiles) {
@@ -142,7 +163,16 @@ async function run(fn) {
     if (selected) await open(selected);
     if (result?.ok && result?.radarId) {
       status(
-        `✓ ${result.name || 'Artista'} aprovado e enviado ao Radar (${result.radarId})! Perfis vinculados: ${result.profilesLinked ?? 0} · YouTube coletado: ${result.youtubeCollected ?? 0} · Spotify coletado: ${result.spotifyCollected ?? 0}.`
+        `✓ ${result.name || 'Artista'} aprovado, coletado e enviado automaticamente à Oportunidade Comercial e demais menus (${result.radarId})! Perfis vinculados: ${result.profilesLinked ?? 0} · YouTube coletado: ${result.youtubeCollected ?? 0} · Spotify coletado: ${result.spotifyCollected ?? 0}.`
+      );
+    } else if (result?.autoPublished?.ok && result?.autoPublished?.radarId) {
+      const ap = result.autoPublished;
+      status(
+        `⚡ Automação concluída: ${ap.name || 'Artista'} aprovado e distribuído automaticamente para Oportunidade Comercial e Visão Geral (${ap.radarId}) · Perfis: ${ap.profilesLinked ?? 0} · YouTube: ${ap.youtubeCollected ?? 0} · Spotify: ${ap.spotifyCollected ?? 0}.`
+      );
+    } else if (result?.processed !== undefined) {
+      status(
+        `⚡ Automação do Motor de Dados: ${result.approvedAndPublished ?? 0} artistas aprovados e publicados · ${result.youtubeCollected ?? 0} coletas YouTube · ${result.spotifyCollected ?? 0} coletas Spotify · ${result.distributed ?? 0} indicadores distribuídos para Oportunidade Comercial e demais menus.`
       );
     } else if (result?.bulk) {
       status(`Prospecção: ${result.bulk.attempted} pesquisados; ${result.bulk.queued} na fila; ${result.bulk.unmatched} sem correspondência.`);
@@ -201,10 +231,14 @@ $('search-form').onsubmit = e => {
     run(async () => {
       const r = await api('global-search', {
         query: $('query').value,
-        includeMusicBrainzLive: Boolean($('include-mb')?.checked)
+        includeMusicBrainzLive: Boolean($('include-mb')?.checked),
+        autoApprove: Boolean($('auto-approve-chk')?.checked ?? true)
       });
       renderGlobal(r);
-      return { sources: r.sources, coverage: r.coverage };
+      if (r.autoPublished?.id) {
+        selected = r.autoPublished.id;
+      }
+      return { sources: r.sources, coverage: r.coverage, autoPublished: r.autoPublished, id: r.autoPublished?.id };
     });
   } else {
     $('global-results').hidden = true;
@@ -263,6 +297,38 @@ function renderGlobal(r) {
   const p = $('global-list');
   p.replaceChildren();
   $('global-results').hidden = false;
+
+  if (r.autoPublished?.ok && r.autoPublished?.radarId) {
+    const ap = r.autoPublished;
+    const banner = add(p, 'div', '');
+    banner.className = 'disc-result-card';
+    banner.style.borderColor = 'rgba(74, 222, 128, 0.55)';
+    banner.style.background = 'rgba(20, 83, 45, 0.25)';
+    const head = add(banner, 'div', '');
+    head.className = 'disc-result-head';
+    add(head, 'strong', `⚡ Aprovado e Distribuído Automaticamente: ${ap.name} (${ap.radarId})`);
+    add(
+      banner,
+      'p',
+      `Perfis oficiais vinculados: ${ap.profilesLinked ?? 0} · Métricas YouTube coletadas: ${ap.youtubeCollected ?? 0} · Métricas Spotify coletadas: ${ap.spotifyCollected ?? 0} · Indicadores distribuídos: ${ap.distributed ?? 0}.`
+    );
+    const navBar = add(banner, 'div', '');
+    navBar.className = 'disc-profile-pills';
+    const qName = encodeURIComponent(ap.name || r.query || '');
+    const tId = encodeURIComponent(ap.radarId);
+    for (const [label, href] of [
+      ['↗ Abrir na Oportunidade Comercial', `/commercial.html?q=${qName}&talent=${tId}`],
+      ['◉ Abrir na Visão Geral (Ficha 360°)', `/?talent=${tId}`],
+      ['⌖ Abrir na Audiência Geográfica', `/audience.html?q=${qName}`],
+      ['★ Abrir em Talentos Emergentes', `/rising.html?q=${qName}`]
+    ]) {
+      const a = add(navBar, 'a', label);
+      a.className = 'disc-profile-pill';
+      a.href = href;
+      a.style.borderColor = 'rgba(74, 222, 128, 0.5)';
+      a.style.color = '#86efac';
+    }
+  }
 
   const extraYt = Array.isArray(r.youtubeChannels) && r.youtubeChannels.length ? [r.youtubeChannels[0]] : [];
 
@@ -340,8 +406,24 @@ function renderGlobal(r) {
   }
 }
 
-const bulkButton = add($('search-form'), 'button', 'Prospectar 5 artistas');
+const bulkButton = add($('search-form'), 'button', '⚡ Prospectar e Aprovar Lote');
 bulkButton.type = 'button';
-bulkButton.onclick = () => run(() => api('youtube-bulk', {}));
+bulkButton.onclick = () => run(() => api('auto-pipeline', { limit: 8, force: true }));
+
+if ($('auto-pipeline-btn')) {
+  $('auto-pipeline-btn').onclick = () => run(() => api('auto-pipeline', { limit: 10, force: true }));
+}
 
 refresh().catch(e => status(e.message));
+
+// Ciclo automático contínuo enquanto a tela estiver aberta para aprovar e distribuir candidatos pendentes
+setInterval(() => {
+  if (!busy && document.visibilityState !== 'hidden') {
+    const hasPending = cachedCandidates.some(c => c.status === 'pending' || (c.status === 'approved' && !c.observations_count));
+    if (hasPending) {
+      api('auto-pipeline', { limit: 5, force: false })
+        .then(() => refresh())
+        .catch(() => {});
+    }
+  }
+}, 45000);

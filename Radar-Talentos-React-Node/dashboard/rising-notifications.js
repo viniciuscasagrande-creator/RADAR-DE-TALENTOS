@@ -11,10 +11,14 @@
  if(document.getElementById('radar-notification-bell'))return;
  const host=
   document.querySelector('.top-search-bar')||
+  document.querySelector('.compat-topbar-actions')||
+  document.querySelector('.commercial-topbar')||
+  document.querySelector('.ac-actions')||
   document.querySelector('.topbar-actions')||
   document.querySelector('.topline')||
   document.querySelector('.topbar')||
   document.querySelector('.ac-top-header')||
+  document.querySelector('.disc-top-header')||
   document.querySelector('.rising-top')||
   document.querySelector('.dashboard-main > :first-child')||
   document.querySelector('main > :first-child');

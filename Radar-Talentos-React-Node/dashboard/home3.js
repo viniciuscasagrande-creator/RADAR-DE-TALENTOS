@@ -94,9 +94,10 @@
     if (comparePanel) comparePanel.hidden = false;
     if (artistPanel) artistPanel.hidden = false;
 
-    // Gaveta inferior para o mapa territorial completo e tabelas legadas (sem remover nenhum nó do DOM)
+    // Gaveta inferior para o mapa territorial completo e tabelas legadas (aberta por padrão para clique direto nos estados e municípios)
     const advanced = el('details', 'home3-advanced');
     advanced.id = 'home3-advanced';
+    advanced.open = true;
     const summary = el('summary', 'home3-advanced-heading');
     const sumTitle = el('strong', null, 'Mapa Territorial na Home, Evolução Histórica e Filtros Completos');
     const sumInfo = el('span', null, 'Clique para expandir o mapa do Brasil, filtros por município/raio e tabela paginada');

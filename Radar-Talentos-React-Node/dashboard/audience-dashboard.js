@@ -51,12 +51,13 @@ function filterCities(){
  }
 }
 
-function filterCenters(){
+function filterCenters(autoTriggerSearch=true){
  const raw=$('center-search').value.trim();
  const q=normalize(raw);
  const rows=catalog.filter(c=>c.lat!=null&&(!q||normalize(`${c.name} / ${c.uf}`).includes(q)||normalize(c.name).includes(q)||c.code===q||selected.has(c.code)));
  options(field('center'),rows.map(c=>({id:c.code,name:c.name+' / '+c.uf})),'Sem raio');
  updateMunicipalityDatalist(raw);
+ if(!autoTriggerSearch)return;
  const exact=catalog.find(c=>c.lat!=null&&normalize(`${c.name} / ${c.uf}`)===q);
  if(exact){
   field('center').value=exact.code;
@@ -70,24 +71,48 @@ function filterCenters(){
 
 function selectedChips(){const box=$('selected-cities');box.replaceChildren();for(const code of selected){const c=catalog.find(x=>x.code===code);const b=el('button',(c?c.name+' / '+c.uf:code)+' ×');b.type='button';b.setAttribute('aria-label','Remover '+(c?.name??code));b.addEventListener('click',()=>{selected.delete(code);selectedChips();search()});box.append(b);}}
 function clearCities(){selected.clear();field('city').value='';$('city-search').value='';selectedChips();}
-function chooseState(uf){const r=Object.keys(regionUF).find(r=>regionUF[r].split(' ').includes(uf))??'';field('region').value=r;updateUF();field('uf').value=uf;clearCities();filterCities();search()}
-function chooseCity(code,autoActivateRadius=true){
- const wasSelected=selected.has(code);
- if(wasSelected){
-  selected.delete(code);
-  if(field('center').value===code&&!selected.size){
+function chooseState(uf){
+ const r=Object.keys(regionUF).find(r=>regionUF[r].split(' ').includes(uf))??'';
+ field('region').value=r;
+ updateUF();
+ field('uf').value=uf;
+ clearCities();
+ const stateHub=(demographicsData?.items||[]).find(d=>d.uf===uf&&d.lat!=null)||catalog.find(c=>c.uf===uf&&c.lat!=null);
+ if(stateHub){
+  selected.add(String(stateHub.code));
+  $('center-search').value=`${stateHub.name} / ${stateHub.uf}`;
+  filterCenters(false);
+  field('center').value=String(stateHub.code);
+  field('radius').value='100';
+  if($('radius-slider'))$('radius-slider').value='100';
+  selectedChips();
+ }
+ filterCities();
+ updateQuickHubsHighlight();
+ search();
+ if(stateHub){
+  $('map-territory-inspector')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+ }
+}
+function chooseCity(code,autoActivateRadius=true,openSimModalOnMapClick=false){
+ const codeStr=String(code);
+ const wasSelected=selected.has(codeStr);
+ if(wasSelected&&!openSimModalOnMapClick){
+  selected.delete(codeStr);
+  if(field('center').value===codeStr&&!selected.size){
    field('center').value='';
    $('center-search').value='';
    field('radius').value='';
    if($('radius-slider'))$('radius-slider').value='0';
   }
  }else if(selected.size<100){
-  selected.add(code);
-  const cityObj=catalog.find(c=>c.code===code);
+  if(openSimModalOnMapClick)selected.clear();
+  selected.add(codeStr);
+  const cityObj=catalog.find(c=>String(c.code)===codeStr)||(demographicsData?.items||[]).find(d=>String(d.code)===codeStr);
   if(autoActivateRadius&&cityObj?.lat!=null){
    $('center-search').value=`${cityObj.name} / ${cityObj.uf}`;
-   filterCenters();
-   field('center').value=cityObj.code;
+   filterCenters(false);
+   field('center').value=String(cityObj.code);
    if(!field('radius').value||Number(field('radius').value)<=0){
     field('radius').value='100';
     if($('radius-slider'))$('radius-slider').value='100';
@@ -102,24 +127,33 @@ function chooseCity(code,autoActivateRadius=true){
  selectedChips();
  updateQuickHubsHighlight();
  search();
+ if(openSimModalOnMapClick){
+  openShowSimulatorModal(codeStr,field('talent')?.value||null,Number(field('radius')?.value)||100);
+ }
 }
-function focusCommercialHub(code,radiusKm=100){
- const cityObj=catalog.find(c=>c.code===String(code));
+function focusCommercialHub(code,radiusKm=100,openSimModal=false){
+ const codeStr=String(code);
+ const cityObj=catalog.find(c=>String(c.code)===codeStr)||(demographicsData?.items||[]).find(d=>String(d.code)===codeStr);
  if(!cityObj)return;
  selected.clear();
- selected.add(cityObj.code);
+ selected.add(String(cityObj.code));
  field('region').value=cityObj.region||'';
  updateUF();
  field('uf').value=cityObj.uf||'';
  filterCities();
  $('center-search').value=`${cityObj.name} / ${cityObj.uf}`;
- filterCenters();
- field('center').value=cityObj.code;
+ filterCenters(false);
+ field('center').value=String(cityObj.code);
  field('radius').value=String(radiusKm);
  if($('radius-slider'))$('radius-slider').value=String(radiusKm);
  selectedChips();
  updateQuickHubsHighlight();
  search();
+ if(openSimModal){
+  openShowSimulatorModal(String(cityObj.code),field('talent')?.value||null,radiusKm);
+ }else{
+  $('map-territory-inspector')?.scrollIntoView({behavior:'smooth',block:'nearest'});
+ }
 }
 function renderQuickHubsBar(){
  const host=$('map-quick-hubs');
@@ -485,7 +519,20 @@ function map(r){
  target.append(note);
  const s=svg('svg',{viewBox:'0 0 680 570',role:'img','aria-label':'Mapa nacional de audiência'});
  if(typeof window.renderRadarMunicipalMesh==='function'&&geo?.municipalities?.length){
-  window.renderRadarMunicipalMesh(s,target,geo,{...enriched,uf:field('uf').value,explicitCities:[...selected]},m=>chooseCity(m.code,true),uf=>chooseState(uf));
+  window.renderRadarMunicipalMesh(
+   s,
+   target,
+   geo,
+   {...enriched,uf:field('uf').value,explicitCities:[...selected]},
+   m=>{
+    if(!field('uf').value&&s.dataset.zoom!=='municipios'){
+     chooseState(m.uf);
+    }else{
+     chooseCity(m.code,true,true);
+    }
+   },
+   uf=>chooseState(uf)
+  );
  }else{
   const values=new Map(enriched.byState.map(x=>[x.name,x.value])),max=Math.max(1,...values.values());
   for(const f of geo?.states?.features??[]){
@@ -534,7 +581,7 @@ function map(r){
    const t=svg('title');
    t.textContent=`Polo Comercial IBGE: ${h.name} / ${h.uf} (${h.region}) · População: ${fmt(h.population)} · PIB per capita: R$ ${fmt(Math.round(h.pib_per_capita||0))} · ${h.economic_profile||'Polo regional'} (clique para simular bacia de 100 km)`;
    hubCircle.append(t);
-   hubCircle.addEventListener('click',e=>{e.stopPropagation();focusCommercialHub(h.code,100);});
+   hubCircle.addEventListener('click',e=>{e.stopPropagation();focusCommercialHub(h.code,100,true);});
    s.append(hubCircle);
   }
  }
@@ -547,8 +594,8 @@ function map(r){
   const [cx,cy]=project([p.lon,p.lat]),value=valuesByCity.get(p.code)?.value,c=svg('circle',{cx,cy,r:value==null?2.5:3+12*Math.sqrt(value/maxCity),fill:value==null?'#71717a':'#eab308',stroke:selected.has(p.code)?'#fff':value==null?'#a1a1aa':'#fef08a','fill-opacity':value==null?.65:.75,class:'municipality-point',tabindex:'0',role:'button','aria-pressed':String(selected.has(p.code)),'aria-label':p.name+' / '+p.uf});
   const t=svg('title');t.textContent=p.name+' / '+p.uf+': '+(value==null?'Sem registro':fmt(value));
   c.append(t);
-  c.addEventListener('click',()=>chooseCity(p.code));
-  c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();chooseCity(p.code)}});
+  c.addEventListener('click',e=>{e.stopPropagation();chooseCity(p.code,true,true);});
+  c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();chooseCity(p.code,true,true)}});
   s.append(c);
  }
  target.insertBefore(s,target.querySelector('.radius-summary'));

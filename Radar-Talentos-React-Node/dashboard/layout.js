@@ -130,8 +130,10 @@
         return project([lon*180/Math.PI,lat*180/Math.PI]);
       });
       s.append(svg('polygon',{points:pts.map(p=>p.join(',')).join(' '),fill:'#a855f71a',stroke:'#e9d5ff','stroke-width':'1.4','stroke-dasharray':'5 3','pointer-events':'none',class:'radius-ring'}));
-      const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
-      framedBox=[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];
+      if(!framedBox){
+        const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
+        framedBox=[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];
+      }
 
       coveredMunis.sort((p,q)=>p.km-q.km);
       const box=document.createElement('div');
@@ -187,8 +189,8 @@
       zoomAt(factor,e.clientX,e.clientY);
     },{passive:false});
     s.addEventListener('pointerdown',e=>{if(e.button!==0)return;drag={x:e.clientX,y:e.clientY,view:[...view],id:e.pointerId,moved:false};});
-    s.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(dx,dy)<5&&!drag.moved)return;if(!drag.moved){drag.moved=true;s.setPointerCapture(e.pointerId);s.classList.add('dragging')}const scale=Math.min(s.clientWidth/view[2],s.clientHeight/view[3]);view=[Math.max(0,Math.min(base[2]-view[2],drag.view[0]-dx/scale)),Math.max(0,Math.min(base[3]-view[3],drag.view[1]-dy/scale)),view[2],view[3]];render()});
-    function end(){if(drag?.moved){suppress=true;setTimeout(()=>suppress=false,0)}drag=null;s.classList.remove('dragging')}
+    s.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.hypot(dx,dy)<12&&!drag.moved)return;if(!drag.moved){drag.moved=true;try{s.setPointerCapture(e.pointerId);}catch{}s.classList.add('dragging')}const scale=Math.min(s.clientWidth/view[2],s.clientHeight/view[3]);view=[Math.max(0,Math.min(base[2]-view[2],drag.view[0]-dx/scale)),Math.max(0,Math.min(base[3]-view[3],drag.view[1]-dy/scale)),view[2],view[3]];render()});
+    function end(e){if(drag?.moved){try{if(e?.pointerId!=null&&s.hasPointerCapture?.(e.pointerId))s.releasePointerCapture(e.pointerId);}catch{}suppress=true;setTimeout(()=>suppress=false,50)}drag=null;s.classList.remove('dragging')}
     s.addEventListener('pointerup',end);s.addEventListener('pointercancel',end);
     s.addEventListener('click',e=>{if(suppress){e.preventDefault();e.stopImmediatePropagation()}},true);
   }

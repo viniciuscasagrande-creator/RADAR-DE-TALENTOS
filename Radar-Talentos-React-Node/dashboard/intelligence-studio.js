@@ -126,7 +126,68 @@
   tableCard.append(tt, tableWrap);
   content.append(chartCard, tableCard);
 
-  // Seções 4, 5.1 e 11 da Avaliação: Melhores Oportunidades Comerciais, Alertas Estratégicos, 5 Classificações e Radar IA
+  // Seções 4, 5.1 e 11 da Avaliação: 5 Pilares de OPORTUNIDADES, Melhores Oportunidades Comerciais, Alertas Estratégicos, 5 Classificações e Radar IA
+  const oppPillarsPanel = el('article', 'studio-panel');
+  oppPillarsPanel.style.marginTop = '12px';
+  const oppPillarsHead = el('div', 'studio-panel-title');
+  oppPillarsHead.append(
+    el('h3', null, '🚀 OPORTUNIDADES — 5 Pilares Estratégicos de Atuação do Radar'),
+    el('span', 'studio-source', 'Clique em qualquer pilar para acionar o fluxo executivo correspondente')
+  );
+  const oppPillarsGrid = el('div');
+  oppPillarsGrid.style.display = 'grid';
+  oppPillarsGrid.style.gridTemplateColumns = 'repeat(5,minmax(0,1fr))';
+  oppPillarsGrid.style.gap = '10px';
+  for (const [pTitle, pBadge, pDesc, pAction] of [
+    ['1. Inteligência artística nacional', '4 Mídias Auditadas', 'Monitoramento nacional multi-mídia (Instagram, Spotify, YouTube e TikTok) com Ficha 360° e séries datadas.', 'national'],
+    ['2. Planejamento de turnês', 'Bacia Regional & Rodovia', 'Seleção de praças-polo IBGE, raio de 100 km, tempo de deslocamento rodoviário e PEA regional.', 'tour'],
+    ['3. Contratação estratégica', 'Radar Score 2.0 & P&L', 'Simulador Financeiro de Eventos (cachê, custos, ponto de equilíbrio, margem) + Índice de Confiança.', 'hiring'],
+    ['4. Talentos regionais', '6 Estágios & Emergentes', 'Descoberta de talentos em aceleração, equilíbrio multi-mídia e penetração municipal comprovada.', 'regional'],
+    ['5. Inteligência artificial', 'Radar IA Integrado', 'Consultoria imediata em linguagem natural sobre artistas, comparação para shows e roteiros de turnê.', 'ai']
+  ]) {
+    const pc = el('button', 'studio-stat studio-stat-clickable');
+    pc.type = 'button';
+    pc.style.minHeight = '98px';
+    pc.style.padding = '10px 12px';
+    pc.style.display = 'flex';
+    pc.style.flexDirection = 'column';
+    pc.style.justifyContent = 'space-between';
+    pc.style.alignItems = 'flex-start';
+    pc.style.textAlign = 'left';
+    const topTag = el('span', null, pBadge);
+    topTag.style.color = '#00f0ff';
+    topTag.style.fontSize = '9.5px';
+    topTag.style.fontWeight = '800';
+    topTag.style.textTransform = 'uppercase';
+    const stTitle = el('strong', null, pTitle);
+    stTitle.style.fontSize = '13.5px';
+    stTitle.style.color = '#ffffff';
+    const smDesc = el('small', 'studio-stat-hint', pDesc);
+    smDesc.style.whiteSpace = 'normal';
+    smDesc.style.lineHeight = '1.3';
+    pc.append(topTag, stTitle, smDesc);
+    pc.addEventListener('click', () => {
+      if (pAction === 'national') {
+        fichaPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else if (pAction === 'tour') {
+        location.href = '/audience.html#geography';
+      } else if (pAction === 'hiring') {
+        if (typeof window.openRadarShowSimulator === 'function') {
+          window.openRadarShowSimulator('4106902', artistPicker.value || 't-gusttavo-lima', 100);
+        } else {
+          location.href = '/commercial.html#compatibility-simulator';
+        }
+      } else if (pAction === 'regional') {
+        location.href = '/rising.html#rising-traction-panel';
+      } else if (pAction === 'ai') {
+        aiInput.focus();
+        answerRadarAI('Monte uma estratégia de turnê regional para o artista selecionado');
+      }
+    });
+    oppPillarsGrid.append(pc);
+  }
+  oppPillarsPanel.append(oppPillarsHead, oppPillarsGrid);
+
   const strategicRow = el('div', 'studio-content');
   strategicRow.style.marginTop = '12px';
 
@@ -213,7 +274,7 @@
   );
   const status = el('p', 'studio-status', 'Base Nacional Sincronizada.');
   status.setAttribute('role', 'status');
-  section.append(header, cards, fichaPanel, content, strategicRow, status, foot);
+  section.append(header, cards, oppPillarsPanel, fichaPanel, content, strategicRow, status, foot);
   const subbar = overview.querySelector('.subbar');
   if (subbar) subbar.after(section);
   else overview.prepend(section);

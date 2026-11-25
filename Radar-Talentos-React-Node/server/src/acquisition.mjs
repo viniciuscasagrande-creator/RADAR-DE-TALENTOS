@@ -47,9 +47,34 @@ export async function acquisitionStatus(db, readConfig) {
  const radarEvidenceCount=count('media_metric_series',"WHERE evidence_url LIKE 'https://%'");
  const evidenceBreakdown={discovery:discoveryCounts.verifiedWithEvidence,radar_series:radarEvidenceCount};
  const completedRuns24h=(discoveryRunsAll24h??0)+radarRuns24h;
+ const priorityFeatures=[
+  {feature:'Agendamento automático de coletas',priority:'Crítica',status:'Ativo (Worker Contínuo)',detail:'Execução recorrente no container worker com proteção contra concorrência'},
+  {feature:'Fila de processamento assíncrona',priority:'Crítica',status:'Ativo',detail:'Lotes paginados e fila de candidatos com priorização P0–P4'},
+  {feature:'Validação individual dos perfis',priority:'Crítica',status:'Ativo',detail:'Vínculo auditado com evidência HTTPS e cruzamento Wikidata / MusicBrainz'},
+  {feature:'Controle de limites das APIs',priority:'Crítica',status:'Ativo',detail:'Rate-limit diário, cache de 24h e bloqueio contra repetição em HTTP 429'},
+  {feature:'Retentativas automáticas',priority:'Alta',status:'Ativo',detail:'Retentativa controlada com isolamento de falha por conector'},
+  {feature:'Histórico de execução por artista',priority:'Alta',status:'Ativo',detail:'Séries históricas datadas (7d, 15d, 30d e 90d) por conta e plataforma'},
+  {feature:'Detecção de indicadores anormais',priority:'Alta',status:'Ativo',detail:'Quarentena automática para saltos >100x ou quedas abruptas sem comprovação'},
+  {feature:'Monitoramento de disponibilidade',priority:'Alta',status:'Ativo',detail:'Healthcheck /api/health e diagnóstico em tempo real de cada conector'},
+  {feature:'Auditoria e rastreabilidade',priority:'Alta',status:'Ativo',detail:'5 classificações de governança + registro de fonte, data e URL de evidência'},
+  {feature:'Alertas inteligentes',priority:'Média',status:'Ativo',detail:'Sino global no topo + alertas estratégicos de tração e cobertura'},
+  {feature:'Integração com IA',priority:'Média',status:'Ativo',detail:'Radar IA — Assistente de Inteligência Artística integrado à Visão Geral'}
+ ];
+ const updateFrequencies=[
+  {category:'Artistas em crescimento acelerado',frequency:'A cada 6–12 horas',rule:'Prioridade máxima de atualização no worker e Radar de Tração'},
+  {category:'Artistas de grande porte',frequency:'Diária',rule:'Monitoramento diário nas 4 mídias (Instagram, Spotify, YouTube e TikTok)'},
+  {category:'Artistas de médio porte',frequency:'Diária',rule:'Coleta diária de variação de ouvintes, inscritos e seguidores'},
+  {category:'Artistas emergentes',frequency:'Diária',rule:'Acompanhamento diário dos 6 estágios de desenvolvimento'},
+  {category:'Artistas sem movimentação relevante',frequency:'A cada 3–7 dias',rule:'Economia de cota de API para perfis estáveis'},
+  {category:'Perfis com erros de coleta',frequency:'Retentativa controlada',rule:'Backoff automático sem gravar zero nem sobrescrever série válida'},
+  {category:'Dados demográficos (IBGE)',frequency:'Conforme publicação oficial',rule:'Censo Demográfico, PIB per capita e PEA municipal isolados de audiência'},
+  {category:'Audiência regional',frequency:'Conforme relatórios autorizados',rule:'Importação auditada (Spotify for Artists, YouTube Analytics, Instagram Insights)'}
+ ];
  return {
   configAvailable:!!config,
   canSync:jobs.some(j=>j.enabled),
+  priorityFeatures,
+  updateFrequencies,
   providers:{
    youtube:{configured:youtubeConfigured},
    brave:{configured:braveConfigured},

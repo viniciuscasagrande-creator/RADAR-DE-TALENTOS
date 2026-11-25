@@ -133,12 +133,32 @@
     speedMultiplier = 2.8;
 
     try {
+      const totpCode = $('login-totp-code')?.value?.trim() || '';
       const r = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, remember })
+        body: JSON.stringify({ username, password, remember, totpCode })
       });
       const d = await r.json().catch(() => ({}));
+      if (d.requires2fa && !r.ok) {
+        if ($('login-2fa-field')) $('login-2fa-field').hidden = false;
+        $('login-totp-code')?.focus();
+        throw Error(d.error || 'Código 2FA inválido.');
+      }
+      if (d.requires2fa && !d.ok) {
+        speedMultiplier = 1;
+        if ($('login-2fa-field')) $('login-2fa-field').hidden = false;
+        $('login-totp-code')?.focus();
+        if (feedback) {
+          feedback.style.color = '#38bdf8';
+          feedback.textContent = d.message || 'Digite o código 2FA de 6 dígitos do seu autenticador.';
+        }
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<span>Confirmar 2FA e Acessar &rarr;</span>';
+        }
+        return;
+      }
       if (!r.ok) throw Error(d.error || 'Usuário ou senha inválidos.');
 
       // Se for primeiro acesso (ou senha resetada pelo Admin), exibe obrigatoriamente o cadastro da nova senha forte com o checklist

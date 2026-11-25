@@ -1224,7 +1224,57 @@ async function openShowSimulatorModal(cityCode,customArtistId=null,customRadiusK
  openComm.style.borderRadius='7px';
  openComm.href='/commercial.html?'+commUrl.toString()+'#compatibility-simulator';
 
- footBtns.append(copyBtn,openComm);
+ const pdfBtn=el('button','📄 Exportar Dossiê Executivo (PDF)');
+ pdfBtn.type='button';
+ pdfBtn.className='secondary-button';
+ pdfBtn.style.borderColor='#00f0ff';
+ pdfBtn.style.color='#a5f3fc';
+ pdfBtn.addEventListener('click',()=>{
+  const w=window.open('','_blank','width=960,height=780');
+  if(!w)return;
+  const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><title>Dossiê Executivo — ${activeArtist?.name||'Radar de Talentos'} em ${cityObj.name}/${cityObj.uf}</title><style>
+   body{font-family:Inter,system-ui,sans-serif;background:#0a0414;color:#f5eeff;margin:0;padding:32px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+   .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #9b4dff;padding-bottom:16px;margin-bottom:20px}
+   .eyebrow{font-size:11px;letter-spacing:.14em;color:#d896ff;text-transform:uppercase;font-weight:700}
+   h1{margin:4px 0 6px;font-size:24px;color:#fff}
+   .sub{margin:0;font-size:13px;color:#bca8dc}
+   .badge{background:#1e1035;border:1.5px solid #00f0ff;border-radius:10px;padding:10px 16px;text-align:center}
+   .badge strong{display:block;font-size:22px;color:#00f0ff}
+   .badge small{font-size:11px;color:#e9d5ff}
+   .pre-box{background:#120824;border:1px solid rgba(184,132,255,.35);border-radius:10px;padding:18px;white-space:pre-wrap;font-size:13px;line-height:1.65;color:#f3e8ff;margin-bottom:20px}
+   table{width:100%;border-collapse:collapse;margin-top:12px;font-size:12.5px}
+   th,td{border:1px solid rgba(184,132,255,.3);padding:9px 12px;text-align:left}
+   th{background:#1f1138;color:#d8b4fe;text-transform:uppercase;font-size:11px}
+   .foot{margin-top:26px;padding-top:12px;border-top:1px solid rgba(184,132,255,.25);display:flex;justify-content:space-between;font-size:11px;color:#9689ad}
+   @media print{.no-print{display:none}}
+  </style></head><body>
+   <div class="head">
+    <div>
+     <div class="eyebrow">RADAR DE TALENTOS • DOSSIÊ EXECUTIVO DE VIABILIDADE COMERCIAL & P&L</div>
+     <h1>${activeArtist?.name||'Catálogo Nacional'} — ${cityObj.name} / ${cityObj.uf}</h1>
+     <p class="sub">Bacia Regional de ${radiusKm} km (${plan.catchmentCount} municípios) · Emitido em ${new Date().toLocaleString('pt-BR')}</p>
+    </div>
+    <div class="badge">
+     <small>Radar Score Comercial</small>
+     <strong>${scVal!=null?scVal+' / 100':'Qualificado'}</strong>
+     <small>${compat?.verdict?.label||plan.tierLabel}</small>
+    </div>
+   </div>
+   <div class="pre-box">${currentSummaryText.replace(/</g,'&lt;')}</div>
+   <h3 style="color:#d8b4fe;font-size:14px;margin-bottom:6px">Detalhamento por Setor & Mapa de Palco</h3>
+   ${sectorTableHost.innerHTML}
+   <div class="foot">
+    <span>© 2026 Radar de Talentos — Central de Inteligência Estratégica</span>
+    <span>Fonte Demográfica: IBGE · Métricas Auditadas (YouTube, Spotify, Instagram, TikTok)</span>
+   </div>
+   <script>window.onload=()=>{setTimeout(()=>window.print(),300);};<\/script>
+  </body></html>`;
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+ });
+
+ footBtns.append(copyBtn,pdfBtn,openComm);
  foot.append(footBtns);
  host.append(foot);
 }

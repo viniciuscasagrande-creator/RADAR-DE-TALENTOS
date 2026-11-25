@@ -100,9 +100,9 @@ function compileAndLinkResources() {
       "--target-sdk-version",
       "35",
       "--version-code",
-      "302",
+      "303",
       "--version-name",
-      "3.0.2",
+      "3.0.3",
       ...flatFiles
     ],
     { stdio: "inherit" }

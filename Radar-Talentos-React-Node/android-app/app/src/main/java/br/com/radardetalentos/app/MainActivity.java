@@ -3,6 +3,10 @@ package br.com.radardetalentos.app;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.DownloadManager;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
@@ -26,6 +30,7 @@ import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.DownloadListener;
+import android.webkit.JavascriptInterface;
 import android.webkit.SslErrorHandler;
 import android.webkit.URLUtil;
 import android.webkit.WebChromeClient;
@@ -44,6 +49,8 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
 
     private static final String RADAR_PORTAL_URL = "https://radar.34.70.140.94.sslip.io/";
+    private static final String NOTIF_CHANNEL_ID = "radar_e2e_alerts";
+    private int notifSeq = 1000;
 
     private FrameLayout rootContainer;
     private WebView webView;
@@ -221,6 +228,9 @@ public class MainActivity extends Activity {
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
         cookieManager.setAcceptThirdPartyCookies(webView, true);
+
+        setupNotificationChannel();
+        webView.addJavascriptInterface(new RadarNativeBridge(), "RadarNative");
 
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
@@ -418,6 +428,53 @@ public class MainActivity extends Activity {
         float density = getResources().getDisplayMetrics().density;
         if (density <= 0f) return px;
         return Math.round(px / density);
+    }
+
+    private void setupNotificationChannel() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm != null) {
+                    NotificationChannel channel = new NotificationChannel(
+                        NOTIF_CHANNEL_ID,
+                        "Alertas E2E Radar de Talentos",
+                        NotificationManager.IMPORTANCE_DEFAULT
+                    );
+                    channel.setDescription("Notificações em tempo real de talentos em ascensão e prospecção");
+                    nm.createNotificationChannel(channel);
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    public class RadarNativeBridge {
+        @JavascriptInterface
+        public void notify(String title, String message) {
+            try {
+                NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                if (nm == null) return;
+                Intent intent = new Intent(MainActivity.this, MainActivity.class);
+                intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                    ? PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                    : PendingIntent.FLAG_UPDATE_CURRENT;
+                PendingIntent pi = PendingIntent.getActivity(MainActivity.this, 0, intent, flags);
+
+                Notification.Builder builder = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    ? new Notification.Builder(MainActivity.this, NOTIF_CHANNEL_ID)
+                    : new Notification.Builder(MainActivity.this);
+
+                builder.setSmallIcon(R.drawable.ic_launcher)
+                    .setContentTitle(title != null && !title.isEmpty() ? title : "Radar de Talentos")
+                    .setContentText(message != null ? message : "")
+                    .setAutoCancel(true)
+                    .setContentIntent(pi);
+
+                nm.notify(++notifSeq, builder.build());
+            } catch (Throwable ignored) {
+            }
+        }
     }
 
     @Override

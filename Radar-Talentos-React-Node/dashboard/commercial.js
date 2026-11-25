@@ -1019,16 +1019,61 @@ function renderCompatibilityResult(d){
     const head=el('div',null,pitchBox);
     head.className='city-header';
     el('strong',`Argumentário Comercial para Vendas`,head);
-    const copyBtn=el('button','Copiar Argumentário',head);
+    const btnGroup=el('div',null,head);
+    btnGroup.style.display='flex';btnGroup.style.gap='8px';btnGroup.style.flexWrap='wrap';
+    const copyBtn=el('button','📋 Copiar Argumentário',btnGroup);
     copyBtn.type='button';
+    const buildPitchText=()=>[
+      `VIABILIDADE COMERCIAL: ${d.artist.name} em ${d.city.name}/${d.city.uf} (Raio ${d.radiusKm} km)`,
+      `1. Radar Score Artístico: ${d.artisticScore?.score??d.score??'—'}/100 · 2. Radar Score Territorial 2.0: ${d.territorialScore20?.score??d.score??'—'}/100 (${d.verdict.label})`,
+      `3. Confiança e Cobertura: ${d.confidenceIndicator?.score??80}% (${d.confidenceIndicator?.level||'Alta'})`,
+      `Recomendação: ${d.verdict.recommendation}`,
+      ...d.salesPitch.map(line=>`• ${line}`)
+    ].join('\n');
     copyBtn.onclick=async()=>{
-      const text=[
-        `VIABILIDADE COMERCIAL: ${d.artist.name} em ${d.city.name}/${d.city.uf} (Raio ${d.radiusKm} km)`,
-        `Score de Compatibilidade: ${d.score??'—'}/100 — ${d.verdict.label}`,
-        `Recomendação: ${d.verdict.recommendation}`,
-        ...d.salesPitch.map(line=>`• ${line}`)
-      ].join('\n');
-      try{await navigator.clipboard.writeText(text);copyBtn.textContent='Copiado!';setTimeout(()=>copyBtn.textContent='Copiar Argumentário',2000);}catch{}
+      try{await navigator.clipboard.writeText(buildPitchText());copyBtn.textContent='✓ Copiado!';setTimeout(()=>copyBtn.textContent='📋 Copiar Argumentário',2000);}catch{}
+    };
+    const pdfBtn=el('button','📄 Exportar Dossiê PDF',btnGroup);
+    pdfBtn.type='button';
+    pdfBtn.onclick=()=>{
+      const w=window.open('','_blank','width=960,height=780');
+      if(!w)return;
+      const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"/><title>Dossiê Comercial — ${d.artist.name} em ${d.city.name}/${d.city.uf}</title><style>
+       body{font-family:Inter,system-ui,sans-serif;background:#0a0414;color:#f5eeff;margin:0;padding:32px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+       .head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #9b4dff;padding-bottom:16px;margin-bottom:20px}
+       .eyebrow{font-size:11px;letter-spacing:.14em;color:#d896ff;text-transform:uppercase;font-weight:700}
+       h1{margin:4px 0 6px;font-size:24px;color:#fff}
+       .sub{margin:0;font-size:13px;color:#bca8dc}
+       .scores{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+       .sc-card{background:#160b29;border:1.5px solid #a855f7;border-radius:10px;padding:12px}
+       .sc-card strong{display:block;font-size:20px;color:#00f0ff;margin:4px 0}
+       .pre-box{background:#120824;border:1px solid rgba(184,132,255,.35);border-radius:10px;padding:18px;white-space:pre-wrap;font-size:13px;line-height:1.65;color:#f3e8ff;margin-bottom:20px}
+       .foot{margin-top:26px;padding-top:12px;border-top:1px solid rgba(184,132,255,.25);display:flex;justify-content:space-between;font-size:11px;color:#9689ad}
+      </style></head><body>
+       <div class="head">
+        <div>
+         <div class="eyebrow">RADAR DE TALENTOS • DOSSIÊ DE OPORTUNIDADE COMERCIAL & SIMULADOR P&L</div>
+         <h1>${d.artist.name} — ${d.city.name} / ${d.city.uf}</h1>
+         <p class="sub">Bacia Regional de ${d.radiusKm} km (${d.catchment?.totalMunicipalities||1} municípios) · Emitido em ${new Date().toLocaleString('pt-BR')}</p>
+        </div>
+       </div>
+       <div class="scores">
+        <div class="sc-card"><small>1. Radar Score Artístico</small><strong>${d.artisticScore?.score??d.score??'—'} / 100</strong><small>${d.artisticScore?.classification||'Tração Nacional'}</small></div>
+        <div class="sc-card"><small>2. Radar Score Territorial 2.0</small><strong>${d.territorialScore20?.score??d.score??'—'} / 100</strong><small>${d.verdict?.label||'Aderência Regional'}</small></div>
+        <div class="sc-card"><small>3. Confiança & Cobertura</small><strong>${d.confidenceIndicator?.score??80}%</strong><small>${d.confidenceIndicator?.level||'Dados Auditados'}</small></div>
+       </div>
+       <div class="pre-box">${buildPitchText().replace(/</g,'&lt;')}</div>
+       <h3 style="color:#d8b4fe;font-size:14px;margin-bottom:8px">Projeção Financeira do Evento (P&L)</h3>
+       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">${finResults.innerHTML}</div>
+       <div class="foot">
+        <span>© 2026 Radar de Talentos — Central de Inteligência Estratégica</span>
+        <span>Fonte Demográfica: IBGE · Métricas Auditadas (YouTube, Spotify, Instagram, TikTok)</span>
+       </div>
+       <script>window.onload=()=>{setTimeout(()=>window.print(),300);};<\/script>
+      </body></html>`;
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
     };
     const ul=el('ul',null,pitchBox);
     for(const item of d.salesPitch){

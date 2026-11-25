@@ -73,12 +73,12 @@
    const apkLink=document.createElement('a');
    apkLink.id='radar-sidebar-apk-download';
    apkLink.className='nav-link';
-   apkLink.href='/radar-de-talentos.apk?v=302';
-   apkLink.setAttribute('download','radar-de-talentos-v3.0.2.apk');
+   apkLink.href='/radar-de-talentos.apk?v=303';
+   apkLink.setAttribute('download','radar-de-talentos-v3.0.3.apk');
    apkLink.style.marginTop='8px';
    apkLink.style.border='1px solid rgba(183, 68, 255, 0.35)';
    apkLink.style.background='rgba(154, 50, 239, 0.14)';
-   apkLink.innerHTML='<span class="nav-link-icon">&#128241;</span><span class="nav-link-copy"><strong>Baixar App (.APK v3.0.2)</strong><small>Android Mobile &amp; Tablet</small></span>';
+   apkLink.innerHTML='<span class="nav-link-icon">&#128241;</span><span class="nav-link-copy"><strong>Baixar App (.APK v3.0.3)</strong><small>Android Mobile &amp; Tablet</small></span>';
    const sideFooter=sidebarEl.querySelector('.sidebar-footer');
    if(sideFooter)sidebarEl.insertBefore(apkLink,sideFooter);
    else sidebarEl.append(apkLink);
@@ -586,8 +586,14 @@
 
      if(msg.topic==='rising.snapshot'||msg.topic==='rising.alert'){
       applyRisingSnapshotFromSocket(msg.payload);
+      if(msg.topic==='rising.alert'&&typeof window.RadarNative?.notify==='function'){
+       try{window.RadarNative.notify('Radar de Talentos — Alerta de Ascensão',`${msg.payload?.total||1} talento(s) com crescimento acelerado detectado.`);}catch{}
+      }
      }else if(msg.topic==='discovery.updated'||msg.topic==='operations.sync_completed'){
       load();
+      if(typeof window.RadarNative?.notify==='function'){
+       try{window.RadarNative.notify('Radar de Talentos — Atualização E2E','Novos indicadores verificados sincronizados na plataforma.');}catch{}
+      }
      }else if(msg.topic==='users.updated'){
       checkAuthSession();
      }

@@ -357,12 +357,35 @@
   inner.append(form);
  }
 
+ let logoutBtn=document.getElementById('radar-user-logout-btn');
+ if(!logoutBtn){
+  logoutBtn=el('button','secondary-button','⎋ Sair');
+  logoutBtn.id='radar-user-logout-btn';
+  logoutBtn.type='button';
+  logoutBtn.style.height='30px';
+  logoutBtn.style.padding='0 9px';
+  logoutBtn.style.fontSize='11px';
+  logoutBtn.style.borderRadius='8px';
+  logoutBtn.title='Encerrar sessão e voltar ao Portal de Acesso (Login)';
+  logoutBtn.addEventListener('click',async()=>{
+   try{await fetch('/api/auth/logout',{method:'POST'});}catch{}
+   location.replace('/login.html');
+  });
+  host.insertBefore(logoutBtn,box);
+ }
+
  let latestAuthData=null;
  async function checkAuthSession(){
   try{
    const r=await fetch('/api/auth/me',{cache:'no-store'});
    if(!r.ok)return;
    latestAuthData=await r.json();
+   const p=location.pathname||'/';
+   if(!latestAuthData.authenticated&&!p.endsWith('/login.html')){
+    const nextTarget=encodeURIComponent(p+(location.search||'')+(location.hash||''));
+    location.replace('/login.html?next='+nextTarget);
+    return;
+   }
    applyUserPermissionsToNavigation(latestAuthData);
   }catch{}
  }

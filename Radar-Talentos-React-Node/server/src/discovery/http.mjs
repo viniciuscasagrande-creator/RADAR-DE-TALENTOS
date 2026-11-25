@@ -399,6 +399,8 @@ export async function autoDiscoverApproveAndSyncCycle(db, radar, { limit = 6, ca
   return {
     ok: true,
     status: 'completed',
+    processed: pendingApproved + candidatesToEnrich.length,
+    approvedAndPublished: pendingApproved + refreshedNames.length,
     pendingApproved,
     collected: (ytBatch.collected || 0) + ytExtra + spExtra,
     youtubeCollected: (ytBatch.collected || 0) + ytExtra,

@@ -1,4 +1,13 @@
 'use strict';(()=>{
+ const mark=document.querySelector('.sidebar .radar-mark');
+ if(mark&&!mark.querySelector('img')){
+  mark.textContent='';
+  const logoImg=document.createElement('img');
+  logoImg.className='brand-logo-img';
+  logoImg.src='/radar-logo-mark.png';
+  logoImg.alt='';
+  mark.append(logoImg);
+ }
  if(document.getElementById('radar-notification-bell'))return;
  const host=
   document.querySelector('.top-search-bar')||

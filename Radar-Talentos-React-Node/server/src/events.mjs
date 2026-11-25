@@ -66,5 +66,44 @@ export function eventQuery(db,path,p){
  const artists=[...artistMap.entries()].filter(([key])=>!artistFilter||key.includes(artistFilter)).map(([,a])=>a).map(a=>({name:a.name,value:a.events.size,cities:a.cities.size,platforms:a.platforms.size})).sort((a,b)=>b.value-a.value||a.name.localeCompare(b.name));
  if(path==='/api/events/artists')return {artists,total:selected.length,withArtists:eventArtists.size,notice:'Atrações explicitamente informadas pelas fontes; agrupamento por nome, homônimos não verificados.'};
  const byPlatform=db.prepare('SELECT id platform_id,name FROM ticket_platforms').all().filter(p=>!platform||p.platform_id===platform).map(p=>{const ids=new Set(db.prepare('SELECT event_id FROM event_listings WHERE platform_id=?').all(p.platform_id).map(x=>x.event_id));return {name:p.name,value:selected.filter(r=>ids.has(r.id)).length}}).sort((a,b)=>b.value-a.value);
- const places=agg(selected,r=>r.municipality_code).map(p=>{const r=lookup(p.name);return {...r,value:p.value}});return {offset,pageSize:100,artists,withArtists:eventArtists.size,total:selected.length,listings:selected.reduce((n,r)=>n+r.listings,0),ranking,byPlatform,byModalityRegion:['Norte','Nordeste','Centro-Oeste','Sudeste','Sul'].flatMap(region=>agg(selected.filter(r=>r.region===region),r=>r.modality_name).map(r=>({...r,region}))),subcategories:agg(selected,r=>r.modality_name+' / '+(r.submodality_name??'Não classificado')),byRegion:agg(selected,r=>r.region),byState:agg(selected,r=>r.uf),byCity:agg(selected,r=>r.city_name+' / '+r.uf),monthly:agg(selected,r=>r[basis].slice(0,7)).sort((a,b)=>a.name.localeCompare(b.name)),seasonality:agg(selected,r=>r.event_date.slice(0,7)).sort((a,b)=>a.name.localeCompare(b.name)),places,origin,radius:origin?+radius:null,excludedCoordinates,missingDates:scoped.filter(r=>!r[basis]).length,items:selected.sort((a,b)=>b[basis].localeCompare(a[basis])||a.id.localeCompare(b.id)).slice(offset,offset+100).map(r=>({...r,artists:[...(eventArtists.get(r.id)??new Map()).values()],sources:db.prepare("SELECT platform_id,url,status FROM event_listings WHERE event_id=? AND (?='' OR platform_id=?)").all(r.id,platform,platform)})),notice:'Eventos únicos observados, não vendas. Crescimento depende da cobertura de coleta; primeira detecção não é data oficial de publicação.'};
+ const places=agg(selected,r=>r.municipality_code).map(p=>{const r=lookup(p.name);return {...r,value:p.value}});
+ const statusBreakdown={active:0,cancelled:0,postponed:0,rescheduled:0,multiPlatformDeduplicated:0};
+ const dateConcurrencyMap=new Map(),artistCityRecurrenceMap=new Map(),venueCapacityMap=new Map();
+ const knownVenueCapacities=[
+  [/allianz parque|morumbis|mineirao|maracana|arena brb|couto pereira/i,45000,'Estádio / Arena (Capacidade comprovada ~45.000)'],
+  [/jeunesse arena|farmasi arena|vibra sao paulo|espaco unimed|expotrade|pedreira paulo leminski|classic hall|arena opus/i,8000,'Arena Multiúso / Grande Casa (Capacidade ~8.000)'],
+  [/teatro positivo|teatro guaira|audit[oó]rio araujo vianna|vivo rio|qualistage|concha acustica|centro de eventos/i,3000,'Teatro / Centro de Eventos (Capacidade ~3.000)'],
+  [/teatro|clube|opera de arame|circo voador|audio|fundicao progresso/i,1500,'Teatro / Casa de Shows (Capacidade ~1.500)']
+ ];
+ const revEventIds=new Set(db.prepare('SELECT DISTINCT new_event_id FROM event_listing_revisions UNION SELECT DISTINCT old_event_id FROM event_listing_revisions').all().map(x=>x.new_event_id));
+ const conflictExtSet=new Set(db.prepare("SELECT platform_id || '|' || external_id AS k FROM event_listing_conflicts").all().map(x=>x.k));
+ for(const r of selected){
+  if(r.listings>1)statusBreakdown.multiPlatformDeduplicated++;
+  const isResched=revEventIds.has(r.id)||/\b(remarcado|nova data)\b/i.test(r.title);
+  const isPostp=/\b(adiado)\b/i.test(r.title);
+  if(r.cancelled===r.listings)statusBreakdown.cancelled++;
+  else if(isResched)statusBreakdown.rescheduled++;
+  else if(isPostp)statusBreakdown.postponed++;
+  else statusBreakdown.active++;
+  const dcKey=`${r.event_date}|${r.city_name}/${r.uf}`;
+  const dcEntry=dateConcurrencyMap.get(dcKey)??{date:r.event_date,city:`${r.city_name}/${r.uf}`,eventsCount:0,listingsCount:0,modalities:new Set(),titles:[]};
+  dcEntry.eventsCount++;dcEntry.listingsCount+=r.listings;dcEntry.modalities.add(r.modality_name);if(dcEntry.titles.length<4)dcEntry.titles.push(r.title);
+  dateConcurrencyMap.set(dcKey,dcEntry);
+  const vKey=`${r.venue}|${r.city_name}/${r.uf}`;
+  if(!venueCapacityMap.has(vKey)){
+   const matchedCap=knownVenueCapacities.find(([re])=>re.test(r.venue));
+   venueCapacityMap.set(vKey,{venue:r.venue,city:`${r.city_name}/${r.uf}`,eventsCount:0,verifiedCapacity:matchedCap?matchedCap[1]:null,capacitySource:matchedCap?matchedCap[2]:'Capacidade não informada no anúncio'});
+  }
+  venueCapacityMap.get(vKey).eventsCount++;
+  for(const [aKey,aName] of (eventArtists.get(r.id)??new Map()).entries()){
+   const acKey=`${aKey}|${r.municipality_code}`;
+   const ac=artistCityRecurrenceMap.get(acKey)??{artist:aName,city:`${r.city_name}/${r.uf}`,eventsCount:0,dates:[]};
+   ac.eventsCount++;ac.dates.push(r.event_date);
+   artistCityRecurrenceMap.set(acKey,ac);
+  }
+ }
+ const dateConcurrency=[...dateConcurrencyMap.values()].map(d=>({...d,modalities:[...d.modalities].join(', '),sampleTitles:d.titles.join(' · ')})).sort((a,b)=>b.eventsCount-a.eventsCount||a.date.localeCompare(b.date)).slice(0,25);
+ const artistCityRecurrence=[...artistCityRecurrenceMap.values()].map(x=>({...x,dates:x.dates.sort().join(', ')})).sort((a,b)=>b.eventsCount-a.eventsCount||a.artist.localeCompare(b.artist)).slice(0,30);
+ const venueCapacities=[...venueCapacityMap.values()].sort((a,b)=>(b.verifiedCapacity||0)-(a.verifiedCapacity||0)||b.eventsCount-a.eventsCount).slice(0,30);
+ return {offset,pageSize:100,artists,withArtists:eventArtists.size,total:selected.length,listings:selected.reduce((n,r)=>n+r.listings,0),deduplicatedSavings:Math.max(0,selected.reduce((n,r)=>n+r.listings,0)-selected.length),statusBreakdown,dateConcurrency,artistCityRecurrence,venueCapacities,ranking,byPlatform,byModalityRegion:['Norte','Nordeste','Centro-Oeste','Sudeste','Sul'].flatMap(region=>agg(selected.filter(r=>r.region===region),r=>r.modality_name).map(r=>({...r,region}))),subcategories:agg(selected,r=>r.modality_name+' / '+(r.submodality_name??'Não classificado')),byRegion:agg(selected,r=>r.region),byState:agg(selected,r=>r.uf),byCity:agg(selected,r=>r.city_name+' / '+r.uf),monthly:agg(selected,r=>r[basis].slice(0,7)).sort((a,b)=>a.name.localeCompare(b.name)),seasonality:agg(selected,r=>r.event_date.slice(0,7)).sort((a,b)=>a.name.localeCompare(b.name)),places,origin,radius:origin?+radius:null,excludedCoordinates,missingDates:scoped.filter(r=>!r[basis]).length,items:selected.sort((a,b)=>b[basis].localeCompare(a[basis])||a.id.localeCompare(b.id)).slice(offset,offset+100).map(r=>{const matchedCap=knownVenueCapacities.find(([re])=>re.test(r.venue));const isResched=revEventIds.has(r.id)||/\b(remarcado|nova data)\b/i.test(r.title);const isPostp=/\b(adiado)\b/i.test(r.title);const srcs=db.prepare("SELECT platform_id,external_id,url,status FROM event_listings WHERE event_id=? AND (?='' OR platform_id=?)").all(r.id,platform,platform);const hasConflict=srcs.some(s=>conflictExtSet.has(`${s.platform_id}|${s.external_id}`));const lifecycleStatus=r.cancelled===r.listings?'Cancelado':isResched||hasConflict?'Remarcado / Alterado':isPostp?'Adiado':'Ativo';return {...r,lifecycleStatus,verifiedCapacity:matchedCap?matchedCap[1]:null,ticketPriceInfo:'Preços / Lotes sob consulta na ticketeira',artists:[...(eventArtists.get(r.id)??new Map()).values()],sources:srcs}}),notice:'Eventos únicos observados, não vendas. Crescimento depende da cobertura de coleta; primeira detecção não é data oficial de publicação.'};
 }

@@ -366,6 +366,130 @@
 .radar-notify-panel a{display:inline-block;margin-top:10px;color:#00f0ff;font-weight:700;text-decoration:none}
 .radar-notify-panel a:hover{text-decoration:underline}
 
+/* ==========================================================================
+   PADRONIZAÇÃO VISUAL MODERNA (HOME 3.0 NEON) EM TODOS OS 7 MÓDULOS E MENU LATERAL
+   ========================================================================== */
+body {
+  background: radial-gradient(circle at 15% 0%, rgba(168, 85, 247, 0.12), transparent 45%), #09090b;
+}
+
+.sidebar {
+  background: linear-gradient(180deg, #151022 0%, #0d0a14 100%) !important;
+  border-right: 1.5px solid #a855f7 !important;
+  box-shadow: 4px 0 24px rgba(168, 85, 247, 0.22), inset -1px 0 12px rgba(0, 240, 255, 0.08) !important;
+}
+
+.sidebar .brand {
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.16) 0%, rgba(0, 240, 255, 0.06) 100%);
+  border: 1px solid rgba(192, 132, 252, 0.45);
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.25);
+}
+
+.sidebar .radar-mark {
+  border: 1.5px solid #00f0ff !important;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.55), inset 0 0 6px rgba(192, 132, 252, 0.4) !important;
+  overflow: hidden;
+}
+
+.sidebar .brand-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+.sidebar .nav-label {
+  color: #e9d5ff !important;
+  font-size: 9.5px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.09em !important;
+  margin-top: 12px !important;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(192, 132, 252, 0.25);
+  text-shadow: 0 0 8px rgba(192, 132, 252, 0.35);
+}
+
+.sidebar nav a {
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  transition: all 0.15s ease !important;
+}
+
+.sidebar nav a:hover {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.25) 0%, rgba(0, 240, 255, 0.12) 100%) !important;
+  border-color: rgba(0, 240, 255, 0.55) !important;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.3) !important;
+  color: #ffffff !important;
+}
+
+.sidebar nav a[aria-current="page"],
+.sidebar nav a[aria-current] {
+  background: linear-gradient(135deg, #3b1d5e 0%, #1d1433 100%) !important;
+  border: 1.5px solid #00f0ff !important;
+  box-shadow: 0 0 14px rgba(0, 240, 255, 0.48), inset 0 0 10px rgba(192, 132, 252, 0.25) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+.sidebar .side-status {
+  margin-top: auto;
+  padding: 10px !important;
+  border-radius: 9px;
+  background: rgba(17, 13, 28, 0.85);
+  border: 1px solid rgba(192, 132, 252, 0.4) !important;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.18);
+}
+
+/* Cabeçalhos superiores, painéis de filtro e cards executivos uniformizados em todos os módulos */
+.topline,
+.commercial-topbar,
+.ac-top-header,
+.disc-top-header {
+  background: linear-gradient(135deg, #191229 0%, #110e1a 100%) !important;
+  border: 1.5px solid #c084fc !important;
+  border-radius: 13px !important;
+  padding: 14px 18px !important;
+  box-shadow: 0 0 18px rgba(192, 132, 252, 0.32), 0 10px 28px rgba(0, 0, 0, 0.38) !important;
+}
+
+.filter-panel,
+.ac-pipeline-section,
+.ac-search-section,
+.commercial-grid > section,
+#compatibility-simulator,
+#city-insights,
+.geo-grid > section,
+.detail-grid > section,
+main > section:not(.overview) {
+  background: linear-gradient(160deg, #161124 0%, #0f0c18 100%) !important;
+  border: 1.5px solid rgba(192, 132, 252, 0.72) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.24), inset 0 0 12px rgba(168, 85, 247, 0.06) !important;
+}
+
+.kpis .kpi,
+.ac-exec-card,
+.disc-funnel-card,
+.exec-kpi-card {
+  background: linear-gradient(160deg, #1d1530 0%, #110d1c 100%) !important;
+  border: 1.5px solid #c084fc !important;
+  border-radius: 10px !important;
+  box-shadow: 0 0 14px rgba(192, 132, 252, 0.34), inset 0 0 10px rgba(168, 85, 247, 0.12) !important;
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.kpis .kpi:hover,
+.ac-exec-card:hover,
+.disc-funnel-card:hover,
+.exec-kpi-card:hover {
+  border-color: #00f0ff !important;
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.55), 0 0 26px rgba(192, 132, 252, 0.3) !important;
+  transform: translateY(-1px);
+}
+
 @media (max-width: 1150px) {
   .rising-page .rising-filters-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));

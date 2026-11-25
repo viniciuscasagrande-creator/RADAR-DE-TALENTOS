@@ -3,267 +3,181 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RADAR INTELLIGENCE — Portal de Acesso | Radar de Talentos</title>
+  <title>RADAR DE TALENTOS — Portal de Inteligência</title>
   <link rel="stylesheet" href="/login.css" />
   <script defer src="/login.js"></script>
 </head>
 <body class="ri-portal-body">
-  <!-- Partículas Digitais e Iluminação Atmosférica Global -->
-  <canvas id="ri-particles-canvas" class="ri-particles-canvas" aria-hidden="true"></canvas>
-
-  <div class="ri-split-layout" id="ri-split-layout">
-    <!-- =====================================================================
-         AMBIENTE ESQUERDO (60%): EXPERIÊNCIA VISUAL "RADAR INTELLIGENCE"
-         2º Plano: Mapa do Brasil translúcido com cidades e linhas de conexão
-         1º Plano: Radar giratório 360°, logo original, pontos que acendem e ondas
-         ===================================================================== -->
-    <section class="ri-visual-stage" id="ri-visual-stage" aria-label="Central de Monitoramento Radar Intelligence">
-      <!-- Cabeçalho Superior Esquerdo (igual ao vídeo) -->
-      <div class="ri-top-pill">
-        <span class="ri-pulse-dot"></span>
-        <span>INTELIGÊNCIA DE MERCADO</span>
-      </div>
-
-      <!-- Segundo Plano: Mapa do Brasil Estilizado Quase Transparente + Polos e Conexões -->
-      <div class="ri-brazil-backdrop" id="ri-parallax-map" aria-hidden="true">
-        <svg class="ri-brazil-svg" viewBox="0 0 600 620" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- Silhueta estilizada do Brasil e malha estratégica -->
-          <path
-            d="M215 65 L295 48 L365 92 L455 135 L525 190 L505 275 L465 345 L425 415 L355 485 L310 565 L265 545 L255 468 L195 405 L145 330 L85 255 L75 180 L140 120 Z"
-            stroke="rgba(164, 60, 255, 0.22)"
-            stroke-width="1.5"
-            stroke-dasharray="5 5"
-            fill="rgba(118, 37, 217, 0.04)"
-          />
-          <!-- Linhas de conexão territorial entre polos comerciais -->
-          <g stroke="rgba(217, 166, 255, 0.16)" stroke-width="1" stroke-dasharray="3 4">
-            <line x1="365" y1="415" x2="330" y2="455" />
-            <line x1="365" y1="415" x2="395" y2="370" />
-            <line x1="365" y1="415" x2="320" y2="335" />
-            <line x1="320" y1="335" x2="455" y2="265" />
-            <line x1="455" y1="265" x2="480" y2="195" />
-            <line x1="320" y1="335" x2="215" y2="175" />
-            <line x1="330" y1="455" x2="298" y2="515" />
-          </g>
-          <!-- Pequenos pontos luminosos representando cidades-polo -->
-          <g fill="#D9A6FF" opacity="0.48">
-            <circle cx="365" cy="415" r="3.5" /><!-- São Paulo -->
-            <circle cx="395" cy="370" r="3" /><!-- Belo Horizonte -->
-            <circle cx="330" cy="455" r="3" /><!-- Curitiba -->
-            <circle cx="298" cy="515" r="2.8" /><!-- Porto Alegre -->
-            <circle cx="320" cy="335" r="3.2" /><!-- Goiânia / Brasília -->
-            <circle cx="455" cy="265" r="3" /><!-- Salvador -->
-            <circle cx="480" cy="195" r="2.8" /><!-- Recife / Fortaleza -->
-            <circle cx="215" cy="175" r="2.6" /><!-- Manaus / Belém -->
-          </g>
-        </svg>
-      </div>
-
-      <!-- Primeiro Plano: Radar Giratório 360° + Ondas de Pulso + Pontos que Acendem + Logo Original -->
-      <div class="ri-center-piece" id="ri-parallax-radar">
-        <div class="ri-radar-assembly">
-          <!-- Ondas de pulso que se expandem suavemente -->
-          <div class="ri-pulse-wave wave-1"></div>
-          <div class="ri-pulse-wave wave-2"></div>
-          <div class="ri-pulse-wave wave-3"></div>
-
-          <!-- Disco Principal do Radar -->
-          <div class="ri-radar-disc" id="ri-radar-disc">
-            <!-- Imagem original da logo integrada ao núcleo para fidelidade visual -->
-            <img src="/radar-logo-mark.png" alt="" class="ri-radar-core-art" aria-hidden="true" />
-
-            <!-- Círculos concêntricos e marcações cardeais do radar -->
-            <div class="ri-ring r-outer"></div>
-            <div class="ri-ring r-mid"></div>
-            <div class="ri-ring r-inner"></div>
-            <span class="ri-tick tick-n"></span>
-            <span class="ri-tick tick-e"></span>
-            <span class="ri-tick tick-s"></span>
-            <span class="ri-tick tick-w"></span>
-
-            <!-- Feixe cônico girando em 360° continuamente -->
-            <div class="ri-radar-beam" id="ri-radar-beam"></div>
-
-            <!-- Núcleo branco brilhante central -->
-            <span class="ri-radar-center-dot"></span>
-
-            <!-- Pontos de talentos (Blips) com ângulos definidos para acenderem quando o feixe passa -->
-            <span class="ri-talent-blip" data-angle="42" style="top:27%;left:67%" title="Talento em aceleração detectado"></span>
-            <span class="ri-talent-blip" data-angle="128" style="top:65%;left:72%" title="Oportunidade comercial detectada"></span>
-            <span class="ri-talent-blip" data-angle="225" style="top:71%;left:32%" title="Bacia regional aquecida"></span>
-            <span class="ri-talent-blip" data-angle="312" style="top:31%;left:33%" title="Sinal emergente verificado"></span>
-          </div>
+  <div class="ri-page-shell" id="ri-split-layout">
+    <div class="ri-main-columns">
+      <!-- ===================================================================
+           AMBIENTE ESQUERDO: RADAR GIRATÓRIO 360° & IDENTIDADE OFICIAL
+           =================================================================== -->
+      <section class="ri-visual-stage" aria-label="Radar de Talentos — Inteligência de mercado">
+        <!-- Topo Esquerdo: • INTELIGÊNCIA DE MERCADO -->
+        <div class="ri-top-tag">
+          <span class="ri-pulse-dot"></span>
+          <span>INTELIGÊNCIA DE MERCADO</span>
         </div>
 
-        <!-- Tipografia Oficial da Marca (idêntica à logo e ao vídeo) -->
-        <div class="ri-brand-lockup">
-          <h1 class="ri-brand-title">
-            <span class="ri-word-radar">RADAR DE</span>
-            <span class="ri-word-talentos">TALENTOS</span>
-          </h1>
-          <div class="ri-brand-subtitle-row">
-            <span class="ri-sub-line"></span>
-            <span class="ri-sub-text">Inteligência de mercado</span>
-            <span class="ri-sub-line"></span>
-          </div>
-        </div>
+        <!-- Anéis orbitais externos sutis ao fundo (como no modelo) -->
+        <div class="ri-outer-orbit orbit-1" aria-hidden="true"></div>
+        <div class="ri-outer-orbit orbit-2" aria-hidden="true"></div>
 
-        <!-- Frases Conceituais & Assinatura da Plataforma -->
-        <div class="ri-tagline-block">
-          <p class="ri-main-quote">O futuro dos talentos está no seu radar.</p>
-          <p class="ri-sub-quote">Descubra talentos.<br />Antecipe tendências. Encontre oportunidades.</p>
-          <div class="ri-pillars-caption">ARTISTAS &nbsp;•&nbsp; AUDIÊNCIA &nbsp;•&nbsp; MERCADO</div>
-        </div>
-      </div>
-    </section>
+        <!-- Conjunto Central: Radar Giratório + Logo Tipográfica + Taglines -->
+        <div class="ri-center-piece">
+          <div class="ri-radar-assembly">
+            <div class="ri-radar-disc" id="ri-radar-disc">
+              <!-- Círculos concêntricos e eixos cruzados sutis -->
+              <div class="ri-ring r-outer"></div>
+              <div class="ri-ring r-mid"></div>
+              <div class="ri-ring r-inner"></div>
+              <div class="ri-crosshair ch-h"></div>
+              <div class="ri-crosshair ch-v"></div>
 
-    <!-- =====================================================================
-         AMBIENTE DIREITO (40%): FORMULÁRIO DE AUTENTICAÇÃO GLASSMORPHISM
-         ===================================================================== -->
-    <section class="ri-auth-stage" aria-labelledby="ri-welcome-title">
-      <div class="ri-auth-card" id="ri-auth-card">
-        <div class="ri-auth-header">
-          <span class="ri-portal-eyebrow">PORTAL DE INTELIGÊNCIA</span>
-          <h2 id="ri-welcome-title">Bem-vindo ao Radar.</h2>
-          <p id="ri-welcome-subtitle">Acesse sua central de inteligência artística.</p>
-        </div>
+              <!-- Marcações cardeais (N, S, L, O) -->
+              <span class="ri-tick tick-n"></span>
+              <span class="ri-tick tick-e"></span>
+              <span class="ri-tick tick-s"></span>
+              <span class="ri-tick tick-w"></span>
 
-        <!-- ETAPA 1: FORMULÁRIO PRINCIPAL DE LOGIN (E-MAIL OU USUÁRIO + SENHA) -->
-        <form id="radar-login-form" class="ri-form" novalidate>
-          <div class="ri-field">
-            <label for="login-username">E-mail ou usuário</label>
-            <input
-              id="login-username"
-              type="text"
-              autocomplete="username"
-              placeholder="Seu e-mail ou usuário"
-              required
-            />
-          </div>
+              <!-- Feixe cônico de varredura girando 360° -->
+              <div class="ri-radar-beam" id="ri-radar-beam"></div>
 
-          <div class="ri-field">
-            <label for="login-password">Senha</label>
-            <div class="ri-password-wrap">
-              <input
-                id="login-password"
-                type="password"
-                autocomplete="current-password"
-                placeholder="Digite sua senha"
-                required
-              />
-              <button type="button" id="toggle-login-pwd" class="ri-show-pwd-btn" aria-label="Mostrar ou ocultar senha">Mostrar</button>
+              <!-- Ponto central luminoso -->
+              <span class="ri-radar-center-dot"></span>
+
+              <!-- 3 Pontos de talentos (Blips) que acendem quando o feixe passa -->
+              <span class="ri-talent-blip" data-angle="328" style="top:28%;left:36%"></span>
+              <span class="ri-talent-blip" data-angle="122" style="top:64%;left:71%"></span>
+              <span class="ri-talent-blip" data-angle="216" style="top:73%;left:32%"></span>
             </div>
           </div>
 
-          <div class="ri-options-row">
-            <label class="ri-remember-label">
-              <input type="checkbox" id="login-remember" checked />
-              <span>Lembrar acesso</span>
-            </label>
-            <button type="button" id="forgot-password-btn" class="ri-text-link">Esqueci a senha</button>
+          <!-- Tipografia Oficial da Marca -->
+          <div class="ri-brand-lockup">
+            <h1 class="ri-brand-title">
+              <span class="ri-word-radar">RADAR DE</span>
+              <span class="ri-word-talentos">TALENTOS</span>
+            </h1>
+            <p class="ri-sub-text">Inteligência de mercado</p>
+            <div class="ri-brand-divider"></div>
           </div>
 
-          <!-- Sequência Visual de Varredura Durante a Autenticação -->
-          <div id="ri-scan-progress" class="ri-scan-progress" hidden>
-            <div class="ri-scan-bar"><div class="ri-scan-fill" id="ri-scan-fill"></div></div>
-            <small id="ri-scan-step-text">Iniciando varredura de credenciais…</small>
-          </div>
-
-          <p id="login-feedback" class="ri-feedback" role="status"></p>
-
-          <button type="submit" id="login-submit-btn" class="ri-submit-btn">
-            <span>Acessar Radar &rarr;</span>
-          </button>
-
-          <!-- Atalho Rápido de Demonstração -->
-          <div class="ri-quick-bar">
-            <button type="button" id="fill-admin-demo-btn" class="ri-chip-btn">🛡 Preencher Admin Padrão (admin / Radar@2026)</button>
-          </div>
-        </form>
-
-        <!-- ETAPA 2: CADASTRO OBRIGATÓRIO DE NOVA SENHA FORTE (1º ACESSO OU APÓS RESET) -->
-        <form id="radar-force-pwd-form" class="ri-form" hidden novalidate>
-          <div class="ri-force-banner">
-            <strong id="force-pwd-user-title">🔑 Primeiro Acesso — Cadastre sua Nova Senha Segura</strong>
-            <p>Para concluir a ativação do seu perfil e acessar os módulos liberados pelo Administrador, defina uma senha forte pessoal.</p>
-          </div>
-
-          <div class="ri-field">
-            <label for="new-strong-password">Nova senha forte</label>
-            <input id="new-strong-password" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres, A-Z, 0-9 e símbolo" required />
-          </div>
-
-          <div class="ri-field">
-            <label for="confirm-strong-password">Confirmar nova senha</label>
-            <input id="confirm-strong-password" type="password" autocomplete="new-password" placeholder="Repita a nova senha" required />
-          </div>
-
-          <ul class="ri-pwd-checklist" id="pwd-rules-checklist">
-            <li data-rule="len">○ Mínimo de 8 caracteres</li>
-            <li data-rule="upper">○ Pelo menos 1 letra maiúscula (A–Z)</li>
-            <li data-rule="lower">○ Pelo menos 1 letra minúscula (a–z)</li>
-            <li data-rule="num">○ Pelo menos 1 número (0–9)</li>
-            <li data-rule="sym">○ Pelo menos 1 caractere especial (@, #, $, !, %)</li>
-          </ul>
-
-          <p id="force-pwd-feedback" class="ri-feedback" role="status"></p>
-
-          <button type="submit" id="force-pwd-submit-btn" class="ri-submit-btn">
-            <span>Salvar Senha e Acessar Radar &rarr;</span>
-          </button>
-        </form>
-
-        <!-- ETAPA 3: RECUPERAÇÃO DE SENHA / SOLICITAÇÃO DE ACESSO -->
-        <form id="radar-request-form" class="ri-form" hidden novalidate>
-          <div class="ri-force-banner">
-            <strong id="request-form-title">Solicitar Acesso ou Recuperação</strong>
-            <p id="request-form-desc">Informe seus dados para que o Administrador crie seu usuário ou resete sua senha provisória.</p>
-          </div>
-
-          <input type="hidden" id="request-kind" value="request" />
-
-          <div class="ri-field">
-            <label for="request-name">Nome completo</label>
-            <input id="request-name" type="text" placeholder="Seu nome ou empresa" required />
-          </div>
-
-          <div class="ri-field">
-            <label for="request-email">E-mail ou usuário</label>
-            <input id="request-email" type="text" placeholder="nome@empresa.com.br" required />
-          </div>
-
-          <div class="ri-field" id="request-role-wrap">
-            <label for="request-role">Perfil de atuação sugerido</label>
-            <select id="request-role">
-              <option value="producer">Produtor — Audiência, eventos e oportunidades</option>
-              <option value="entrepreneur">Empresário — Inteligência comercial e artística</option>
-              <option value="analyst">Analista — Motor de Dados, prospecção e validação</option>
-              <option value="consultant">Consultor — Consulta a módulos autorizados</option>
-              <option value="visitor">Visitante — Acesso demonstrativo restrito</option>
-            </select>
-          </div>
-
-          <p id="request-feedback" class="ri-feedback" role="status"></p>
-
-          <div style="display:flex;gap:10px">
-            <button type="button" id="back-to-login-btn" class="ri-secondary-btn" style="flex:0.45">Voltar</button>
-            <button type="submit" id="request-submit-btn" class="ri-submit-btn" style="flex:1">Enviar Solicitação &rarr;</button>
-          </div>
-        </form>
-
-        <!-- Rodapé do Formulário (idêntico ao vídeo) -->
-        <div class="ri-auth-footer">
-          <p class="ri-signup-prompt">
-            Não possui acesso?
-            <button type="button" id="request-access-btn" class="ri-text-link">Solicitar acesso</button>
-          </p>
-          <div class="ri-restricted-badge">
-            <span class="ri-restricted-dot"></span>
-            <span>Ambiente de acesso restrito</span>
+          <!-- Frases Conceituais -->
+          <div class="ri-tagline-block">
+            <p class="ri-sub-quote">Descubra talentos.<br />Antecipe tendências. Encontre oportunidades.</p>
+            <div class="ri-pillars-caption">ARTISTAS &nbsp;&bull;&nbsp; AUDIÊNCIA &nbsp;&bull;&nbsp; MERCADO</div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      <!-- ===================================================================
+           AMBIENTE DIREITO: PORTAL DE INTELIGÊNCIA (AUTENTICAÇÃO RESTRITA)
+           =================================================================== -->
+      <section class="ri-auth-stage" aria-labelledby="ri-welcome-title">
+        <div class="ri-auth-card">
+          <div class="ri-auth-header">
+            <span class="ri-portal-eyebrow">PORTAL DE INTELIGÊNCIA</span>
+            <h2 id="ri-welcome-title">Bem-vindo ao Radar.</h2>
+            <p id="ri-welcome-subtitle">Acesse sua central de inteligência artística.</p>
+          </div>
+
+          <!-- ETAPA 1: FORMULÁRIO DE LOGIN (IDÊNTICO À IMAGEM) -->
+          <form id="radar-login-form" class="ri-form" novalidate>
+            <div class="ri-field">
+              <label for="login-username">E-mail ou usuário</label>
+              <input
+                id="login-username"
+                type="text"
+                autocomplete="username"
+                placeholder="Seu e-mail ou usuário"
+                required
+              />
+            </div>
+
+            <div class="ri-field">
+              <label for="login-password">Senha</label>
+              <div class="ri-password-wrap">
+                <input
+                  id="login-password"
+                  type="password"
+                  autocomplete="current-password"
+                  placeholder="Digite sua senha"
+                  required
+                />
+                <button type="button" id="toggle-login-pwd" class="ri-show-pwd-btn" aria-label="Mostrar ou ocultar senha">Mostrar</button>
+              </div>
+            </div>
+
+            <div class="ri-options-row">
+              <label class="ri-remember-label">
+                <input type="checkbox" id="login-remember" />
+                <span>Lembrar acesso</span>
+              </label>
+              <button type="button" id="forgot-password-btn" class="ri-text-link">Esqueci a senha</button>
+            </div>
+
+            <p id="login-feedback" class="ri-feedback" role="status"></p>
+
+            <button type="submit" id="login-submit-btn" class="ri-submit-btn">
+              <span>Acessar Radar &rarr;</span>
+            </button>
+          </form>
+
+          <!-- ETAPA 2: CADASTRO OBRIGATÓRIO DE NOVA SENHA FORTE (1º ACESSO OU APÓS RESET PELO ADMIN) -->
+          <form id="radar-force-pwd-form" class="ri-form" hidden novalidate>
+            <div class="ri-force-banner">
+              <strong id="force-pwd-user-title">Primeiro Acesso — Cadastre sua Nova Senha</strong>
+              <p>Por segurança, defina agora uma nova senha pessoal forte para liberar seu acesso ao Radar.</p>
+            </div>
+
+            <div class="ri-field">
+              <label for="new-strong-password">Nova senha forte</label>
+              <input id="new-strong-password" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres, A-Z, 0-9 e símbolo" required />
+            </div>
+
+            <div class="ri-field">
+              <label for="confirm-strong-password">Confirmar nova senha</label>
+              <input id="confirm-strong-password" type="password" autocomplete="new-password" placeholder="Repita a nova senha" required />
+            </div>
+
+            <ul class="ri-pwd-checklist" id="pwd-rules-checklist">
+              <li data-rule="len">○ Mínimo de 8 caracteres</li>
+              <li data-rule="upper">○ Pelo menos 1 letra maiúscula (A–Z)</li>
+              <li data-rule="lower">○ Pelo menos 1 letra minúscula (a–z)</li>
+              <li data-rule="num">○ Pelo menos 1 número (0–9)</li>
+              <li data-rule="sym">○ Pelo menos 1 caractere especial (@, #, $, !, %)</li>
+            </ul>
+
+            <p id="force-pwd-feedback" class="ri-feedback" role="status"></p>
+
+            <button type="submit" id="force-pwd-submit-btn" class="ri-submit-btn">
+              <span>Salvar Senha e Acessar Radar &rarr;</span>
+            </button>
+          </form>
+
+          <!-- Rodapé do Card Direito (Fiel à Imagem) -->
+          <div class="ri-auth-footer">
+            <p class="ri-signup-prompt">
+              Não possui acesso?
+              <button type="button" id="request-access-btn" class="ri-text-link">Solicitar acesso</button>
+            </p>
+            <div class="ri-footer-divider"></div>
+            <div class="ri-restricted-badge">
+              <span class="ri-restricted-icon">&oplus;</span>
+              <span>Ambiente de acesso restrito</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Barra Inferior Global (© 2026 Radar de Talentos | Inteligência estratégica) -->
+    <footer class="ri-bottom-bar">
+      <span>&copy; 2026 Radar de Talentos</span>
+      <span>Inteligência estratégica</span>
+    </footer>
   </div>
 </body>
 </html>

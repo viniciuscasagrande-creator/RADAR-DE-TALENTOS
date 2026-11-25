@@ -1,23 +1,16 @@
 /* ==========================================================================
-   RADAR INTELLIGENCE — PORTAL DE ACESSO
-   Paleta Oficial:
-   Preto espacial:   #090416
-   Roxo profundo:    #160B29
-   Roxo principal:   #7625D9
-   Neon violeta:     #A43CFF
-   Lavanda luminosa: #D9A6FF
-   Branco premium:   #F7F5FF
+   RADAR DE TALENTOS — PORTAL DE INTELIGÊNCIA (FIEL AO MODELO DA IMAGEM)
    ========================================================================== */
 :root {
   color-scheme: dark;
-  --space-black: #090416;
-  --deep-purple: #160B29;
+  --space-black: #0a0414;
+  --deep-purple: #120822;
   --primary-purple: #7625D9;
-  --neon-violet: #A43CFF;
-  --luminous-lavender: #D9A6FF;
+  --neon-violet: #9B4DFF;
+  --luminous-lavender: #B884FF;
   --premium-white: #F7F5FF;
-  --muted-lavender: #9e8fb8;
-  font: 14px/1.45 Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --muted-lavender: #8E82A6;
+  font: 13.5px/1.42 Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 * {
@@ -33,102 +26,93 @@ body.ri-portal-body {
   background: var(--space-black);
   color: var(--premium-white);
   overflow: hidden;
-  position: relative;
 }
 
-.ri-particles-canvas {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* ==========================================================================
-   ESTRUTURA DIVIDIDA: 60% EXPERIÊNCIA VISUAL (ESQUERDA) / 40% LOGIN (DIREITA)
-   ========================================================================== */
-.ri-split-layout {
-  position: relative;
-  z-index: 2;
+.ri-page-shell {
   height: 100vh;
   max-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   overflow: hidden;
-  display: grid;
-  grid-template-columns: 58% 42%;
-  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.55s ease;
+  transition: transform 0.55s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.45s ease;
 }
 
-.ri-split-layout.is-entering-dashboard {
-  transform: scale(1.12);
+.ri-page-shell.is-entering-dashboard {
+  transform: scale(1.08);
   opacity: 0;
 }
 
+.ri-main-columns {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 52.5% 47.5%;
+  overflow: hidden;
+}
+
 /* ==========================================================================
-   AMBIENTE ESQUERDO (60%): RADAR INTELLIGENCE & MAPA DO BRASIL
+   AMBIENTE ESQUERDO: RADAR GIRATÓRIO 360° & MARCA OFICIAL
    ========================================================================== */
 .ri-visual-stage {
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding: 58px 28px 20px;
-  height: 100vh;
+  justify-content: center;
+  padding: 28px 24px 16px;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 36%, rgba(118, 37, 217, 0.28) 0%, rgba(22, 11, 41, 0.85) 52%, #090416 90%);
-  border-right: 1px solid rgba(217, 166, 255, 0.16);
+    radial-gradient(circle at 50% 41%, rgba(126, 42, 224, 0.24) 0%, rgba(20, 9, 38, 0.85) 48%, #0a0414 88%);
+  border-right: 1px solid rgba(184, 132, 255, 0.14);
 }
 
-/* Pill Superior Esquerda: • INTELIGÊNCIA DE MERCADO */
-.ri-top-pill {
+/* Topo Esquerdo: • INTELIGÊNCIA DE MERCADO */
+.ri-top-tag {
   position: absolute;
-  top: 24px;
+  top: 22px;
   left: 28px;
   z-index: 5;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: rgba(22, 11, 41, 0.72);
-  border: 1px solid rgba(164, 60, 255, 0.32);
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--luminous-lavender);
-  backdrop-filter: blur(8px);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  color: #a97eff;
+  text-transform: uppercase;
 }
 
 .ri-pulse-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: var(--neon-violet);
-  box-shadow: 0 0 10px var(--neon-violet);
-  animation: riDotBlink 2.2s ease-in-out infinite;
+  background: #a97eff;
+  box-shadow: 0 0 8px #a97eff;
 }
 
-/* 2º Plano: Mapa do Brasil Quase Transparente com Polos e Conexões */
-.ri-brazil-backdrop {
+/* Anéis orbitais externos sutis ao redor do radar (exatamente como na imagem) */
+.ri-outer-orbit {
   position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  top: 39%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid rgba(164, 92, 255, 0.08);
   pointer-events: none;
-  opacity: 0.55;
-  transition: transform 0.25s ease-out;
 }
 
-.ri-brazil-svg {
-  width: min(560px, 86%);
-  height: auto;
-  filter: drop-shadow(0 0 16px rgba(164, 60, 255, 0.18));
+.ri-outer-orbit.orbit-1 {
+  width: 340px;
+  height: 340px;
 }
 
-/* 1º Plano: Conjunto Central (Radar Giratório + Logo + Tipografia + Tagline) */
+.ri-outer-orbit.orbit-2 {
+  width: 465px;
+  height: 465px;
+  border-color: rgba(164, 92, 255, 0.05);
+}
+
 .ri-center-piece {
   position: relative;
   z-index: 4;
@@ -136,63 +120,33 @@ body.ri-portal-body {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  max-width: 520px;
+  max-width: 440px;
   width: 100%;
-  margin-top: 8px;
-  transition: transform 0.2s ease-out;
+  margin-top: -8px;
 }
 
 .ri-radar-assembly {
   position: relative;
-  width: 216px;
-  height: 216px;
+  width: 236px;
+  height: 236px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 12px;
+  margin-bottom: 22px;
 }
 
-/* Ondas de pulso que se expandem suavemente */
-.ri-pulse-wave {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 1px solid rgba(164, 60, 255, 0.38);
-  pointer-events: none;
-  animation: riWaveExpand 4.8s ease-out infinite;
-}
-
-.ri-pulse-wave.wave-2 {
-  animation-delay: 1.6s;
-}
-
-.ri-pulse-wave.wave-3 {
-  animation-delay: 3.2s;
-}
-
-/* Disco Principal do Radar (fiel à imagem enviada) */
+/* Disco do Radar com aro roxo luminoso fino como na imagem */
 .ri-radar-disc {
   position: relative;
-  width: 196px;
-  height: 196px;
+  width: 226px;
+  height: 226px;
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 50%, rgba(118, 37, 217, 0.24) 0%, rgba(15, 7, 30, 0.92) 72%);
-  border: 4.5px solid rgba(164, 60, 255, 0.72);
+  background: radial-gradient(circle at 50% 50%, rgba(130, 50, 235, 0.20) 0%, rgba(16, 7, 30, 0.94) 75%);
+  border: 2px solid #a855f7;
   box-shadow:
-    0 0 32px rgba(164, 60, 255, 0.45),
-    inset 0 0 24px rgba(164, 60, 255, 0.32);
+    0 0 28px rgba(168, 85, 247, 0.32),
+    inset 0 0 24px rgba(168, 85, 247, 0.22);
   overflow: hidden;
-}
-
-.ri-radar-core-art {
-  position: absolute;
-  inset: -12%;
-  width: 124%;
-  height: 124%;
-  object-fit: cover;
-  opacity: 0.16;
-  pointer-events: none;
-  mix-blend-mode: screen;
 }
 
 .ri-ring {
@@ -201,53 +155,44 @@ body.ri-portal-body {
   left: 50%;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  border: 1px solid rgba(217, 166, 255, 0.24);
+  border: 1px solid rgba(184, 132, 255, 0.22);
   pointer-events: none;
 }
 
-.ri-ring.r-outer { width: 82%; height: 82%; }
-.ri-ring.r-mid { width: 54%; height: 54%; }
-.ri-ring.r-inner { width: 26%; height: 26%; }
+.ri-ring.r-outer { width: 76%; height: 76%; }
+.ri-ring.r-mid { width: 50%; height: 50%; }
+.ri-ring.r-inner { width: 25%; height: 25%; }
 
-/* Marcações cardeais brancas/lavanda como na logo original */
+.ri-crosshair {
+  position: absolute;
+  background: rgba(184, 132, 255, 0.14);
+  pointer-events: none;
+}
+
+.ri-crosshair.ch-h {
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+.ri-crosshair.ch-v {
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
 .ri-tick {
   position: absolute;
-  background: rgba(247, 245, 255, 0.85);
-  border-radius: 2px;
+  background: rgba(217, 166, 255, 0.55);
   z-index: 3;
 }
 
-.ri-tick.tick-n {
-  top: 10px;
-  left: 50%;
-  width: 2px;
-  height: 18px;
-  transform: translateX(-50%);
-}
-
-.ri-tick.tick-s {
-  bottom: 10px;
-  left: 50%;
-  width: 2px;
-  height: 18px;
-  transform: translateX(-50%);
-}
-
-.ri-tick.tick-e {
-  right: 10px;
-  top: 50%;
-  width: 18px;
-  height: 2px;
-  transform: translateY(-50%);
-}
-
-.ri-tick.tick-w {
-  left: 10px;
-  top: 50%;
-  width: 18px;
-  height: 2px;
-  transform: translateY(-50%);
-}
+.ri-tick.tick-n { top: 0; left: 50%; width: 1.5px; height: 14px; transform: translateX(-50%); }
+.ri-tick.tick-s { bottom: 0; left: 50%; width: 1.5px; height: 14px; transform: translateX(-50%); }
+.ri-tick.tick-e { right: 0; top: 50%; width: 14px; height: 1.5px; transform: translateY(-50%); }
+.ri-tick.tick-w { left: 0; top: 50%; width: 14px; height: 1.5px; transform: translateY(-50%); }
 
 /* Feixe de Varredura Giratório em 360° */
 .ri-radar-beam {
@@ -256,10 +201,10 @@ body.ri-portal-body {
   border-radius: 50%;
   background: conic-gradient(
     from 0deg,
-    rgba(247, 245, 255, 0.82) 0deg,
-    rgba(164, 60, 255, 0.55) 14deg,
-    rgba(118, 37, 217, 0.22) 48deg,
-    transparent 95deg,
+    rgba(247, 245, 255, 0.78) 0deg,
+    rgba(184, 132, 255, 0.45) 14deg,
+    rgba(126, 42, 224, 0.16) 44deg,
+    transparent 82deg,
     transparent 360deg
   );
   will-change: transform;
@@ -269,40 +214,43 @@ body.ri-portal-body {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 12px;
-  height: 12px;
+  width: 9px;
+  height: 9px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
   background: #ffffff;
-  box-shadow: 0 0 14px #ffffff, 0 0 26px var(--neon-violet);
+  box-shadow: 0 0 12px #ffffff, 0 0 22px #a855f7;
   z-index: 4;
 }
 
-/* Pontos de Talentos que Acendem Quando o Feixe do Radar Passa */
+/* Pontos de Talentos (Blips) dentro do Radar */
 .ri-talent-blip {
   position: absolute;
-  width: 9px;
-  height: 9px;
-  margin: -4.5px 0 0 -4.5px;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
   border-radius: 50%;
-  background: var(--premium-white);
-  box-shadow: 0 0 8px var(--luminous-lavender);
-  opacity: 0.28;
-  transform: scale(0.85);
-  transition: opacity 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  background: #e9d5ff;
+  box-shadow: 0 0 10px #c084fc;
+  opacity: 0.42;
+  transform: scale(0.9);
+  transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   z-index: 4;
 }
 
 .ri-talent-blip.is-lit {
   opacity: 1;
-  transform: scale(1.38);
+  transform: scale(1.32);
   background: #ffffff;
-  box-shadow: 0 0 14px #ffffff, 0 0 26px var(--neon-violet);
+  box-shadow: 0 0 14px #ffffff, 0 0 24px #a855f7;
 }
 
-/* Tipografia Monumental: RADAR DE TALENTOS */
+/* Tipografia da Marca: RADAR DE TALENTOS */
 .ri-brand-lockup {
-  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 16px;
 }
 
 .ri-brand-title {
@@ -310,157 +258,135 @@ body.ri-portal-body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  line-height: 0.95;
-  letter-spacing: -0.02em;
+  line-height: 1.02;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
 }
 
 .ri-word-radar {
-  font-size: clamp(28px, 3.2vw, 40px);
+  font-size: 32px;
   font-weight: 900;
-  color: var(--premium-white);
+  color: #ffffff;
 }
 
 .ri-word-talentos {
-  font-size: clamp(32px, 3.7vw, 45px);
+  font-size: 38px;
   font-weight: 900;
-  background: linear-gradient(90deg, #E5C2FF 0%, #B96BFF 50%, #9333EA 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.ri-brand-subtitle-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 7px;
-}
-
-.ri-sub-line {
-  width: 34px;
-  height: 1.5px;
-  background: linear-gradient(90deg, transparent, var(--neon-violet), transparent);
+  color: #b57bff;
 }
 
 .ri-sub-text {
+  margin: 10px 0 16px;
   font-size: 13px;
-  font-weight: 500;
-  color: #dfd7f0;
-  letter-spacing: 0.04em;
+  font-weight: 400;
+  color: #d4cce6;
+  letter-spacing: 0.14em;
+}
+
+.ri-brand-divider {
+  width: 240px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(184, 132, 255, 0.28), transparent);
 }
 
 .ri-tagline-block {
-  max-width: 390px;
-}
-
-.ri-main-quote {
-  margin: 0 0 3px;
-  font-size: 12.5px;
-  font-weight: 700;
-  color: var(--luminous-lavender);
+  max-width: 360px;
 }
 
 .ri-sub-quote {
-  margin: 0 0 10px;
-  font-size: 12px;
-  color: #b7abc9;
-  line-height: 1.4;
+  margin: 0 0 18px;
+  font-size: 12.5px;
+  color: #c2b8d9;
+  line-height: 1.55;
 }
 
 .ri-pillars-caption {
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  color: #7d6b99;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  color: #8f72bd;
 }
 
 /* ==========================================================================
-   AMBIENTE DIREITO (40%): FORMULÁRIO DE AUTENTICAÇÃO ELEGANTE
+   AMBIENTE DIREITO: FORMULÁRIO DE AUTENTICAÇÃO (FIEL À IMAGEM)
    ========================================================================== */
 .ri-auth-stage {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px 28px;
-  height: 100vh;
-  overflow: hidden;
-  background: linear-gradient(180deg, rgba(13, 6, 26, 0.94) 0%, rgba(9, 4, 22, 0.98) 100%);
+  padding: 24px 36px;
+  background: #0d061a;
 }
 
 .ri-auth-card {
-  width: min(395px, 100%);
+  width: min(370px, 100%);
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 18px;
 }
 
 .ri-portal-eyebrow {
   display: block;
   font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
+  font-weight: 600;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--neon-violet);
-  margin-bottom: 8px;
+  color: #a97eff;
+  margin-bottom: 10px;
 }
 
 .ri-auth-header h2 {
-  margin: 0 0 4px;
-  font-size: 25px;
+  margin: 0 0 8px;
+  font-size: 27px;
   font-weight: 800;
-  letter-spacing: -0.025em;
-  color: var(--premium-white);
+  letter-spacing: -0.02em;
+  color: #ffffff;
 }
 
 .ri-auth-header p {
   margin: 0;
   font-size: 13px;
-  color: var(--muted-lavender);
+  color: #a398b8;
 }
 
 .ri-form {
   display: flex;
   flex-direction: column;
-  gap: 13px;
+  gap: 15px;
 }
 
 .ri-field {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 7px;
 }
 
 .ri-field label {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 500;
   color: #e2dcf0;
 }
 
-.ri-field input,
-.ri-field select {
+.ri-field input {
   width: 100%;
-  height: 42px;
+  height: 44px;
   padding: 0 14px;
-  border-radius: 10px;
-  background: rgba(22, 11, 41, 0.72);
-  border: 1px solid rgba(164, 60, 255, 0.34);
-  color: var(--premium-white);
+  border-radius: 8px;
+  background: rgba(18, 9, 34, 0.85);
+  border: 1px solid rgba(164, 92, 255, 0.26);
+  color: #ffffff;
   font-size: 13px;
-  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .ri-field input::placeholder {
-  color: #6d5e87;
+  color: #7c7094;
 }
 
-.ri-field input:focus,
-.ri-field select:focus {
+.ri-field input:focus {
   outline: none;
-  border-color: var(--neon-violet);
-  background: rgba(28, 14, 52, 0.92);
-  box-shadow: 0 0 0 3px rgba(164, 60, 255, 0.18);
+  border-color: #a855f7;
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2);
 }
 
 .ri-password-wrap {
@@ -470,7 +396,7 @@ body.ri-portal-body {
 }
 
 .ri-password-wrap input {
-  padding-right: 76px;
+  padding-right: 72px;
 }
 
 .ri-show-pwd-btn {
@@ -478,15 +404,15 @@ body.ri-portal-body {
   right: 12px;
   border: 0;
   background: transparent;
-  color: var(--luminous-lavender);
+  color: #b589ff;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   padding: 4px 6px;
 }
 
 .ri-show-pwd-btn:hover {
-  color: var(--premium-white);
+  color: #ffffff;
 }
 
 .ri-options-row {
@@ -494,98 +420,64 @@ body.ri-portal-body {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  font-size: 12.5px;
+  font-size: 12px;
+  margin-top: -2px;
 }
 
 .ri-remember-label {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: #b7abc9;
+  gap: 7px;
+  color: #a398b8;
   cursor: pointer;
 }
 
 .ri-remember-label input {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--primary-purple);
+  width: 14px;
+  height: 14px;
+  accent-color: #8b3dff;
 }
 
 .ri-text-link {
   border: 0;
   background: transparent;
-  color: var(--luminous-lavender);
-  font-size: 12.5px;
-  font-weight: 600;
+  color: #b589ff;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   padding: 0;
 }
 
 .ri-text-link:hover {
-  color: var(--premium-white);
+  color: #d8b4fe;
   text-decoration: underline;
 }
 
-/* Barra de Varredura de Autenticação */
-.ri-scan-progress {
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(22, 11, 41, 0.85);
-  border: 1px solid rgba(164, 60, 255, 0.42);
-}
-
-.ri-scan-bar {
-  height: 5px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  overflow: hidden;
-  margin-bottom: 6px;
-}
-
-.ri-scan-fill {
-  height: 100%;
-  width: 20%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--primary-purple), var(--neon-violet), var(--luminous-lavender));
-  transition: width 0.25s ease;
-}
-
-.ri-scan-progress small {
-  display: block;
-  font-size: 11.5px;
-  color: var(--luminous-lavender);
-}
-
 .ri-feedback {
-  margin: 0;
-  min-height: 18px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--luminous-lavender);
+  margin: -4px 0;
+  min-height: 16px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #c4b5fd;
 }
 
-.ri-Feedback-error {
-  color: #fca5a5;
-}
-
-/* Botão Principal: Acessar Radar -> */
 .ri-submit-btn {
-  height: 48px;
-  border-radius: 11px;
-  border: 1px solid rgba(217, 166, 255, 0.45);
-  background: linear-gradient(90deg, #7625D9 0%, #A43CFF 100%);
-  color: var(--premium-white);
-  font-size: 14.5px;
+  height: 46px;
+  border-radius: 9px;
+  border: 0;
+  background: linear-gradient(90deg, #7928ca 0%, #9b4dff 100%);
+  color: #ffffff;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 10px 28px rgba(164, 60, 255, 0.36);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+  box-shadow: 0 8px 24px rgba(139, 61, 255, 0.35);
+  transition: transform 0.14s ease, box-shadow 0.14s ease, filter 0.14s ease;
 }
 
 .ri-submit-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 14px 34px rgba(164, 60, 255, 0.55);
-  filter: brightness(1.06);
+  box-shadow: 0 12px 28px rgba(155, 77, 255, 0.5);
+  filter: brightness(1.05);
 }
 
 .ri-submit-btn:disabled {
@@ -593,74 +485,36 @@ body.ri-portal-body {
   cursor: not-allowed;
 }
 
-.ri-secondary-btn {
-  height: 48px;
-  border-radius: 11px;
-  border: 1px solid rgba(164, 60, 255, 0.4);
-  background: rgba(22, 11, 41, 0.8);
-  color: var(--luminous-lavender);
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.ri-quick-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding-top: 4px;
-}
-
-.ri-chip-btn,
-.ri-chip-link {
-  padding: 5px 10px;
-  border-radius: 8px;
-  background: rgba(22, 11, 41, 0.75);
-  border: 1px solid rgba(164, 60, 255, 0.3);
-  color: #cbbce3;
-  font-size: 11.5px;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.ri-chip-btn:hover,
-.ri-chip-link:hover {
-  border-color: var(--neon-violet);
-  color: var(--premium-white);
-}
-
+/* Primeiro Acesso: Checklist de Senha Forte */
 .ri-force-banner {
-  padding: 12px 14px;
-  border-radius: 10px;
-  background: rgba(118, 37, 217, 0.18);
-  border: 1px solid rgba(164, 60, 255, 0.45);
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(121, 40, 202, 0.18);
+  border: 1px solid rgba(168, 85, 247, 0.4);
 }
 
 .ri-force-banner strong {
   display: block;
-  font-size: 13px;
-  color: var(--luminous-lavender);
-  margin-bottom: 4px;
+  font-size: 12.5px;
+  color: #d8b4fe;
+  margin-bottom: 3px;
 }
 
 .ri-force-banner p {
   margin: 0;
-  font-size: 12px;
-  color: #d4c8e8;
+  font-size: 11.5px;
+  color: #cbd5e1;
 }
 
 .ri-pwd-checklist {
   list-style: none;
   margin: 0;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(22, 11, 41, 0.72);
-  border: 1px solid rgba(164, 60, 255, 0.28);
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: rgba(18, 9, 34, 0.85);
+  border: 1px solid rgba(164, 92, 255, 0.25);
   display: grid;
-  gap: 4px;
+  gap: 3px;
   font-size: 11.5px;
   color: #9e8fb8;
 }
@@ -670,61 +524,64 @@ body.ri-portal-body {
   font-weight: 600;
 }
 
-/* Rodapé: Não possui acesso? Solicitar acesso + Ambiente de acesso restrito */
+/* Rodapé do Card Direito */
 .ri-auth-footer {
-  padding-top: 12px;
-  border-top: 1px solid rgba(164, 60, 255, 0.16);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   text-align: center;
+  margin-top: 2px;
 }
 
 .ri-signup-prompt {
   margin: 0;
-  font-size: 12.5px;
-  color: var(--muted-lavender);
+  font-size: 12px;
+  color: #9689ad;
+}
+
+.ri-footer-divider {
+  width: 100%;
+  height: 1px;
+  background: rgba(184, 132, 255, 0.12);
 }
 
 .ri-restricted-badge {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   font-size: 11.5px;
-  color: #7d6b99;
+  color: #7c6f94;
 }
 
-.ri-restricted-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  border: 1.5px solid var(--neon-violet);
+.ri-restricted-icon {
+  color: #a97eff;
+  font-size: 12px;
 }
 
-@keyframes riWaveExpand {
-  0% {
-    transform: scale(0.88);
-    opacity: 0.75;
+/* Barra Inferior Global: © 2026 Radar de Talentos | Inteligência estratégica */
+.ri-bottom-bar {
+  height: 36px;
+  flex-shrink: 0;
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(184, 132, 255, 0.12);
+  background: #080311;
+  font-size: 11px;
+  color: #706387;
+}
+
+@media (max-width: 900px) {
+  body.ri-portal-body,
+  .ri-page-shell,
+  .ri-main-columns {
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
-  100% {
-    transform: scale(1.42);
-    opacity: 0;
-  }
-}
-
-@keyframes riDotBlink {
-  0%, 100% { opacity: 0.45; }
-  50% { opacity: 1; }
-}
-
-@media (max-width: 960px) {
-  .ri-split-layout {
+  .ri-main-columns {
     grid-template-columns: 1fr;
-  }
-  .ri-visual-stage {
-    padding: 58px 20px 28px;
-    border-right: 0;
-    border-bottom: 1px solid rgba(217, 166, 255, 0.16);
   }
 }

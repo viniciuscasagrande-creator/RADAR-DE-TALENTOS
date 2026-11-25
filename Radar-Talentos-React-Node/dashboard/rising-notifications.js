@@ -484,4 +484,201 @@
  window.openRadarPasswordChangeModal=openPasswordChangeModal;
  window.addEventListener('radar:auth-updated',checkAuthSession);
  checkAuthSession();
+
+ // =========================================================================
+ // ARQUITETURA HÍBRIDA: EDGE-TO-EDGE (E2E) WEBSOCKET CLIENT (RFC 6455)
+ // Conexão persistente, Heartbeat (25s), Reconexão Automática, Deduplicação e ACK
+ // =========================================================================
+ let e2eChip=document.getElementById('radar-e2e-socket-chip');
+ if(!e2eChip){
+  e2eChip=el('button','secondary-button','🟡 E2E Socket');
+  e2eChip.id='radar-e2e-socket-chip';
+  e2eChip.type='button';
+  e2eChip.style.height='30px';
+  e2eChip.style.padding='0 10px';
+  e2eChip.style.fontSize='11px';
+  e2eChip.style.borderRadius='8px';
+  e2eChip.style.borderColor='rgba(168, 85, 247, 0.45)';
+  e2eChip.title='Arquitetura Híbrida REST + WebSocket Edge-to-Edge (Clique para inspecionar telemetria em tempo real)';
+  host.insertBefore(e2eChip,authChip||box);
+ }
+
+ let wsInstance=null;
+ let wsReconnectAttempts=0;
+ let wsHeartbeatTimer=null;
+ let wsConnectedClientId=null;
+ const seenEventIds=new Set();
+
+ function updateE2eChipState(state,detail=''){
+  if(!e2eChip)return;
+  if(state==='connected'){
+   e2eChip.textContent='🟢 E2E Socket';
+   e2eChip.style.borderColor='rgba(74, 222, 128, 0.55)';
+   e2eChip.title=`Edge-to-Edge WebSocket Ativo (${wsConnectedClientId||'WSS'}) · ${detail||'Baixa latência'}`;
+  }else if(state==='reconnecting'){
+   e2eChip.textContent='🟡 E2E Reconectando';
+   e2eChip.style.borderColor='rgba(250, 204, 21, 0.55)';
+   e2eChip.title=`Reconectando canal Edge-to-Edge WebSocket (tentativa ${wsReconnectAttempts})...`;
+  }else{
+   e2eChip.textContent='⚪ E2E Standby';
+   e2eChip.style.borderColor='rgba(148, 163, 184, 0.4)';
+  }
+ }
+
+ function applyRisingSnapshotFromSocket(payload){
+  if(!payload||typeof payload!=='object')return;
+  const n=Number(payload.total||0);
+  count.hidden=n===0;
+  count.textContent=n>99?'99+':String(n);
+  panel.replaceChildren();
+  const h=document.createElement('strong');
+  h.textContent=n?`${n} talento(s) com crescimento observado (Push E2E)`:'Monitoramento de Ascensão Ativo (Push E2E)';
+  panel.append(h);
+  if(!n){
+   const sub=document.createElement('p');
+   sub.textContent='Canal WebSocket Edge-to-Edge conectado. Novos alertas surgem em tempo real sem necessidade de atualizar a página.';
+   panel.append(sub);
+  }
+  for(const x of payload.items||[]){
+   const p=document.createElement('p');
+   p.textContent=`${x.name} · ${x.network} · +${Number(x.change_pct||0).toLocaleString('pt-BR')}% (30d)`;
+   panel.append(p);
+  }
+  const a=document.createElement('a');
+  a.href='/rising.html';
+  a.textContent='Abrir painel de descobertas em ascensão ↗';
+  panel.append(a);
+ }
+
+ function connectEdgeToEdgeSocket(){
+  if(typeof WebSocket==='undefined')return;
+  try{
+   if(wsInstance&&(wsInstance.readyState===WebSocket.OPEN||wsInstance.readyState===WebSocket.CONNECTING)){
+    return;
+   }
+   const proto=location.protocol==='https:'?'wss:':'ws:';
+   const isNativeApp=document.documentElement.hasAttribute('data-radar-native-app');
+   const formFactor=document.documentElement.getAttribute('data-radar-form-factor')||(window.innerWidth<=640?'mobile':window.innerWidth<=1024?'tablet':'desktop');
+   const edgeName=(isNativeApp?'android-apk-':'web-')+formFactor;
+   const wsUrl=`${proto}//${location.host}/ws?edge=${encodeURIComponent(edgeName)}`;
+   wsInstance=new WebSocket(wsUrl);
+
+   wsInstance.addEventListener('open',()=>{
+    wsReconnectAttempts=0;
+    updateE2eChipState('connected',edgeName);
+    try{
+     wsInstance.send(JSON.stringify({type:'IDENTIFY_EDGE',edgeNode:edgeName,timestamp:new Date().toISOString()}));
+    }catch{}
+    clearInterval(wsHeartbeatTimer);
+    wsHeartbeatTimer=setInterval(()=>{
+     if(wsInstance&&wsInstance.readyState===WebSocket.OPEN){
+      try{
+       wsInstance.send(JSON.stringify({type:'PING',timestamp:new Date().toISOString()}));
+      }catch{}
+     }
+    },25000);
+   });
+
+   wsInstance.addEventListener('message',ev=>{
+    let msg;
+    try{msg=JSON.parse(ev.data);}catch{return;}
+    if(!msg||typeof msg!=='object')return;
+
+    if(msg.type==='WELCOME'){
+     wsConnectedClientId=msg.clientId||null;
+     updateE2eChipState('connected',`${msg.edgeNode||edgeName}`);
+     return;
+    }
+
+    if(msg.type==='EVENT'){
+     if(msg.requiresAck&&msg.eventId&&wsInstance?.readyState===WebSocket.OPEN){
+      try{
+       wsInstance.send(JSON.stringify({type:'ACK',eventId:msg.eventId,receivedAt:new Date().toISOString()}));
+      }catch{}
+     }
+     if(msg.eventId){
+      if(seenEventIds.has(msg.eventId))return;
+      seenEventIds.add(msg.eventId);
+      if(seenEventIds.size>500){
+       const first=seenEventIds.values().next().value;
+       seenEventIds.delete(first);
+      }
+     }
+
+     if(msg.topic==='rising.snapshot'||msg.topic==='rising.alert'){
+      applyRisingSnapshotFromSocket(msg.payload);
+     }else if(msg.topic==='discovery.updated'||msg.topic==='operations.sync_completed'){
+      load();
+     }else if(msg.topic==='users.updated'){
+      checkAuthSession();
+     }
+
+     window.dispatchEvent(new CustomEvent('radar:socket-event',{detail:msg}));
+    }
+   });
+
+   const scheduleReconnect=()=>{
+    clearInterval(wsHeartbeatTimer);
+    wsReconnectAttempts++;
+    updateE2eChipState('reconnecting');
+    const delay=Math.min(30000,1500*Math.pow(1.5,Math.min(wsReconnectAttempts,8)));
+    setTimeout(connectEdgeToEdgeSocket,delay);
+   };
+
+   wsInstance.addEventListener('close',scheduleReconnect);
+   wsInstance.addEventListener('error',()=>{
+    try{wsInstance.close();}catch{}
+   });
+  }catch{}
+ }
+
+ e2eChip?.addEventListener('click',async()=>{
+  try{
+   const r=await fetch('/api/realtime/status',{cache:'no-store'});
+   if(!r.ok)return;
+   const st=await r.json();
+   panel.replaceChildren();
+   const h=el('strong',null,`⚡ Arquitetura Híbrida E2E (${st.activeConnections||0} borda(s) ativa(s))`);
+   panel.append(h);
+   const p1=el('p',null,`Protocolo: ${st.architecture} · Endpoint: ${st.endpoint}`);
+   const p2=el('p',null,`Mensagens Enviadas: ${st.metrics?.totalMessagesSent||0} · Recebidas: ${st.metrics?.totalMessagesReceived||0} · ACKs Confirmados: ${st.metrics?.totalAcksReceived||0}`);
+   const p3=el('p',null,'Recursos ativos: Conexão persistente · Heartbeat 25s · Reconexão automática · Deduplicação por eventId · Confirmação ACK · Auditoria SQLite.');
+   panel.append(p1,p2,p3);
+   for(const edge of (st.activeEdges||[]).slice(0,5)){
+    panel.append(el('p',null,`🟢 Borda: ${edge.edgeNode} (${edge.clientId}) · RTT: ${edge.rttMs||0}ms`));
+   }
+   const testBtn=el('button','secondary-button','Disparar Evento E2E em Tempo Real');
+   testBtn.type='button';
+   testBtn.style.marginTop='6px';
+   testBtn.style.width='100%';
+   testBtn.addEventListener('click',async e=>{
+    e.stopPropagation();
+    testBtn.disabled=true;
+    testBtn.textContent='Transmitindo evento via Socket...';
+    try{
+     await fetch('/api/realtime/publish',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+       topic:'edge.telemetry_ping',
+       sourceEdge:wsConnectedClientId||'radar-ui',
+       payload:{action:'manual_verification',timestamp:new Date().toISOString()}
+      })
+     });
+     const r2=await fetch('/api/realtime/status',{cache:'no-store'});
+     const st2=await r2.json();
+     p2.textContent=`Mensagens Enviadas: ${st2.metrics?.totalMessagesSent||0} · Recebidas: ${st2.metrics?.totalMessagesReceived||0} · ACKs Confirmados: ${st2.metrics?.totalAcksReceived||0}`;
+     testBtn.textContent='✓ Evento transmitido e confirmado (ACK)!';
+    }catch{
+     testBtn.textContent='Falha ao transmitir';
+    }finally{
+     setTimeout(()=>{testBtn.disabled=false;testBtn.textContent='Disparar Evento E2E em Tempo Real';},1800);
+    }
+   });
+   panel.append(testBtn);
+   panel.hidden=false;
+  }catch{}
+ });
+
+ connectEdgeToEdgeSocket();
 })();

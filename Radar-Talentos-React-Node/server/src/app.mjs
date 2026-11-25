@@ -1,4 +1,5 @@
 import { risingDiscoveries } from './rising-discoveries.mjs';
+import { attachEdgeToEdgeSocketHub } from './realtime-socket.mjs';
 import { accelerationDiscoveries } from './acceleration-discoveries.mjs';
 import { distributeArtistStats } from './indicator-distribution.mjs';
 import { currentDashboard } from './discovery/current-dashboard.mjs';
@@ -75,8 +76,9 @@ export function createRadarServer({
   const requests = new Map();
   let syncing = false;
   let lastSync = null;
+  let socketHub = null;
 
-  return createServer({ requestTimeout: 30000, headersTimeout: 15000, maxHeaderSize: 16384 }, async (req, res) => {
+  const server = createServer({ requestTimeout: 30000, headersTimeout: 15000, maxHeaderSize: 16384 }, async (req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -84,7 +86,7 @@ export function createRadarServer({
     if (security) {
       res.setHeader(
         'Content-Security-Policy',
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
       );
     }
 
@@ -111,14 +113,20 @@ export function createRadarServer({
     }
 
     if ((security || req.url !== '/api/discovery/status') && (await handleDiscovery(req, res, { radar: database, security }))) {
+      if (req.method === 'POST' && socketHub) {
+        socketHub.broadcastEvent('discovery.updated', { url: req.url, updatedAt: new Date().toISOString() }, { sourceEdge: 'discovery-engine' });
+      }
       return;
     }
 
     if (await handleUsersApi(req, res, { database, security })) {
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && socketHub) {
+        socketHub.broadcastEvent('users.updated', { url: req.url, method: req.method, updatedAt: new Date().toISOString() }, { sourceEdge: 'iam-gateway' });
+      }
       return;
     }
 
-    if (!['GET', 'HEAD'].includes(req.method) && !(eventsOnly && req.method === 'POST' && req.url === '/api/operations/sync')) {
+    if (!['GET', 'HEAD'].includes(req.method) && !(eventsOnly && req.method === 'POST' && req.url === '/api/operations/sync') && !(req.method === 'POST' && req.url === '/api/realtime/publish')) {
       res.writeHead(405, { Allow: 'GET, HEAD' }).end();
       return;
     }
@@ -143,6 +151,44 @@ export function createRadarServer({
 
       if (!authenticate(req, security)) {
         res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Radar", charset="UTF-8"' }).end();
+        return;
+      }
+
+      if (path === '/api/realtime/status') {
+        const status = socketHub ? socketHub.getHubStatus() : { ok: false, activeConnections: 0 };
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(
+          req.method === 'HEAD' ? undefined : JSON.stringify(status)
+        );
+        return;
+      }
+
+      if (path === '/api/realtime/publish' && req.method === 'POST') {
+        const chunks = [];
+        let totalBytes = 0;
+        for await (const chunk of req) {
+          totalBytes += chunk.length;
+          if (totalBytes > 65536) {
+            res.writeHead(413, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Payload muito grande' }));
+            return;
+          }
+          chunks.push(chunk);
+        }
+        let body = {};
+        try {
+          body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+        } catch {
+          res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'JSON inválido' }));
+          return;
+        }
+        const topic = String(body.topic || 'edge.telemetry').slice(0, 80);
+        const sourceEdge = String(body.sourceEdge || 'rest-edge-bridge').slice(0, 64);
+        const eventId = body.eventId ? String(body.eventId).slice(0, 80) : null;
+        const result = socketHub
+          ? socketHub.broadcastEvent(topic, body.payload || {}, { sourceEdge, requiresAck: body.requiresAck !== false, eventId })
+          : { eventId: null, duplicate: false, deliveredTo: 0 };
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' }).end(
+          JSON.stringify({ ok: true, ...result })
+        );
         return;
       }
 
@@ -203,9 +249,11 @@ export function createRadarServer({
         })
           .then(r => {
             lastSync = { runs: r };
+            socketHub?.broadcastEvent('operations.sync_completed', { runsCount: Array.isArray(r) ? r.length : 0, finishedAt: new Date().toISOString() }, { sourceEdge: 'operations-worker' });
           })
           .catch(() => {
             lastSync = { error: 'Falha operacional; verifique banco e configuração' };
+            socketHub?.broadcastEvent('operations.sync_failed', { error: lastSync.error, finishedAt: new Date().toISOString() }, { sourceEdge: 'operations-worker' });
           })
           .finally(() => {
             syncing = false;
@@ -581,4 +629,8 @@ export function createRadarServer({
       res.writeHead(code).end();
     }
   });
+
+  socketHub = attachEdgeToEdgeSocketHub(server, { database, security, resolveClientIp });
+  server.socketHub = socketHub;
+  return server;
 }

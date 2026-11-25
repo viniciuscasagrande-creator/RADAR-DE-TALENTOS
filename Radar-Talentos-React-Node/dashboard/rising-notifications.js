@@ -236,15 +236,23 @@
   subBtn.style.flex='1';
   subBtn.style.height='36px';
 
-  const manageLink=el('a','secondary-button','👥 Gerenciar Usuários & Permissões');
+  const manageLink=el('a','secondary-button','👥 Usuários & Permissões');
   manageLink.href='/users.html';
   manageLink.style.textDecoration='none';
   manageLink.style.display='inline-flex';
   manageLink.style.alignItems='center';
-  manageLink.style.padding='0 12px';
+  manageLink.style.padding='0 10px';
   manageLink.style.height='36px';
 
-  btnRow.append(subBtn,manageLink);
+  const fullLoginLink=el('a','secondary-button','🌐 Abrir Página de Login ↗');
+  fullLoginLink.href='/login.html';
+  fullLoginLink.style.textDecoration='none';
+  fullLoginLink.style.display='inline-flex';
+  fullLoginLink.style.alignItems='center';
+  fullLoginLink.style.padding='0 10px';
+  fullLoginLink.style.height='36px';
+
+  btnRow.append(subBtn,manageLink,fullLoginLink);
   form.append(lblU,lblP,msg,btnRow);
 
   form.addEventListener('submit',async e=>{

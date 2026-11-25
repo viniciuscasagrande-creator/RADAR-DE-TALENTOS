@@ -10,6 +10,8 @@
 
   let usersList = [];
   let permsCatalog = [];
+  let roleProfiles = [];
+  let accessLogs = [];
   let currentSession = null;
 
   async function api(path, method = 'GET', payload = null) {
@@ -104,8 +106,8 @@
 
       const roleBadge = el(
         'span',
-        u.role === 'admin' ? 'traction-badge viral' : 'traction-badge emerging',
-        u.role === 'admin' ? '🛡 Administrador' : '👤 Usuário'
+        u.role === 'admin' || u.role === 'superadmin' ? 'traction-badge viral' : 'traction-badge emerging',
+        `${u.role === 'superadmin' ? '👑' : u.role === 'admin' ? '🛡' : '👤'} ${u.roleLabel || (u.role === 'admin' ? 'Administrador' : 'Usuário')}`
       );
       titleRow.append(roleBadge);
 
@@ -331,20 +333,64 @@
     host.append(form);
   }
 
+  function renderAccessLogsTable() {
+    const host = $('access-logs-container');
+    if (!host) return;
+    host.replaceChildren();
+    if (!accessLogs.length) {
+      const p = el('p', null, 'Nenhum evento de autenticação registrado ainda.');
+      p.style.padding = '12px';
+      host.append(p);
+      return;
+    }
+    const tbl = el('table', 'rising-table');
+    const thead = tbl.createTHead().insertRow();
+    for (const h of ['Data / Hora', 'Usuário / E-mail', 'Ação', 'Status', 'Detalhe Operacional']) {
+      const th = document.createElement('th');
+      th.textContent = h;
+      thead.append(th);
+    }
+    const tbody = tbl.createTBody();
+    for (const l of accessLogs) {
+      const tr = tbody.insertRow();
+      tr.insertCell().textContent = (l.created_at || '').slice(0, 19).replace('T', ' ');
+      tr.insertCell().textContent = l.username || '—';
+      tr.insertCell().textContent = l.action || '—';
+      const tdSt = tr.insertCell();
+      tdSt.textContent = l.status || 'ok';
+      tdSt.style.color = l.status === 'failed' || l.status === 'blocked' ? '#fca5a5' : '#4ade80';
+      tr.insertCell().textContent = l.detail || '—';
+    }
+    host.append(tbl);
+  }
+
   async function loadUsers() {
     try {
       const d = await api('/api/users');
       usersList = d.items || [];
       permsCatalog = d.permissionsCatalog || [];
+      roleProfiles = d.roleProfiles || [];
+      accessLogs = d.accessLogs || [];
       currentSession = d.currentSession || null;
       if (!$('new-user-permissions-grid')?.children.length) {
         renderNewUserPermissionsCheckboxes();
       }
       renderUsersMatrix();
+      renderAccessLogsTable();
     } catch (err) {
       if ($('users-status-banner')) $('users-status-banner').textContent = 'Erro ao carregar usuários: ' + err.message;
     }
   }
+
+  $('new-user-role')?.addEventListener('change', () => {
+    const val = $('new-user-role')?.value || 'producer';
+    const found = roleProfiles.find(r => r.role === val);
+    if (!found) return;
+    const set = new Set(found.permissions);
+    document.querySelectorAll('#new-user-permissions-grid input[type="checkbox"]').forEach(c => {
+      c.checked = set.has(c.dataset.permKey);
+    });
+  });
 
   $('chk-all-new-perms')?.addEventListener('click', () => {
     document.querySelectorAll('#new-user-permissions-grid input[type="checkbox"]').forEach(c => {

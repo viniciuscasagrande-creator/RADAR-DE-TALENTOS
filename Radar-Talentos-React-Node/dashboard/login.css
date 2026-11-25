@@ -1,0 +1,723 @@
+/* ==========================================================================
+   RADAR INTELLIGENCE — PORTAL DE ACESSO
+   Paleta Oficial:
+   Preto espacial:   #090416
+   Roxo profundo:    #160B29
+   Roxo principal:   #7625D9
+   Neon violeta:     #A43CFF
+   Lavanda luminosa: #D9A6FF
+   Branco premium:   #F7F5FF
+   ========================================================================== */
+:root {
+  color-scheme: dark;
+  --space-black: #090416;
+  --deep-purple: #160B29;
+  --primary-purple: #7625D9;
+  --neon-violet: #A43CFF;
+  --luminous-lavender: #D9A6FF;
+  --premium-white: #F7F5FF;
+  --muted-lavender: #9e8fb8;
+  font: 14px/1.45 Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body.ri-portal-body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--space-black);
+  color: var(--premium-white);
+  overflow-x: hidden;
+  position: relative;
+}
+
+.ri-particles-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ==========================================================================
+   ESTRUTURA DIVIDIDA: 60% EXPERIÊNCIA VISUAL (ESQUERDA) / 40% LOGIN (DIREITA)
+   ========================================================================== */
+.ri-split-layout {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 58% 42%;
+  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.55s ease;
+}
+
+.ri-split-layout.is-entering-dashboard {
+  transform: scale(1.12);
+  opacity: 0;
+}
+
+/* ==========================================================================
+   AMBIENTE ESQUERDO (60%): RADAR INTELLIGENCE & MAPA DO BRASIL
+   ========================================================================== */
+.ri-visual-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 28px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(118, 37, 217, 0.28) 0%, rgba(22, 11, 41, 0.85) 52%, #090416 90%);
+  border-right: 1px solid rgba(217, 166, 255, 0.16);
+}
+
+/* Pill Superior Esquerda: • INTELIGÊNCIA DE MERCADO */
+.ri-top-pill {
+  position: absolute;
+  top: 24px;
+  left: 28px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(22, 11, 41, 0.72);
+  border: 1px solid rgba(164, 60, 255, 0.32);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--luminous-lavender);
+  backdrop-filter: blur(8px);
+}
+
+.ri-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--neon-violet);
+  box-shadow: 0 0 10px var(--neon-violet);
+  animation: riDotBlink 2.2s ease-in-out infinite;
+}
+
+/* 2º Plano: Mapa do Brasil Quase Transparente com Polos e Conexões */
+.ri-brazil-backdrop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0.55;
+  transition: transform 0.25s ease-out;
+}
+
+.ri-brazil-svg {
+  width: min(560px, 86%);
+  height: auto;
+  filter: drop-shadow(0 0 16px rgba(164, 60, 255, 0.18));
+}
+
+/* 1º Plano: Conjunto Central (Radar Giratório + Logo + Tipografia + Tagline) */
+.ri-center-piece {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 520px;
+  width: 100%;
+  transition: transform 0.2s ease-out;
+}
+
+.ri-radar-assembly {
+  position: relative;
+  width: 248px;
+  height: 248px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+/* Ondas de pulso que se expandem suavemente */
+.ri-pulse-wave {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(164, 60, 255, 0.38);
+  pointer-events: none;
+  animation: riWaveExpand 4.8s ease-out infinite;
+}
+
+.ri-pulse-wave.wave-2 {
+  animation-delay: 1.6s;
+}
+
+.ri-pulse-wave.wave-3 {
+  animation-delay: 3.2s;
+}
+
+/* Disco Principal do Radar (fiel à imagem enviada) */
+.ri-radar-disc {
+  position: relative;
+  width: 224px;
+  height: 224px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, rgba(118, 37, 217, 0.24) 0%, rgba(15, 7, 30, 0.92) 72%);
+  border: 5px solid rgba(164, 60, 255, 0.72);
+  box-shadow:
+    0 0 36px rgba(164, 60, 255, 0.45),
+    inset 0 0 28px rgba(164, 60, 255, 0.32);
+  overflow: hidden;
+}
+
+.ri-radar-core-art {
+  position: absolute;
+  inset: -12%;
+  width: 124%;
+  height: 124%;
+  object-fit: cover;
+  opacity: 0.16;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.ri-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid rgba(217, 166, 255, 0.24);
+  pointer-events: none;
+}
+
+.ri-ring.r-outer { width: 82%; height: 82%; }
+.ri-ring.r-mid { width: 54%; height: 54%; }
+.ri-ring.r-inner { width: 26%; height: 26%; }
+
+/* Marcações cardeais brancas/lavanda como na logo original */
+.ri-tick {
+  position: absolute;
+  background: rgba(247, 245, 255, 0.85);
+  border-radius: 2px;
+  z-index: 3;
+}
+
+.ri-tick.tick-n {
+  top: 10px;
+  left: 50%;
+  width: 2px;
+  height: 18px;
+  transform: translateX(-50%);
+}
+
+.ri-tick.tick-s {
+  bottom: 10px;
+  left: 50%;
+  width: 2px;
+  height: 18px;
+  transform: translateX(-50%);
+}
+
+.ri-tick.tick-e {
+  right: 10px;
+  top: 50%;
+  width: 18px;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
+.ri-tick.tick-w {
+  left: 10px;
+  top: 50%;
+  width: 18px;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
+/* Feixe de Varredura Giratório em 360° */
+.ri-radar-beam {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(247, 245, 255, 0.82) 0deg,
+    rgba(164, 60, 255, 0.55) 14deg,
+    rgba(118, 37, 217, 0.22) 48deg,
+    transparent 95deg,
+    transparent 360deg
+  );
+  will-change: transform;
+}
+
+.ri-radar-center-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 14px #ffffff, 0 0 26px var(--neon-violet);
+  z-index: 4;
+}
+
+/* Pontos de Talentos que Acendem Quando o Feixe do Radar Passa */
+.ri-talent-blip {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 50%;
+  background: var(--premium-white);
+  box-shadow: 0 0 8px var(--luminous-lavender);
+  opacity: 0.28;
+  transform: scale(0.85);
+  transition: opacity 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  z-index: 4;
+}
+
+.ri-talent-blip.is-lit {
+  opacity: 1;
+  transform: scale(1.38);
+  background: #ffffff;
+  box-shadow: 0 0 14px #ffffff, 0 0 26px var(--neon-violet);
+}
+
+/* Tipografia Monumental: RADAR DE TALENTOS */
+.ri-brand-lockup {
+  margin-bottom: 18px;
+}
+
+.ri-brand-title {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 0.96;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.ri-word-radar {
+  font-size: clamp(32px, 3.6vw, 44px);
+  font-weight: 900;
+  color: var(--premium-white);
+}
+
+.ri-word-talentos {
+  font-size: clamp(36px, 4.1vw, 50px);
+  font-weight: 900;
+  background: linear-gradient(90deg, #E5C2FF 0%, #B96BFF 50%, #9333EA 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.ri-brand-subtitle-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.ri-sub-line {
+  width: 34px;
+  height: 1.5px;
+  background: linear-gradient(90deg, transparent, var(--neon-violet), transparent);
+}
+
+.ri-sub-text {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #dfd7f0;
+  letter-spacing: 0.04em;
+}
+
+.ri-tagline-block {
+  max-width: 390px;
+}
+
+.ri-main-quote {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--luminous-lavender);
+}
+
+.ri-sub-quote {
+  margin: 0 0 14px;
+  font-size: 12.5px;
+  color: #b7abc9;
+  line-height: 1.45;
+}
+
+.ri-pillars-caption {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: #7d6b99;
+}
+
+/* ==========================================================================
+   AMBIENTE DIREITO (40%): FORMULÁRIO DE AUTENTICAÇÃO ELEGANTE
+   ========================================================================== */
+.ri-auth-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 32px;
+  background: linear-gradient(180deg, rgba(13, 6, 26, 0.94) 0%, rgba(9, 4, 22, 0.98) 100%);
+}
+
+.ri-auth-card {
+  width: min(410px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ri-portal-eyebrow {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--neon-violet);
+  margin-bottom: 8px;
+}
+
+.ri-auth-header h2 {
+  margin: 0 0 6px;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--premium-white);
+}
+
+.ri-auth-header p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--muted-lavender);
+}
+
+.ri-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ri-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.ri-field label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #e2dcf0;
+}
+
+.ri-field input,
+.ri-field select {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: rgba(22, 11, 41, 0.72);
+  border: 1px solid rgba(164, 60, 255, 0.34);
+  color: var(--premium-white);
+  font-size: 13.5px;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.ri-field input::placeholder {
+  color: #6d5e87;
+}
+
+.ri-field input:focus,
+.ri-field select:focus {
+  outline: none;
+  border-color: var(--neon-violet);
+  background: rgba(28, 14, 52, 0.92);
+  box-shadow: 0 0 0 3px rgba(164, 60, 255, 0.18);
+}
+
+.ri-password-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ri-password-wrap input {
+  padding-right: 76px;
+}
+
+.ri-show-pwd-btn {
+  position: absolute;
+  right: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--luminous-lavender);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.ri-show-pwd-btn:hover {
+  color: var(--premium-white);
+}
+
+.ri-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.ri-remember-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #b7abc9;
+  cursor: pointer;
+}
+
+.ri-remember-label input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--primary-purple);
+}
+
+.ri-text-link {
+  border: 0;
+  background: transparent;
+  color: var(--luminous-lavender);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.ri-text-link:hover {
+  color: var(--premium-white);
+  text-decoration: underline;
+}
+
+/* Barra de Varredura de Autenticação */
+.ri-scan-progress {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(22, 11, 41, 0.85);
+  border: 1px solid rgba(164, 60, 255, 0.42);
+}
+
+.ri-scan-bar {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.ri-scan-fill {
+  height: 100%;
+  width: 20%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary-purple), var(--neon-violet), var(--luminous-lavender));
+  transition: width 0.25s ease;
+}
+
+.ri-scan-progress small {
+  display: block;
+  font-size: 11.5px;
+  color: var(--luminous-lavender);
+}
+
+.ri-feedback {
+  margin: 0;
+  min-height: 18px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--luminous-lavender);
+}
+
+.ri-Feedback-error {
+  color: #fca5a5;
+}
+
+/* Botão Principal: Acessar Radar -> */
+.ri-submit-btn {
+  height: 48px;
+  border-radius: 11px;
+  border: 1px solid rgba(217, 166, 255, 0.45);
+  background: linear-gradient(90deg, #7625D9 0%, #A43CFF 100%);
+  color: var(--premium-white);
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgba(164, 60, 255, 0.36);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+.ri-submit-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 34px rgba(164, 60, 255, 0.55);
+  filter: brightness(1.06);
+}
+
+.ri-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.ri-secondary-btn {
+  height: 48px;
+  border-radius: 11px;
+  border: 1px solid rgba(164, 60, 255, 0.4);
+  background: rgba(22, 11, 41, 0.8);
+  color: var(--luminous-lavender);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ri-quick-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+.ri-chip-btn,
+.ri-chip-link {
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: rgba(22, 11, 41, 0.75);
+  border: 1px solid rgba(164, 60, 255, 0.3);
+  color: #cbbce3;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ri-chip-btn:hover,
+.ri-chip-link:hover {
+  border-color: var(--neon-violet);
+  color: var(--premium-white);
+}
+
+.ri-force-banner {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(118, 37, 217, 0.18);
+  border: 1px solid rgba(164, 60, 255, 0.45);
+}
+
+.ri-force-banner strong {
+  display: block;
+  font-size: 13px;
+  color: var(--luminous-lavender);
+  margin-bottom: 4px;
+}
+
+.ri-force-banner p {
+  margin: 0;
+  font-size: 12px;
+  color: #d4c8e8;
+}
+
+.ri-pwd-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(22, 11, 41, 0.72);
+  border: 1px solid rgba(164, 60, 255, 0.28);
+  display: grid;
+  gap: 4px;
+  font-size: 11.5px;
+  color: #9e8fb8;
+}
+
+.ri-pwd-checklist li.is-valid {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+/* Rodapé: Não possui acesso? Solicitar acesso + Ambiente de acesso restrito */
+.ri-auth-footer {
+  padding-top: 12px;
+  border-top: 1px solid rgba(164, 60, 255, 0.16);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.ri-signup-prompt {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted-lavender);
+}
+
+.ri-restricted-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: #7d6b99;
+}
+
+.ri-restricted-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1.5px solid var(--neon-violet);
+}
+
+@keyframes riWaveExpand {
+  0% {
+    transform: scale(0.88);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(1.42);
+    opacity: 0;
+  }
+}
+
+@keyframes riDotBlink {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+@media (max-width: 960px) {
+  .ri-split-layout {
+    grid-template-columns: 1fr;
+  }
+  .ri-visual-stage {
+    padding: 58px 20px 28px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(217, 166, 255, 0.16);
+  }
+}

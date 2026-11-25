@@ -8,4 +8,5 @@ execFileSync(process.execPath,['--check','dashboard/acquisition.js'],{stdio:'inh
 execFileSync(process.execPath,['--check','dashboard/discovery.js'],{stdio:'inherit'});
 execFileSync(process.execPath,['--check','dashboard/current-media.js'],{stdio:'inherit'});
 execFileSync(process.execPath,['--check','dashboard/users.js'],{stdio:'inherit'});
+execFileSync(process.execPath,['--check','dashboard/login.js'],{stdio:'inherit'});
 await mkdir('dist',{recursive:true});await cp('dashboard','dist',{recursive:true});console.log('Painel de eventos copiado para dist. O servidor Node continua obrigatório para banco e sincronização.');

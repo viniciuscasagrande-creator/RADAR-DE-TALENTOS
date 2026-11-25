@@ -128,7 +128,7 @@ export function openDatabase(filename = databasePath()) {
       username TEXT NOT NULL UNIQUE,
       display_name TEXT NOT NULL,
       email TEXT NOT NULL DEFAULT '',
-      role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('admin','user')),
+      role TEXT NOT NULL DEFAULT 'user',
       password_hash TEXT NOT NULL,
       password_salt TEXT NOT NULL,
       must_change_password INTEGER NOT NULL DEFAULT 1 CHECK(must_change_password IN (0,1)),
@@ -144,6 +144,16 @@ export function openDatabase(filename = databasePath()) {
       impersonated_user_id TEXT REFERENCES radar_users(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL,
       expires_at TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS radar_access_logs (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL,
+      user_id TEXT,
+      action TEXT NOT NULL,
+      ip TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL,
+      detail TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
     ) STRICT;`);
     return db;
   } catch (error) {

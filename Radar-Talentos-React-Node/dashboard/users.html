@@ -50,7 +50,8 @@
           <h1>Gestão de Usuários, Senhas e Permissões</h1>
         </div>
         <div class="top-search-bar">
-          <button id="open-login-modal-btn" class="secondary-button" type="button">🔐 Entrar com outro Login</button>
+          <a href="/login.html" class="secondary-button" style="text-decoration:none;display:inline-flex;align-items:center;height:30px;padding:0 10px;border-radius:7px">🔐 Abrir Tela de Login (Radar 360°)</a>
+          <button id="open-login-modal-btn" class="secondary-button" type="button">⇄ Trocar Login Rápido</button>
           <button id="open-change-pwd-btn" class="btn-simulate-show" type="button">🔑 Alterar Minha Senha</button>
         </div>
       </div>
@@ -111,10 +112,15 @@
             <input id="new-user-password" type="text" value="Mudar@123" autocomplete="off" />
           </label>
           <label class="filter-card" style="height:auto;padding:8px 10px">
-            <span class="filter-label">Nível de Conta</span>
+            <span class="filter-label">Perfil Corporativo Sugerido</span>
             <select id="new-user-role">
-              <option value="user" selected>👤 Usuário Padrão (Permissões via Check)</option>
-              <option value="admin">🛡 Administrador (Acesso Total)</option>
+              <option value="producer" selected>🎫 Produtor (Audiência, Eventos e Oportunidades)</option>
+              <option value="entrepreneur">💼 Empresário (Inteligência Comercial e Artística)</option>
+              <option value="analyst">🔬 Analista (Motor de Dados, Prospecção e Validação)</option>
+              <option value="consultant">📊 Consultor (Consulta a Módulos Autorizados)</option>
+              <option value="visitor">👁 Visitante (Acesso Demonstrativo Restrito)</option>
+              <option value="admin">🛡 Administrador (Usuários, Integrações e Configurações)</option>
+              <option value="superadmin">👑 Superadministrador (Controle Integral da Plataforma)</option>
             </select>
           </label>
         </div>
@@ -151,6 +157,18 @@
         </div>
       </div>
       <div id="users-cards-container" style="display:flex;flex-direction:column;gap:12px"></div>
+    </section>
+
+    <!-- 3. Histórico de Acessos, Tentativas de Login e Solicitações do Portal -->
+    <section class="rising-card neon-card" id="users-audit-panel">
+      <div class="rising-head">
+        <div>
+          <span class="eyebrow">AUDITORIA DE SEGURANÇA · LOGIN, BLOQUEIO DE TENTATIVAS E SOLICITAÇÕES DE ACESSO</span>
+          <h2>🛡 Histórico de Acessos &amp; Solicitações do Portal</h2>
+          <p>Registro auditável de autenticações, trocas de senha, alternâncias de perfil (impersonate) e solicitações de acesso vindas da tela de login.</p>
+        </div>
+      </div>
+      <div class="rising-table-wrap" id="access-logs-container"></div>
     </section>
   </main>
 

@@ -14,8 +14,63 @@ export const RADAR_PERMISSIONS_CATALOG = [
   { key: 'users', label: 'Gestão de Usuários, Senhas e Permissões', path: '/users.html', defaultUser: false }
 ];
 
+export const RADAR_ROLE_PROFILES = [
+  {
+    role: 'superadmin',
+    label: 'Superadministrador',
+    description: 'Controle integral da plataforma',
+    defaultRoute: '/',
+    permissions: ['overview', 'audience', 'commercial', 'rising', 'simulator_pl', 'radar_ai', 'events', 'acquisition', 'discovery', 'users']
+  },
+  {
+    role: 'admin',
+    label: 'Administrador',
+    description: 'Usuários, integrações e configurações',
+    defaultRoute: '/',
+    permissions: ['overview', 'audience', 'commercial', 'rising', 'simulator_pl', 'radar_ai', 'events', 'acquisition', 'discovery', 'users']
+  },
+  {
+    role: 'analyst',
+    label: 'Analista',
+    description: 'Motor de Dados, prospecção e validação',
+    defaultRoute: '/acquisition.html',
+    permissions: ['overview', 'audience', 'commercial', 'rising', 'events', 'acquisition', 'discovery']
+  },
+  {
+    role: 'entrepreneur',
+    label: 'Empresário',
+    description: 'Inteligência comercial e artística',
+    defaultRoute: '/commercial.html',
+    permissions: ['overview', 'audience', 'commercial', 'rising', 'simulator_pl', 'radar_ai']
+  },
+  {
+    role: 'producer',
+    label: 'Produtor',
+    description: 'Audiência, eventos e oportunidades',
+    defaultRoute: '/audience.html',
+    permissions: ['overview', 'audience', 'commercial', 'rising', 'simulator_pl', 'radar_ai', 'events']
+  },
+  {
+    role: 'consultant',
+    label: 'Consultor',
+    description: 'Consulta a módulos autorizados',
+    defaultRoute: '/',
+    permissions: ['overview', 'audience', 'commercial', 'rising', 'radar_ai']
+  },
+  {
+    role: 'visitor',
+    label: 'Visitante',
+    description: 'Acesso demonstrativo restrito',
+    defaultRoute: '/',
+    permissions: ['overview', 'rising']
+  }
+];
+
 const ALL_TRUE_PERMS = Object.fromEntries(RADAR_PERMISSIONS_CATALOG.map(p => [p.key, true]));
 const DEFAULT_USER_PERMS = Object.fromEntries(RADAR_PERMISSIONS_CATALOG.map(p => [p.key, Boolean(p.defaultUser)]));
+
+// Proteção contra força bruta / tentativas excessivas de login
+const loginAttempts = new Map();
 
 function hashPassword(password, salt = randomBytes(16).toString('hex')) {
   const hash = scryptSync(String(password), salt, 64).toString('hex');
@@ -42,41 +97,93 @@ export function validatePasswordStrength(pwd = '') {
   return null;
 }
 
-function normalizePermissions(raw = {}, isAdmin = false) {
-  if (isAdmin) return { ...ALL_TRUE_PERMS };
+export function isAdminRole(role = '') {
+  return role === 'admin' || role === 'superadmin';
+}
+
+export function defaultPermissionsForRole(role = 'producer') {
+  if (isAdminRole(role)) return { ...ALL_TRUE_PERMS };
+  const found = RADAR_ROLE_PROFILES.find(r => r.role === role);
+  if (!found) return { ...DEFAULT_USER_PERMS };
+  const set = new Set(found.permissions);
+  return Object.fromEntries(RADAR_PERMISSIONS_CATALOG.map(p => [p.key, set.has(p.key)]));
+}
+
+function normalizePermissions(raw = {}, role = 'user') {
+  if (isAdminRole(role)) return { ...ALL_TRUE_PERMS };
   let parsed = raw;
   if (typeof raw === 'string') {
     try { parsed = JSON.parse(raw); } catch { parsed = {}; }
   }
+  const roleDefaults = defaultPermissionsForRole(role);
   const out = {};
   for (const item of RADAR_PERMISSIONS_CATALOG) {
-    out[item.key] = parsed && typeof parsed[item.key] === 'boolean' ? parsed[item.key] : Boolean(item.defaultUser);
+    out[item.key] = parsed && typeof parsed[item.key] === 'boolean' ? parsed[item.key] : Boolean(roleDefaults[item.key]);
   }
   return out;
 }
 
 function formatUserRow(row) {
   if (!row) return null;
-  const isAdmin = row.role === 'admin';
+  const roleMeta = RADAR_ROLE_PROFILES.find(r => r.role === row.role) || {
+    role: row.role,
+    label: row.role === 'admin' ? 'Administrador' : 'Usuário',
+    description: 'Consulta a módulos autorizados',
+    defaultRoute: '/'
+  };
   return {
     id: row.id,
     username: row.username,
     displayName: row.display_name,
     email: row.email || '',
     role: row.role,
+    roleLabel: roleMeta.label,
+    roleDescription: roleMeta.description,
+    defaultRoute: roleMeta.defaultRoute,
     mustChangePassword: Boolean(row.must_change_password),
     active: Boolean(row.active),
-    permissions: normalizePermissions(row.permissions_json, isAdmin),
+    permissions: normalizePermissions(row.permissions_json, row.role),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     lastLoginAt: row.last_login_at
   };
 }
 
+function recordAccessLog(db, { username = 'anon', userId = null, action = 'login', ip = '', status = 'ok', detail = '' } = {}) {
+  try {
+    db.prepare(
+      'INSERT INTO radar_access_logs(id,username,user_id,action,ip,status,detail,created_at) VALUES(?,?,?,?,?,?,?,?)'
+    ).run(
+      'log-' + randomBytes(6).toString('hex'),
+      String(username).slice(0, 120),
+      userId,
+      String(action).slice(0, 80),
+      String(ip).slice(0, 64),
+      String(status).slice(0, 40),
+      String(detail).slice(0, 400),
+      new Date().toISOString()
+    );
+  } catch {}
+}
+
 export function ensureDefaultAdminUser(db) {
   if (!db) return null;
+  try {
+    db.exec(`CREATE TABLE IF NOT EXISTS radar_access_logs (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL,
+      user_id TEXT,
+      action TEXT NOT NULL,
+      ip TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL,
+      detail TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
+    ) STRICT;`);
+  } catch {}
   const count = db.prepare('SELECT count(*) AS n FROM radar_users').get().n;
-  if (count > 0) return db.prepare("SELECT * FROM radar_users WHERE role='admin' ORDER BY created_at ASC LIMIT 1").get();
+  if (count > 0) {
+    return db.prepare("SELECT * FROM radar_users WHERE role IN ('admin','superadmin') ORDER BY created_at ASC LIMIT 1").get();
+  }
   const now = new Date().toISOString();
   const defaultPwd = process.env.RADAR_ADMIN_INITIAL_PASSWORD || 'Radar@2026';
   const { hash, salt } = hashPassword(defaultPwd);
@@ -127,7 +234,7 @@ export function resolveSessionContext(db, req) {
         const baseUser = formatUserRow(baseUserRow);
         let effectiveUser = baseUser;
         let impersonating = false;
-        if (sess.impersonated_user_id && baseUser.role === 'admin') {
+        if (sess.impersonated_user_id && isAdminRole(baseUser.role)) {
           const impRow = db.prepare('SELECT * FROM radar_users WHERE id = ?').get(sess.impersonated_user_id);
           if (impRow) {
             effectiveUser = formatUserRow(impRow);
@@ -145,9 +252,9 @@ export function resolveSessionContext(db, req) {
     }
   }
 
-  // Fallback dev/default: se não houver cookie de sessão ativa, retorna o perfil Admin padrão para não quebrar fluxos existentes,
-  // permitindo trocar de usuário ou fazer login a qualquer momento.
-  const defaultAdmin = formatUserRow(db.prepare("SELECT * FROM radar_users WHERE role='admin' ORDER BY created_at ASC LIMIT 1").get());
+  const defaultAdmin = formatUserRow(
+    db.prepare("SELECT * FROM radar_users WHERE role IN ('admin','superadmin') ORDER BY created_at ASC LIMIT 1").get()
+  );
   return {
     authenticated: false,
     token: null,
@@ -190,6 +297,8 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
     return true;
   }
 
+  const clientIp = req.socket?.remoteAddress || '127.0.0.1';
+
   try {
     ensureDefaultAdminUser(database);
     const ctx = resolveSessionContext(database, req);
@@ -201,35 +310,77 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
         impersonating: ctx.impersonating,
         adminUser: ctx.user,
         user: ctx.effectiveUser,
-        permissionsCatalog: RADAR_PERMISSIONS_CATALOG
+        permissionsCatalog: RADAR_PERMISSIONS_CATALOG,
+        roleProfiles: RADAR_ROLE_PROFILES
       });
       return true;
     }
 
-    // 2. POST /api/auth/login
+    // 2. POST /api/auth/login (aceita login por usuário ou por e-mail + proteção contra tentativas excessivas)
     if (req.method === 'POST' && url.pathname === '/api/auth/login') {
       const b = await readJsonBody(req);
-      const username = String(b.username || '').trim().toLowerCase();
+      const identifier = String(b.username || b.email || '').trim().toLowerCase();
       const password = String(b.password || '');
-      if (!username || !password) {
-        send(res, 400, { error: 'Informe usuário e senha.' });
+      const remember = Boolean(b.remember !== false);
+
+      if (!identifier || !password) {
+        send(res, 400, { error: 'Informe seu e-mail ou usuário e sua senha.' });
         return true;
       }
-      const userRow = database.prepare('SELECT * FROM radar_users WHERE lower(username) = ?').get(username);
-      if (!userRow || !userRow.active) {
-        send(res, 401, { error: 'Usuário ou senha inválidos, ou conta desativada.' });
+
+      const attemptKey = `${clientIp}|${identifier}`;
+      const attempt = loginAttempts.get(attemptKey);
+      if (attempt && attempt.count >= 6 && Date.now() - attempt.lastAt < 5 * 60000) {
+        recordAccessLog(database, {
+          username: identifier,
+          action: 'login_blocked',
+          ip: clientIp,
+          status: 'blocked',
+          detail: 'Bloqueio temporário por excesso de tentativas (5 min)'
+        });
+        send(res, 429, { error: 'Tentativas excessivas detectadas. Aguarde 5 minutos ou solicite o reset de senha ao Administrador.' });
         return true;
       }
-      if (!verifyPassword(password, userRow.password_hash, userRow.password_salt)) {
-        send(res, 401, { error: 'Usuário ou senha inválidos.' });
+
+      const userRow = database
+        .prepare('SELECT * FROM radar_users WHERE lower(username) = ? OR (email != \'\' AND lower(email) = ?)')
+        .get(identifier, identifier);
+
+      if (!userRow || !userRow.active || !verifyPassword(password, userRow.password_hash, userRow.password_salt)) {
+        const prevCount = attempt ? attempt.count : 0;
+        loginAttempts.set(attemptKey, { count: prevCount + 1, lastAt: Date.now() });
+        recordAccessLog(database, {
+          username: identifier,
+          userId: userRow?.id || null,
+          action: 'login_failed',
+          ip: clientIp,
+          status: 'failed',
+          detail: !userRow ? 'Usuário/e-mail não localizado' : !userRow.active ? 'Conta inativa' : 'Senha incorreta'
+        });
+        send(res, 401, { error: 'Credenciais inválidas ou acesso não autorizado.' });
         return true;
       }
+
+      loginAttempts.delete(attemptKey);
       const token = randomBytes(32).toString('hex');
       const now = new Date().toISOString();
-      const expires = new Date(Date.now() + 7 * 86400000).toISOString();
-      database.prepare('INSERT INTO radar_sessions(token,user_id,impersonated_user_id,created_at,expires_at) VALUES(?,?,NULL,?,?)').run(token, userRow.id, now, expires);
+      const maxAgeSec = remember ? 14 * 86400 : 86400;
+      const expires = new Date(Date.now() + maxAgeSec * 1000).toISOString();
+      database
+        .prepare('INSERT INTO radar_sessions(token,user_id,impersonated_user_id,created_at,expires_at) VALUES(?,?,NULL,?,?)')
+        .run(token, userRow.id, now, expires);
       database.prepare('UPDATE radar_users SET last_login_at = ? WHERE id = ?').run(now, userRow.id);
+
       const formatted = formatUserRow(database.prepare('SELECT * FROM radar_users WHERE id = ?').get(userRow.id));
+      recordAccessLog(database, {
+        username: formatted.username,
+        userId: formatted.id,
+        action: 'login_success',
+        ip: clientIp,
+        status: 'success',
+        detail: `Perfil ${formatted.roleLabel} autenticado`
+      });
+
       send(
         res,
         200,
@@ -237,20 +388,59 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
           ok: true,
           token,
           user: formatted,
-          mustChangePassword: formatted.mustChangePassword
+          mustChangePassword: formatted.mustChangePassword,
+          redirectUrl: formatted.defaultRoute || '/'
         },
         {
-          'Set-Cookie': `radar_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800`
+          'Set-Cookie': `radar_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAgeSec}`
         }
       );
       return true;
     }
 
-    // 3. POST /api/auth/logout
+    // 3. POST /api/auth/request-access (Solicitação de acesso ou recuperação de senha na tela de login)
+    if (req.method === 'POST' && url.pathname === '/api/auth/request-access') {
+      const b = await readJsonBody(req);
+      const kind = b.kind === 'recover' ? 'recover_password' : 'request_access';
+      const name = String(b.name || b.identifier || '').trim();
+      const email = String(b.email || b.identifier || '').trim();
+      const requestedRole = String(b.role || 'producer').trim();
+      if (!name && !email) {
+        send(res, 400, { error: 'Informe seu nome, usuário ou e-mail corporativo.' });
+        return true;
+      }
+      recordAccessLog(database, {
+        username: email || name,
+        action: kind,
+        ip: clientIp,
+        status: 'pending_admin',
+        detail: kind === 'recover_password'
+          ? `Solicitação de reset de senha para "${email || name}"`
+          : `Solicitação de novo acesso: ${name} (${email}) · Perfil sugerido: ${requestedRole}`
+      });
+      send(res, 200, {
+        ok: true,
+        message:
+          kind === 'recover_password'
+            ? 'Solicitação registrada na Central de Segurança! O Administrador foi notificado para resetar sua senha em Usuários.'
+            : 'Solicitação de acesso registrada! O Administrador revisará seu perfil e liberará suas permissões no painel Usuários.'
+      });
+      return true;
+    }
+
+    // 4. POST /api/auth/logout
     if (req.method === 'POST' && url.pathname === '/api/auth/logout') {
       if (ctx.token) {
         database.prepare('DELETE FROM radar_sessions WHERE token = ?').run(ctx.token);
       }
+      recordAccessLog(database, {
+        username: ctx.effectiveUser?.username || 'admin',
+        userId: ctx.effectiveUser?.id || null,
+        action: 'logout',
+        ip: clientIp,
+        status: 'ok',
+        detail: 'Sessão encerrada pelo usuário'
+      });
       send(
         res,
         200,
@@ -262,7 +452,7 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
       return true;
     }
 
-    // 4. POST /api/auth/change-password (obrigatório no 1º acesso ou após reset pelo Admin)
+    // 5. POST /api/auth/change-password (obrigatório no 1º acesso ou após reset pelo Admin)
     if (req.method === 'POST' && url.pathname === '/api/auth/change-password') {
       const b = await readJsonBody(req);
       const targetUserId = ctx.effectiveUser?.id;
@@ -292,15 +482,30 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
       }
       const { hash, salt } = hashPassword(newPassword);
       const now = new Date().toISOString();
-      database.prepare('UPDATE radar_users SET password_hash = ?, password_salt = ?, must_change_password = 0, updated_at = ? WHERE id = ?').run(hash, salt, now, targetUserId);
+      database
+        .prepare('UPDATE radar_users SET password_hash = ?, password_salt = ?, must_change_password = 0, updated_at = ? WHERE id = ?')
+        .run(hash, salt, now, targetUserId);
       const updated = formatUserRow(database.prepare('SELECT * FROM radar_users WHERE id = ?').get(targetUserId));
-      send(res, 200, { ok: true, user: updated, message: 'Nova senha cadastrada com sucesso seguindo os padrões de segurança!' });
+      recordAccessLog(database, {
+        username: updated.username,
+        userId: updated.id,
+        action: 'password_changed',
+        ip: clientIp,
+        status: 'success',
+        detail: 'Nova senha forte cadastrada pelo usuário'
+      });
+      send(res, 200, {
+        ok: true,
+        user: updated,
+        redirectUrl: updated.defaultRoute || '/',
+        message: 'Nova senha cadastrada com sucesso seguindo os padrões de segurança!'
+      });
       return true;
     }
 
-    // 5. POST /api/auth/impersonate (Admin troca o perfil ativo para o usuário selecionado ou volta ao Admin)
+    // 6. POST /api/auth/impersonate (Admin troca o perfil ativo para o usuário selecionado ou volta ao Admin)
     if (req.method === 'POST' && url.pathname === '/api/auth/impersonate') {
-      if (ctx.user?.role !== 'admin') {
+      if (!isAdminRole(ctx.user?.role)) {
         send(res, 403, { error: 'Somente o Administrador pode alternar para o perfil de outro usuário.' });
         return true;
       }
@@ -318,19 +523,30 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
         }
         if (!token) {
           token = randomBytes(32).toString('hex');
-          database.prepare('INSERT INTO radar_sessions(token,user_id,impersonated_user_id,created_at,expires_at) VALUES(?,?,?,?,?)').run(token, ctx.user.id, targetRow.id, now, expires);
+          database
+            .prepare('INSERT INTO radar_sessions(token,user_id,impersonated_user_id,created_at,expires_at) VALUES(?,?,?,?,?)')
+            .run(token, ctx.user.id, targetRow.id, now, expires);
         } else {
           database.prepare('UPDATE radar_sessions SET impersonated_user_id = ? WHERE token = ?').run(targetRow.id, token);
         }
+        const formattedTarget = formatUserRow(targetRow);
+        recordAccessLog(database, {
+          username: ctx.user.username,
+          userId: ctx.user.id,
+          action: 'impersonate_start',
+          ip: clientIp,
+          status: 'ok',
+          detail: `Admin alternou para o perfil @${formattedTarget.username} (${formattedTarget.roleLabel})`
+        });
         send(
           res,
           200,
           {
             ok: true,
             impersonating: true,
-            user: formatUserRow(targetRow),
+            user: formattedTarget,
             adminUser: ctx.user,
-            message: `Perfil alternado para "${targetRow.display_name}" (@${targetRow.username}).`
+            message: `Perfil alternado para "${targetRow.display_name}" (@${targetRow.username} · ${formattedTarget.roleLabel}).`
           },
           {
             'Set-Cookie': `radar_session=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800`
@@ -352,12 +568,17 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
       }
     }
 
-    // 6. GET /api/users (Lista todos os usuários e permissões)
+    // 7. GET /api/users (Lista todos os usuários, perfis, logs de acesso e permissões)
     if (req.method === 'GET' && url.pathname === '/api/users') {
-      const rows = database.prepare('SELECT * FROM radar_users ORDER BY CASE WHEN role=\'admin\' THEN 0 ELSE 1 END, display_name ASC').all();
+      const rows = database
+        .prepare("SELECT * FROM radar_users ORDER BY CASE WHEN role IN ('superadmin','admin') THEN 0 ELSE 1 END, display_name ASC")
+        .all();
+      const accessLogs = database.prepare('SELECT * FROM radar_access_logs ORDER BY created_at DESC LIMIT 30').all();
       send(res, 200, {
         items: rows.map(formatUserRow),
         permissionsCatalog: RADAR_PERMISSIONS_CATALOG,
+        roleProfiles: RADAR_ROLE_PROFILES,
+        accessLogs,
         currentSession: {
           authenticated: ctx.authenticated,
           impersonating: ctx.impersonating,
@@ -369,12 +590,12 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
     }
 
     // Operações de escrita em /api/users exigem perfil base de Administrador
-    if (ctx.user?.role !== 'admin') {
+    if (!isAdminRole(ctx.user?.role)) {
       send(res, 403, { error: 'Operação restrita ao Administrador do Radar.' });
       return true;
     }
 
-    // 7. POST /api/users (Admin cria novo usuário + senha inicial + checkboxes de permissões)
+    // 8. POST /api/users (Admin cria novo usuário + senha inicial + perfil + checkboxes de permissões)
     if (req.method === 'POST' && url.pathname === '/api/users') {
       const b = await readJsonBody(req);
       const rawName = String(b.displayName || b.name || b.username || '').trim();
@@ -388,7 +609,8 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
       const username = rawLogin;
       const displayName = rawName || username;
       const email = String(b.email || '').trim();
-      const role = b.role === 'admin' ? 'admin' : 'user';
+      const validRoles = new Set(RADAR_ROLE_PROFILES.map(r => r.role).concat(['user']));
+      const role = validRoles.has(b.role) ? b.role : 'user';
       const initialPassword = String(b.password || 'Mudar@123').trim() || 'Mudar@123';
 
       if (!username || username.length < 3) {
@@ -403,25 +625,35 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
 
       const id = 'u-' + username + '-' + randomBytes(3).toString('hex');
       const { hash, salt } = hashPassword(initialPassword);
-      const perms = normalizePermissions(b.permissions || DEFAULT_USER_PERMS, role === 'admin');
+      const perms = normalizePermissions(b.permissions || defaultPermissionsForRole(role), role);
       const mustChange = b.mustChangePassword === false ? 0 : 1;
       const now = new Date().toISOString();
 
-      database.prepare(
-        `INSERT INTO radar_users(id,username,display_name,email,role,password_hash,password_salt,must_change_password,active,permissions_json,created_at,updated_at)
-         VALUES(?,?,?,?,?,?,?,?,1,?,?,?)`
-      ).run(id, username, displayName, email, role, hash, salt, mustChange, JSON.stringify(perms), now, now);
+      database
+        .prepare(
+          `INSERT INTO radar_users(id,username,display_name,email,role,password_hash,password_salt,must_change_password,active,permissions_json,created_at,updated_at)
+           VALUES(?,?,?,?,?,?,?,?,1,?,?,?)`
+        )
+        .run(id, username, displayName, email, role, hash, salt, mustChange, JSON.stringify(perms), now, now);
 
       const created = formatUserRow(database.prepare('SELECT * FROM radar_users WHERE id = ?').get(id));
+      recordAccessLog(database, {
+        username: created.username,
+        userId: created.id,
+        action: 'user_created',
+        ip: clientIp,
+        status: 'ok',
+        detail: `Criado pelo Admin com perfil ${created.roleLabel}`
+      });
       send(res, 201, {
         ok: true,
         user: created,
-        message: `Usuário "${displayName}" (@${username}) criado com sucesso! No primeiro login será obrigatório cadastrar uma nova senha forte.`
+        message: `Usuário "${displayName}" (@${username} · ${created.roleLabel}) criado com sucesso! No primeiro login será obrigatório cadastrar uma nova senha forte.`
       });
       return true;
     }
 
-    // 8. POST /api/users/permissions (Admin atualiza checkboxes de permissões, perfil ou status ativo)
+    // 9. POST /api/users/permissions (Admin atualiza checkboxes de permissões, perfil ou status ativo)
     if (req.method === 'POST' && url.pathname === '/api/users/permissions') {
       const b = await readJsonBody(req);
       const userId = String(b.userId || '').trim();
@@ -430,9 +662,10 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
         send(res, 404, { error: 'Usuário não localizado.' });
         return true;
       }
-      const newRole = b.role ? (b.role === 'admin' ? 'admin' : 'user') : row.role;
+      const validRoles = new Set(RADAR_ROLE_PROFILES.map(r => r.role).concat(['user']));
+      const newRole = b.role && validRoles.has(b.role) ? b.role : row.role;
       const newActive = typeof b.active === 'boolean' ? (b.active ? 1 : 0) : row.active;
-      const perms = normalizePermissions(b.permissions || row.permissions_json, newRole === 'admin');
+      const perms = normalizePermissions(b.permissions || row.permissions_json, newRole);
       const now = new Date().toISOString();
 
       database.prepare('UPDATE radar_users SET role = ?, active = ?, permissions_json = ?, updated_at = ? WHERE id = ?').run(
@@ -451,7 +684,7 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
       return true;
     }
 
-    // 9. POST /api/users/reset-password (Admin reseta a senha do usuário e força troca no próximo login)
+    // 10. POST /api/users/reset-password (Admin reseta a senha do usuário e força troca no próximo login)
     if (req.method === 'POST' && url.pathname === '/api/users/reset-password') {
       const b = await readJsonBody(req);
       const userId = String(b.userId || '').trim();
@@ -467,13 +700,18 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
       }
       const { hash, salt } = hashPassword(tempPassword);
       const now = new Date().toISOString();
-      database.prepare('UPDATE radar_users SET password_hash = ?, password_salt = ?, must_change_password = 1, updated_at = ? WHERE id = ?').run(
-        hash,
-        salt,
-        now,
-        userId
-      );
+      database
+        .prepare('UPDATE radar_users SET password_hash = ?, password_salt = ?, must_change_password = 1, updated_at = ? WHERE id = ?')
+        .run(hash, salt, now, userId);
       const updated = formatUserRow(database.prepare('SELECT * FROM radar_users WHERE id = ?').get(userId));
+      recordAccessLog(database, {
+        username: updated.username,
+        userId: updated.id,
+        action: 'password_reset_by_admin',
+        ip: clientIp,
+        status: 'ok',
+        detail: 'Senha provisória resetada pelo Administrador (troca obrigatória ativada)'
+      });
       send(res, 200, {
         ok: true,
         user: updated,
@@ -482,7 +720,7 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
       return true;
     }
 
-    // 10. POST /api/users/delete (Admin remove usuário não-admin padrão)
+    // 11. POST /api/users/delete (Admin remove usuário não-admin padrão)
     if (req.method === 'POST' && url.pathname === '/api/users/delete') {
       const b = await readJsonBody(req);
       const userId = String(b.userId || '').trim();

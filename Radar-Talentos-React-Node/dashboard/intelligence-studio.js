@@ -289,7 +289,7 @@
     likes: 'Curtidas',
     streams: 'Streams'
   };
-  const palette = { Instagram: '#ff2bd6', Spotify: '#00ff88', YouTube: '#00f0ff', TikTok: '#facc15' };
+  const palette = { Instagram: '#f472b6', Spotify: '#4ade80', YouTube: '#38bdf8', TikTok: '#facc15' };
   const classLabels = {
     oficial: 'API Oficial',
     relatorio_autorizado: 'Relatório Autorizado',

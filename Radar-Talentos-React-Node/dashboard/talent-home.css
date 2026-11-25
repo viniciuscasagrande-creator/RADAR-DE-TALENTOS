@@ -67,10 +67,10 @@
 }
 .talent-home .filter-panel summary {
   font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.07em;
-  color: #f0abfc;
-  text-shadow: 0 0 8px rgba(240, 171, 252, 0.45);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #f3e8ff;
+  text-shadow: none;
 }
 .talent-home #filters {
   margin-top: 8px;
@@ -265,10 +265,12 @@
 }
 .talent-home #kpis .kpi strong,
 .talent-home #audience-kpis .kpi strong {
-  font-size: 21px;
-  line-height: 1.1;
+  font-size: 20px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
   color: #ffffff;
-  text-shadow: 0 0 10px rgba(192, 132, 252, 0.45);
+  text-shadow: none;
 }
 .talent-home #kpis .kpi small,
 .talent-home #audience-kpis .kpi small {
@@ -796,7 +798,7 @@
   margin: 2px 0 4px;
   font-size: 18px;
   color: #ffffff;
-  text-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
+  text-shadow: none;
 }
 .talent-home .show-sim-head p {
   margin: 0;
@@ -1135,7 +1137,7 @@
 .talent-home .cat-drawer-title strong {
   font-size: 14px;
   color: #ffffff;
-  text-shadow: 0 0 10px rgba(0, 240, 255, 0.45);
+  text-shadow: none;
 }
 .talent-home .cat-drawer-title small {
   font-size: 11px;

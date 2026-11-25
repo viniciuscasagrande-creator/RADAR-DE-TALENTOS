@@ -80,10 +80,12 @@
   width: 100%;
 }
 .rising-page #rising-category-kpis .kpi strong {
-  font-size: 21px;
-  line-height: 1.1;
+  font-size: 20px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
   color: #ffffff;
-  text-shadow: 0 0 10px rgba(192, 132, 252, 0.45);
+  text-shadow: none;
 }
 .rising-page #rising-category-kpis .kpi small {
   font-size: 10px;
@@ -367,29 +369,70 @@
 .radar-notify-panel a:hover{text-decoration:underline}
 
 /* ==========================================================================
-   PADRONIZAÇÃO VISUAL MODERNA (HOME 3.0 NEON) EM TODOS OS 7 MÓDULOS E MENU LATERAL
+   PADRONIZAÇÃO VISUAL MODERNA (HOME 3.0 NEON) & TIPOGRAFIA DE ALTA NITIDEZ
    ========================================================================== */
+html,
 body {
-  background: radial-gradient(circle at 15% 0%, rgba(168, 85, 247, 0.12), transparent 45%), #09090b;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background: radial-gradient(circle at 15% 0%, rgba(168, 85, 247, 0.1), transparent 45%), #09090b;
+}
+
+/* Remove qualquer borrado de text-shadow e garante nitidez cristalina nas fontes e números de telemetria */
+h1, h2, h3, h4,
+strong, b, span, small, p, a, button, label, th, td, summary,
+.kpi strong, .kpi span, .kpi small,
+.exec-kpi-card strong, .exec-kpi-card span, .exec-kpi-card small,
+.ac-exec-card strong, .ac-exec-card span, .ac-exec-card small,
+.disc-funnel-card strong, .disc-funnel-card span, .disc-funnel-card small,
+.studio-stat strong, .studio-stat span, .studio-stat small,
+.studio-net-val, .compat-score-badge strong {
+  text-shadow: none !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.kpi strong,
+.exec-kpi-card strong,
+.ac-exec-card strong,
+.disc-funnel-card strong,
+.studio-stat strong,
+.studio-net-val,
+.compat-score-badge strong,
+td {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Suaviza os tons neon em textos para alta legibilidade sem ofuscamento */
+.eyebrow,
+.studio-eyebrow,
+.home3-intro-eyebrow {
+  color: #e9d5ff !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
 }
 
 .sidebar {
-  background: linear-gradient(180deg, #151022 0%, #0d0a14 100%) !important;
-  border-right: 1.5px solid #a855f7 !important;
-  box-shadow: 4px 0 24px rgba(168, 85, 247, 0.22), inset -1px 0 12px rgba(0, 240, 255, 0.08) !important;
+  background: linear-gradient(180deg, #141020 0%, #0c0a13 100%) !important;
+  border-right: 1px solid rgba(192, 132, 252, 0.55) !important;
+  box-shadow: 2px 0 14px rgba(0, 0, 0, 0.45) !important;
 }
 
 .sidebar .brand {
   padding: 6px 8px;
   border-radius: 10px;
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.16) 0%, rgba(0, 240, 255, 0.06) 100%);
-  border: 1px solid rgba(192, 132, 252, 0.45);
-  box-shadow: 0 0 14px rgba(168, 85, 247, 0.25);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.14) 0%, rgba(56, 189, 248, 0.06) 100%);
+  border: 1px solid rgba(192, 132, 252, 0.4);
 }
 
 .sidebar .radar-mark {
-  border: 1.5px solid #00f0ff !important;
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.55), inset 0 0 6px rgba(192, 132, 252, 0.4) !important;
+  border: 1.5px solid #38bdf8 !important;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.35) !important;
   overflow: hidden;
 }
 
@@ -404,32 +447,33 @@ body {
 .sidebar .nav-label {
   color: #e9d5ff !important;
   font-size: 9.5px !important;
-  font-weight: 800 !important;
-  letter-spacing: 0.09em !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.07em !important;
   margin-top: 12px !important;
   padding-bottom: 3px;
-  border-bottom: 1px solid rgba(192, 132, 252, 0.25);
-  text-shadow: 0 0 8px rgba(192, 132, 252, 0.35);
+  border-bottom: 1px solid rgba(192, 132, 252, 0.22);
+  text-shadow: none !important;
 }
 
 .sidebar nav a {
   border: 1px solid transparent !important;
   border-radius: 8px !important;
-  transition: all 0.15s ease !important;
+  color: #e4e4e7 !important;
+  font-weight: 500 !important;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
 }
 
 .sidebar nav a:hover {
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.25) 0%, rgba(0, 240, 255, 0.12) 100%) !important;
-  border-color: rgba(0, 240, 255, 0.55) !important;
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.3) !important;
+  background: rgba(168, 85, 247, 0.18) !important;
+  border-color: rgba(125, 211, 252, 0.45) !important;
   color: #ffffff !important;
 }
 
 .sidebar nav a[aria-current="page"],
 .sidebar nav a[aria-current] {
-  background: linear-gradient(135deg, #3b1d5e 0%, #1d1433 100%) !important;
-  border: 1.5px solid #00f0ff !important;
-  box-shadow: 0 0 14px rgba(0, 240, 255, 0.48), inset 0 0 10px rgba(192, 132, 252, 0.25) !important;
+  background: linear-gradient(135deg, #321a52 0%, #1b132e 100%) !important;
+  border: 1px solid #38bdf8 !important;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.25) !important;
   color: #ffffff !important;
   font-weight: 700 !important;
 }
@@ -438,21 +482,20 @@ body {
   margin-top: auto;
   padding: 10px !important;
   border-radius: 9px;
-  background: rgba(17, 13, 28, 0.85);
-  border: 1px solid rgba(192, 132, 252, 0.4) !important;
-  box-shadow: 0 0 12px rgba(168, 85, 247, 0.18);
+  background: rgba(17, 13, 28, 0.9);
+  border: 1px solid rgba(192, 132, 252, 0.35) !important;
 }
 
-/* Cabeçalhos superiores, painéis de filtro e cards executivos uniformizados em todos os módulos */
+/* Cabeçalhos superiores, painéis de filtro e cards executivos com neon suave e texto nítido */
 .topline,
 .commercial-topbar,
 .ac-top-header,
 .disc-top-header {
-  background: linear-gradient(135deg, #191229 0%, #110e1a 100%) !important;
-  border: 1.5px solid #c084fc !important;
+  background: linear-gradient(135deg, #181226 0%, #110e19 100%) !important;
+  border: 1px solid rgba(192, 132, 252, 0.65) !important;
   border-radius: 13px !important;
   padding: 14px 18px !important;
-  box-shadow: 0 0 18px rgba(192, 132, 252, 0.32), 0 10px 28px rgba(0, 0, 0, 0.38) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), 0 0 10px rgba(168, 85, 247, 0.16) !important;
 }
 
 .filter-panel,
@@ -464,20 +507,20 @@ body {
 .geo-grid > section,
 .detail-grid > section,
 main > section:not(.overview) {
-  background: linear-gradient(160deg, #161124 0%, #0f0c18 100%) !important;
-  border: 1.5px solid rgba(192, 132, 252, 0.72) !important;
+  background: linear-gradient(160deg, #151122 0%, #0f0c17 100%) !important;
+  border: 1px solid rgba(192, 132, 252, 0.55) !important;
   border-radius: 12px !important;
-  box-shadow: 0 0 16px rgba(168, 85, 247, 0.24), inset 0 0 12px rgba(168, 85, 247, 0.06) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 10px rgba(168, 85, 247, 0.12) !important;
 }
 
 .kpis .kpi,
 .ac-exec-card,
 .disc-funnel-card,
 .exec-kpi-card {
-  background: linear-gradient(160deg, #1d1530 0%, #110d1c 100%) !important;
-  border: 1.5px solid #c084fc !important;
+  background: linear-gradient(160deg, #1b142c 0%, #110d1b 100%) !important;
+  border: 1px solid rgba(192, 132, 252, 0.65) !important;
   border-radius: 10px !important;
-  box-shadow: 0 0 14px rgba(192, 132, 252, 0.34), inset 0 0 10px rgba(168, 85, 247, 0.12) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28), 0 0 8px rgba(168, 85, 247, 0.15) !important;
   transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
 }
 
@@ -485,8 +528,8 @@ main > section:not(.overview) {
 .ac-exec-card:hover,
 .disc-funnel-card:hover,
 .exec-kpi-card:hover {
-  border-color: #00f0ff !important;
-  box-shadow: 0 0 16px rgba(0, 240, 255, 0.55), 0 0 26px rgba(192, 132, 252, 0.3) !important;
+  border-color: #38bdf8 !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35), 0 0 12px rgba(56, 189, 248, 0.32) !important;
   transform: translateY(-1px);
 }
 

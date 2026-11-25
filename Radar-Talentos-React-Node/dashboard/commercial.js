@@ -5,10 +5,10 @@ const metrics={all:['consolidated_growth'],...platformMetrics};
 const labels={consolidated_growth:'Crescimento consolidado',subscribers:'Inscritos',views:'Visualizações',likes:'Curtidas',comments:'Comentários',followers:'Seguidores',monthly_listeners:'Ouvintes mensais',streams:'Reproduções'};
 const sizes={small:'Pequeno porte',medium:'Médio porte',large:'Grande porte',unknown:'Indisponível'};
 const neonPalette={
-  Instagram:{color:'#ff2bd6',glow:'rgba(255,43,214,0.55)',fillTop:'rgba(255,43,214,0.28)'},
-  YouTube:{color:'#00f0ff',glow:'rgba(0,240,255,0.55)',fillTop:'rgba(0,240,255,0.25)'},
-  Spotify:{color:'#00ff88',glow:'rgba(0,255,136,0.55)',fillTop:'rgba(0,255,136,0.25)'},
-  TikTok:{color:'#facc15',glow:'rgba(250,204,21,0.55)',fillTop:'rgba(250,204,21,0.26)'}
+  Instagram:{color:'#f472b6',glow:'rgba(244,114,182,0.35)',fillTop:'rgba(244,114,182,0.22)'},
+  YouTube:{color:'#38bdf8',glow:'rgba(56,189,248,0.35)',fillTop:'rgba(56,189,248,0.20)'},
+  Spotify:{color:'#4ade80',glow:'rgba(74,222,128,0.35)',fillTop:'rgba(74,222,128,0.20)'},
+  TikTok:{color:'#facc15',glow:'rgba(250,204,21,0.35)',fillTop:'rgba(250,204,21,0.20)'}
 };
 const number=v=>v==null?'—':v.toLocaleString('pt-BR',{maximumFractionDigits:1});
 const signed=v=>v==null?'—':(v>0?'+':'')+number(v);
@@ -126,7 +126,7 @@ function draw(history,nationalList=null){
   const defs=document.createElementNS(ns,'defs');
   const filter=document.createElementNS(ns,'filter');
   filter.setAttribute('id','neon-glow');filter.setAttribute('x','-20%');filter.setAttribute('y','-20%');filter.setAttribute('width','140%');filter.setAttribute('height','140%');
-  const blur=document.createElementNS(ns,'feGaussianBlur');blur.setAttribute('stdDeviation','2.6');blur.setAttribute('result','coloredBlur');
+  const blur=document.createElementNS(ns,'feGaussianBlur');blur.setAttribute('stdDeviation','1.1');blur.setAttribute('result','coloredBlur');
   const merge=document.createElementNS(ns,'feMerge');
   const mn1=document.createElementNS(ns,'feMergeNode');mn1.setAttribute('in','coloredBlur');
   const mn2=document.createElementNS(ns,'feMergeNode');mn2.setAttribute('in','SourceGraphic');

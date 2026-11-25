@@ -359,21 +359,73 @@
     });
   });
 
-  $('create-user-form')?.addEventListener('submit', async e => {
-    e.preventDefault();
-    const displayName = $('new-user-name')?.value?.trim() || '';
-    const username = $('new-user-username')?.value?.trim() || '';
+  function slugifyLogin(str = '') {
+    return String(str)
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9._-]+/g, '.')
+      .replace(/^\.+|\.+$/g, '');
+  }
+
+  let userEditedUsername = false;
+  $('new-user-username')?.addEventListener('input', () => {
+    userEditedUsername = Boolean($('new-user-username')?.value?.trim());
+  });
+  $('new-user-name')?.addEventListener('input', () => {
+    const uInp = $('new-user-username');
+    if (uInp && !userEditedUsername) {
+      uInp.value = slugifyLogin($('new-user-name')?.value || '');
+    }
+  });
+
+  async function handleCreateUser(e) {
+    e?.preventDefault();
+    const fb = $('create-user-feedback');
+    const banner = $('users-status-banner');
+    const btn = $('create-user-submit-btn');
+    const rawName = $('new-user-name')?.value?.trim() || '';
+    const rawUsername = $('new-user-username')?.value?.trim() || '';
+    const displayName = rawName || rawUsername;
+    const username = slugifyLogin(rawUsername || rawName);
     const email = $('new-user-email')?.value?.trim() || '';
-    const password = $('new-user-password')?.value?.trim() || '';
+    const password = ($('new-user-password')?.value?.trim()) || 'Mudar@123';
     const role = $('new-user-role')?.value || 'user';
     const mustChangePassword = Boolean($('new-user-must-change')?.checked);
+
+    const showFeedback = (text, isError = false) => {
+      if (fb) {
+        fb.textContent = text;
+        fb.style.color = isError ? '#fca5a5' : '#4ade80';
+      }
+      if (banner) {
+        banner.textContent = text;
+      }
+    };
+
+    if (!displayName || !username || username.length < 3) {
+      showFeedback('⚠ Preencha o Nome Completo ou um Login de Acesso válido (mínimo 3 caracteres) antes de clicar em Criar Usuário.', true);
+      $('new-user-name')?.focus();
+      return;
+    }
 
     const permissions = {};
     document.querySelectorAll('#new-user-permissions-grid input[type="checkbox"]').forEach(c => {
       permissions[c.dataset.permKey] = c.checked;
     });
 
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '⏳ Criando usuário e liberando permissões…';
+    }
+    showFeedback(`Criando usuário "${displayName}" (@${username})…`, false);
+
     try {
+      // Se o admin estiver visualizando como outro usuário (impersonating), volta automaticamente para Admin antes de criar
+      if (currentSession?.impersonating) {
+        await api('/api/auth/impersonate', 'POST', { userId: null });
+      }
       const res = await api('/api/users', 'POST', {
         displayName,
         username,
@@ -383,16 +435,25 @@
         mustChangePassword,
         permissions
       });
-      if ($('users-status-banner')) $('users-status-banner').textContent = res.message;
+      showFeedback(`✓ ${res.message}`, false);
       if ($('new-user-name')) $('new-user-name').value = '';
       if ($('new-user-username')) $('new-user-username').value = '';
       if ($('new-user-email')) $('new-user-email').value = '';
+      userEditedUsername = false;
       await loadUsers();
       window.dispatchEvent(new Event('radar:auth-updated'));
+      $('users-matrix-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) {
-      if ($('users-status-banner')) $('users-status-banner').textContent = 'Não foi possível criar o usuário: ' + err.message;
+      showFeedback('⚠ Não foi possível criar o usuário: ' + err.message, true);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '🚀 Criar Usuário e Liberar Acesso';
+      }
     }
-  });
+  }
+
+  $('create-user-form')?.addEventListener('submit', handleCreateUser);
 
   $('open-login-modal-btn')?.addEventListener('click', () => {
     if (typeof window.openRadarLoginModal === 'function') window.openRadarLoginModal();

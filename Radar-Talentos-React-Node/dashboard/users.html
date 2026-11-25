@@ -92,23 +92,23 @@
         </div>
       </div>
 
-      <form id="create-user-form" style="display:flex;flex-direction:column;gap:14px">
+      <form id="create-user-form" novalidate style="display:flex;flex-direction:column;gap:14px">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
           <label class="filter-card" style="height:auto;padding:8px 10px">
             <span class="filter-label">Nome Completo / Identificação</span>
-            <input id="new-user-name" type="text" required autocomplete="off" />
+            <input id="new-user-name" type="text" autocomplete="off" />
           </label>
           <label class="filter-card" style="height:auto;padding:8px 10px">
-            <span class="filter-label">Login de Acesso (usuário)</span>
-            <input id="new-user-username" type="text" required autocomplete="off" />
+            <span class="filter-label">Login de Acesso (opcional — gera do nome)</span>
+            <input id="new-user-username" type="text" autocomplete="off" />
           </label>
           <label class="filter-card" style="height:auto;padding:8px 10px">
             <span class="filter-label">E-mail Corporativo (opcional)</span>
-            <input id="new-user-email" type="email" autocomplete="off" />
+            <input id="new-user-email" type="text" autocomplete="off" />
           </label>
           <label class="filter-card" style="height:auto;padding:8px 10px">
             <span class="filter-label">Senha Inicial Provisória</span>
-            <input id="new-user-password" type="text" required value="Mudar@123" autocomplete="off" />
+            <input id="new-user-password" type="text" value="Mudar@123" autocomplete="off" />
           </label>
           <label class="filter-card" style="height:auto;padding:8px 10px">
             <span class="filter-label">Nível de Conta</span>
@@ -135,8 +135,9 @@
             <input id="new-user-must-change" type="checkbox" checked style="width:16px;height:16px" />
             <span>Exigir obrigatoriamente o cadastro de nova senha forte no primeiro login do usuário</span>
           </label>
-          <button type="submit" class="btn-simulate-show" style="height:36px;padding:0 18px;font-size:12.5px">🚀 Criar Usuário e Liberar Acesso</button>
+          <button type="submit" id="create-user-submit-btn" class="btn-simulate-show" style="height:36px;padding:0 18px;font-size:12.5px">🚀 Criar Usuário e Liberar Acesso</button>
         </div>
+        <p id="create-user-feedback" role="status" style="margin:0;font-size:12px;font-weight:600;color:#4ade80"></p>
       </form>
     </section>
 

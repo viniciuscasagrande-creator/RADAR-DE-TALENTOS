@@ -377,25 +377,22 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
     // 7. POST /api/users (Admin cria novo usuário + senha inicial + checkboxes de permissões)
     if (req.method === 'POST' && url.pathname === '/api/users') {
       const b = await readJsonBody(req);
-      const username = String(b.username || '')
-        .trim()
+      const rawName = String(b.displayName || b.name || b.username || '').trim();
+      const rawLogin = String(b.username || rawName)
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
         .toLowerCase()
-        .replace(/[^a-z0-9._-]/g, '');
-      const displayName = String(b.displayName || b.name || username).trim();
+        .trim()
+        .replace(/[^a-z0-9._-]+/g, '.')
+        .replace(/^\.+|\.+$/g, '');
+      const username = rawLogin;
+      const displayName = rawName || username;
       const email = String(b.email || '').trim();
       const role = b.role === 'admin' ? 'admin' : 'user';
-      const initialPassword = String(b.password || '').trim();
+      const initialPassword = String(b.password || 'Mudar@123').trim() || 'Mudar@123';
 
       if (!username || username.length < 3) {
-        send(res, 400, { error: 'O login do usuário deve ter pelo menos 3 caracteres (letras, números, ponto ou traço).' });
-        return true;
-      }
-      if (!displayName) {
-        send(res, 400, { error: 'Informe o nome completo ou identificação do usuário.' });
-        return true;
-      }
-      if (!initialPassword || initialPassword.length < 4) {
-        send(res, 400, { error: 'Defina uma senha provisória inicial (mínimo 4 caracteres) para o primeiro acesso do usuário.' });
+        send(res, 400, { error: 'Informe um Nome Completo ou Login com pelo menos 3 caracteres.' });
         return true;
       }
       const exists = database.prepare('SELECT id FROM radar_users WHERE lower(username) = ?').get(username);

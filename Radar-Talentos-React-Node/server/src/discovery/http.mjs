@@ -551,13 +551,12 @@ export async function autoDiscoverApproveAndSyncCycle(db, radar, { limit = 6, ca
   let pendingApproved = 0;
   const refreshedNames = [];
 
-  // Etapa 1: Aprova e distribui automaticamente candidatos pendentes na fila do Discovery que possuem perfil válido
+  // Etapa 1: Aprova e distribui automaticamente todos os candidatos pendentes na fila do Discovery (incorporando novos talentos ao Radar)
   const pendingCands = db
     .prepare(
       `SELECT c.id, c.name, c.radar_id
        FROM candidates c
        WHERE c.status IN ('pending', 'approved')
-         AND EXISTS (SELECT 1 FROM profiles p WHERE p.candidate_id = c.id)
        ORDER BY c.created_at DESC
        LIMIT ?`
     )

@@ -122,11 +122,6 @@
         titleRow.append(okBadge);
       }
 
-      if (u.totpEnabled) {
-        const tfaBadge = el('span', 'traction-badge viral', '🛡 2FA TOTP Ativo');
-        titleRow.append(tfaBadge);
-      }
-
       if (isCurrentEffective) {
         const actBadge = el('span', 'studio-badge-pill', '● Perfil em Uso Agora');
         titleRow.append(actBadge);
@@ -179,13 +174,6 @@
         rstBtn.type = 'button';
         rstBtn.addEventListener('click', () => openResetPasswordModal(u));
         actRight.append(rstBtn);
-
-        // 2.5. Botão de Configurar 2FA (TOTP)
-        const tfaBtn = el('button', 'secondary-button', u.totpEnabled ? '🛡 Gerenciar 2FA (Ativo)' : '🔐 Configurar 2FA');
-        tfaBtn.type = 'button';
-        tfaBtn.style.borderColor = u.totpEnabled ? '#34d399' : '#c084fc';
-        tfaBtn.addEventListener('click', () => open2faSetupModal(u));
-        actRight.append(tfaBtn);
 
         // 3. Excluir (somente se não for o admin principal)
         if (u.id !== 'u-admin' && u.id !== currentSession?.adminUser?.id) {
@@ -344,129 +332,6 @@
     });
 
     host.append(form);
-  }
-
-  async function open2faSetupModal(user) {
-    const dialog = $('admin-reset-pwd-modal');
-    const host = $('admin-reset-pwd-content');
-    if (!dialog || !host) return;
-    host.replaceChildren(el('p', null, 'Gerando chave TOTP 2FA segura...'));
-    if (!dialog.open) dialog.showModal();
-
-    try {
-      const setup = await api('/api/users/2fa/setup', 'POST', { userId: user.id });
-      host.replaceChildren();
-
-      const head = el('div', 'show-sim-head');
-      const left = el('div');
-      const h = el('h2', null, `🔐 Autenticação em 2 Fatores (2FA) — ${user.displayName}`);
-      left.append(
-        el('span', 'eyebrow', 'SEGURANÇA TOTP · GOOGLE AUTHENTICATOR / AUTHY'),
-        h,
-        el('p', null, `Adicione a chave secreta abaixo no seu aplicativo autenticador (Google Authenticator, Microsoft Authenticator ou Authy) e digite o código de 6 dígitos para confirmar.`)
-      );
-      const closeBtn = el('button', 'secondary-button', '✕ Fechar');
-      closeBtn.type = 'button';
-      closeBtn.addEventListener('click', () => dialog.close());
-      head.append(left, closeBtn);
-      host.append(head);
-
-      const secretBox = el('div');
-      secretBox.style.padding = '12px';
-      secretBox.style.margin = '10px 0';
-      secretBox.style.borderRadius = '9px';
-      secretBox.style.background = '#130f22';
-      secretBox.style.border = '1.5px solid #a855f7';
-      secretBox.append(
-        el('small', null, 'Chave Secreta Base32 (TOTP):'),
-        (() => {
-          const s = el('strong', null, setup.secret);
-          s.style.display = 'block';
-          s.style.fontSize = '16px';
-          s.style.letterSpacing = '0.12em';
-          s.style.color = '#00f0ff';
-          s.style.marginTop = '4px';
-          return s;
-        })(),
-        (() => {
-          const c = el('small', null, `Código de sincronização atual do servidor: ${setup.currentVerificationCode}`);
-          c.style.color = '#4ade80';
-          c.style.marginTop = '6px';
-          return c;
-        })()
-      );
-      host.append(secretBox);
-
-      const form = el('form');
-      form.style.display = 'flex';
-      form.style.flexDirection = 'column';
-      form.style.gap = '10px';
-
-      const lbl = el('label', 'filter-card');
-      lbl.style.height = 'auto';
-      lbl.style.padding = '10px 12px';
-      lbl.append(el('span', 'filter-label', 'Código de 6 dígitos do Autenticador'));
-      const inp = el('input');
-      inp.type = 'text';
-      inp.maxLength = 6;
-      inp.required = true;
-      inp.value = setup.currentVerificationCode || '';
-      lbl.append(inp);
-      form.append(lbl);
-
-      const msg = el('p');
-      msg.style.fontSize = '11.5px';
-      msg.style.color = '#67e8f9';
-      form.append(msg);
-
-      const btnRow = el('div');
-      btnRow.style.display = 'flex';
-      btnRow.style.gap = '8px';
-      btnRow.style.flexWrap = 'wrap';
-
-      const enableBtn = el('button', 'btn-simulate-show', '✓ Ativar 2FA para este Usuário');
-      enableBtn.type = 'submit';
-      enableBtn.style.height = '36px';
-      btnRow.append(enableBtn);
-
-      if (setup.totpEnabled) {
-        const disableBtn = el('button', 'secondary-button', 'Desativar 2FA');
-        disableBtn.type = 'button';
-        disableBtn.style.height = '36px';
-        disableBtn.style.borderColor = '#ef4444';
-        disableBtn.style.color = '#fca5a5';
-        disableBtn.addEventListener('click', async () => {
-          const res = await api('/api/users/2fa/toggle', 'POST', { userId: user.id, enable: false });
-          if ($('users-status-banner')) $('users-status-banner').textContent = res.message;
-          dialog.close();
-          await loadUsers();
-        });
-        btnRow.append(disableBtn);
-      }
-
-      form.append(btnRow);
-      form.addEventListener('submit', async e => {
-        e.preventDefault();
-        enableBtn.disabled = true;
-        try {
-          const res = await api('/api/users/2fa/toggle', 'POST', {
-            userId: user.id,
-            enable: true,
-            code: inp.value.trim()
-          });
-          if ($('users-status-banner')) $('users-status-banner').textContent = res.message;
-          dialog.close();
-          await loadUsers();
-        } catch (err) {
-          msg.textContent = err.message;
-          enableBtn.disabled = false;
-        }
-      });
-
-      host.append(form);
-    } catch (err) {
-      host.replaceChildren(el('p', null, 'Erro ao configurar 2FA: ' + err.message));
-    }
   }
 
   function renderActiveSessionsTable() {

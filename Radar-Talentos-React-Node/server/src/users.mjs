@@ -1,71 +1,5 @@
-import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { authenticate } from './security.mjs';
-
-const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-
-export function generateTotpSecret(byteLen = 10) {
-  const bytes = randomBytes(byteLen);
-  let bits = 0;
-  let value = 0;
-  let output = '';
-  for (const b of bytes) {
-    value = (value << 8) | b;
-    bits += 8;
-    while (bits >= 5) {
-      output += BASE32_ALPHABET[(value >>> (bits - 5)) & 31];
-      bits -= 5;
-    }
-  }
-  if (bits > 0) {
-    output += BASE32_ALPHABET[(value << (5 - bits)) & 31];
-  }
-  return output;
-}
-
-function decodeBase32(str = '') {
-  const clean = String(str).toUpperCase().replace(/[^A-Z2-7]/g, '');
-  let bits = 0;
-  let value = 0;
-  const out = [];
-  for (const ch of clean) {
-    const idx = BASE32_ALPHABET.indexOf(ch);
-    if (idx < 0) continue;
-    value = (value << 5) | idx;
-    bits += 5;
-    if (bits >= 8) {
-      out.push((value >>> (bits - 8)) & 0xff);
-      bits -= 8;
-    }
-  }
-  return Buffer.from(out);
-}
-
-export function computeTotpCode(secret, timeStep = Math.floor(Date.now() / 30000)) {
-  const key = decodeBase32(secret);
-  const buf = Buffer.alloc(8);
-  buf.writeBigUInt64BE(BigInt(timeStep), 0);
-  const hmac = createHmac('sha1', key).update(buf).digest();
-  const offset = hmac[hmac.length - 1] & 0x0f;
-  const code =
-    ((hmac[offset] & 0x7f) << 24) |
-    ((hmac[offset + 1] & 0xff) << 16) |
-    ((hmac[offset + 2] & 0xff) << 8) |
-    (hmac[offset + 3] & 0xff);
-  return String(code % 1000000).padStart(6, '0');
-}
-
-export function verifyTotpCode(secret, token) {
-  if (!secret || !token) return false;
-  const cleanToken = String(token).replace(/\s+/g, '');
-  if (!/^\d{6}$/.test(cleanToken)) return false;
-  const currentStep = Math.floor(Date.now() / 30000);
-  for (const delta of [-1, 0, 1]) {
-    if (computeTotpCode(secret, currentStep + delta) === cleanToken) {
-      return true;
-    }
-  }
-  return false;
-}
 
 export const RADAR_PERMISSIONS_CATALOG = [
   { key: 'overview', label: 'Visão Geral & Ficha 360°', path: '/', defaultUser: true },
@@ -208,7 +142,6 @@ function formatUserRow(row) {
     defaultRoute: roleMeta.defaultRoute,
     mustChangePassword: Boolean(row.must_change_password),
     active: Boolean(row.active),
-    totpEnabled: Boolean(row.totp_enabled),
     permissions: normalizePermissions(row.permissions_json, row.role),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -248,8 +181,6 @@ export function ensureDefaultAdminUser(db) {
     ) STRICT;`);
   } catch {}
   for (const alterSql of [
-    "ALTER TABLE radar_users ADD COLUMN totp_secret TEXT",
-    "ALTER TABLE radar_users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE radar_sessions ADD COLUMN ip TEXT NOT NULL DEFAULT ''",
     "ALTER TABLE radar_sessions ADD COLUMN user_agent TEXT NOT NULL DEFAULT ''"
   ]) {
@@ -434,31 +365,6 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
         });
         send(res, 401, { error: 'Credenciais inválidas ou acesso não autorizado.' });
         return true;
-      }
-
-      if (Boolean(userRow.totp_enabled) && userRow.totp_secret) {
-        const totpCode = String(b.totpCode || '').trim();
-        if (!totpCode) {
-          send(res, 200, {
-            ok: false,
-            requires2fa: true,
-            username: userRow.username,
-            message: 'Informe o código 2FA de 6 dígitos do seu aplicativo autenticador.'
-          });
-          return true;
-        }
-        if (!verifyTotpCode(userRow.totp_secret, totpCode)) {
-          recordAccessLog(database, {
-            username: userRow.username,
-            userId: userRow.id,
-            action: 'login_2fa_failed',
-            ip: clientIp,
-            status: 'failed',
-            detail: 'Código 2FA (TOTP) inválido'
-          });
-          send(res, 401, { error: 'Código de autenticação 2FA inválido ou expirado.', requires2fa: true });
-          return true;
-        }
       }
 
       loginAttempts.delete(attemptKey);
@@ -899,72 +805,6 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
         revoked: resDel.changes,
         message: 'Sessão encerrada remotamente com sucesso!'
       });
-      return true;
-    }
-
-    // 13. POST /api/users/2fa/setup (Gera segredo TOTP e código atual para ativar 2FA em um usuário)
-    if (req.method === 'POST' && url.pathname === '/api/users/2fa/setup') {
-      const b = await readJsonBody(req);
-      const userId = String(b.userId || ctx.user?.id || '').trim();
-      const row = database.prepare('SELECT * FROM radar_users WHERE id = ?').get(userId);
-      if (!row) {
-        send(res, 404, { error: 'Usuário não localizado.' });
-        return true;
-      }
-      const secret = row.totp_secret || generateTotpSecret(10);
-      database.prepare('UPDATE radar_users SET totp_secret = ? WHERE id = ?').run(secret, userId);
-      const otpauthUrl = `otpauth://totp/RadarDeTalentos:${encodeURIComponent(row.username)}?secret=${secret}&issuer=RadarDeTalentos`;
-      send(res, 200, {
-        ok: true,
-        userId: row.id,
-        username: row.username,
-        displayName: row.display_name,
-        totpEnabled: Boolean(row.totp_enabled),
-        secret,
-        currentVerificationCode: computeTotpCode(secret),
-        otpauthUrl
-      });
-      return true;
-    }
-
-    // 14. POST /api/users/2fa/toggle (Ativa ou desativa o 2FA após validar código de 6 dígitos)
-    if (req.method === 'POST' && url.pathname === '/api/users/2fa/toggle') {
-      const b = await readJsonBody(req);
-      const userId = String(b.userId || ctx.user?.id || '').trim();
-      const enable = Boolean(b.enable);
-      const code = String(b.code || '').trim();
-      const row = database.prepare('SELECT * FROM radar_users WHERE id = ?').get(userId);
-      if (!row) {
-        send(res, 404, { error: 'Usuário não localizado.' });
-        return true;
-      }
-      if (enable) {
-        if (!row.totp_secret || !verifyTotpCode(row.totp_secret, code)) {
-          send(res, 400, { error: 'Código TOTP de 6 dígitos inválido. Verifique no seu autenticador.' });
-          return true;
-        }
-        database.prepare('UPDATE radar_users SET totp_enabled = 1, updated_at = ? WHERE id = ?').run(new Date().toISOString(), userId);
-        recordAccessLog(database, {
-          username: row.username,
-          userId: row.id,
-          action: '2fa_enabled',
-          ip: clientIp,
-          status: 'ok',
-          detail: 'Autenticação em Dois Fatores (2FA TOTP) ativada'
-        });
-        send(res, 200, { ok: true, totpEnabled: true, message: `Autenticação em 2 Fatores (2FA) ativada para @${row.username}!` });
-      } else {
-        database.prepare('UPDATE radar_users SET totp_enabled = 0, updated_at = ? WHERE id = ?').run(new Date().toISOString(), userId);
-        recordAccessLog(database, {
-          username: row.username,
-          userId: row.id,
-          action: '2fa_disabled',
-          ip: clientIp,
-          status: 'ok',
-          detail: 'Autenticação em Dois Fatores (2FA TOTP) desativada pelo Administrador'
-        });
-        send(res, 200, { ok: true, totpEnabled: false, message: `2FA desativado para @${row.username}.` });
-      }
       return true;
     }
 

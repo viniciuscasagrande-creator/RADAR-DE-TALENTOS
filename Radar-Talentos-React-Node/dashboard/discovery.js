@@ -115,6 +115,109 @@ async function open(id) {
     a.target = '_blank';
   }
 
+  if (Array.isArray(c.platformValidationMatrix) && c.platformValidationMatrix.length) {
+    const matBox = add(p, 'div', '');
+    matBox.style.margin = '12px 0';
+    matBox.style.padding = '12px';
+    matBox.style.borderRadius = '10px';
+    matBox.style.border = '1px solid rgba(184, 132, 255, 0.25)';
+    matBox.style.background = 'rgba(18, 8, 36, 0.55)';
+    const matTitle = add(matBox, 'strong', 'Confirmação Individual por Plataforma (Governança de Rankings)');
+    matTitle.style.display = 'block';
+    matTitle.style.fontSize = '12.5px';
+    matTitle.style.marginBottom = '4px';
+    const matSub = add(
+      matBox,
+      'small',
+      'Somente os perfis marcados como "Confirmado por evidências" alimentam rankings e indicadores comerciais. É possível desfazer qualquer associação incorreta e reprocessar os indicadores imediatamente.'
+    );
+    matSub.style.display = 'block';
+    matSub.style.color = '#a1a1aa';
+    matSub.style.marginBottom = '10px';
+
+    for (const row of c.platformValidationMatrix) {
+      const line = add(matBox, 'div', '');
+      line.style.display = 'flex';
+      line.style.alignItems = 'center';
+      line.style.justifyContent = 'space-between';
+      line.style.gap = '8px';
+      line.style.flexWrap = 'wrap';
+      line.style.padding = '7px 0';
+      line.style.borderTop = '1px solid rgba(255,255,255,0.06)';
+
+      const left = add(line, 'div', '');
+      left.style.display = 'flex';
+      left.style.alignItems = 'center';
+      left.style.gap = '8px';
+      left.style.flexWrap = 'wrap';
+      add(left, 'strong', row.network);
+      if (row.url) {
+        const link = add(left, 'a', row.url + ' ↗');
+        link.href = row.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.style.fontSize = '11.5px';
+        link.style.color = '#c4b5fd';
+      }
+
+      const right = add(line, 'div', '');
+      right.style.display = 'flex';
+      right.style.alignItems = 'center';
+      right.style.gap = '6px';
+      right.style.flexWrap = 'wrap';
+
+      const stBadge = add(
+        right,
+        'span',
+        row.confirmed ? '✓ Confirmado por evidências' : row.located ? '⏳ Aguardando validação' : '— Não localizado'
+      );
+      stBadge.className = 'disc-profile-pill';
+      stBadge.style.fontSize = '11px';
+      if (row.confirmed) {
+        stBadge.style.borderColor = 'rgba(74, 222, 128, 0.5)';
+        stBadge.style.color = '#86efac';
+      } else if (row.located) {
+        stBadge.style.borderColor = 'rgba(250, 204, 21, 0.5)';
+        stBadge.style.color = '#fde047';
+      } else {
+        stBadge.style.opacity = '0.6';
+      }
+
+      if (row.located && !row.confirmed) {
+        const btnConf = add(right, 'button', '✓ Confirmar perfil');
+        btnConf.type = 'button';
+        btnConf.className = 'btn-approve';
+        btnConf.style.padding = '4px 9px';
+        btnConf.style.fontSize = '11px';
+        btnConf.onclick = () =>
+          run(() =>
+            api('confirm-platform', {
+              id: c.id,
+              profileId: row.profileId,
+              network: row.network,
+              evidence: $('evidence')?.value || ''
+            })
+          );
+      }
+
+      if (row.located) {
+        const btnUnlink = add(right, 'button', '↩ Desfazer associação e reprocessar');
+        btnUnlink.type = 'button';
+        btnUnlink.className = 'btn-reject';
+        btnUnlink.style.padding = '4px 9px';
+        btnUnlink.style.fontSize = '11px';
+        btnUnlink.onclick = () =>
+          run(() =>
+            api('unlink-profile', {
+              id: c.id,
+              profileId: row.profileId,
+              network: row.network
+            })
+          );
+      }
+    }
+  }
+
   for (const y of c.youtube ?? []) {
     for (const o of y.metrics ?? []) {
       const mLabel = { subscribers: 'YouTube Inscritos', views: 'YouTube Visualizações', video_count: 'YouTube Vídeos' }[o.metric] || o.metric;
@@ -161,7 +264,9 @@ async function run(fn) {
     await refresh();
     if (result?.id) selected = result.id;
     if (selected) await open(selected);
-    if (result?.ok && result?.radarId) {
+    if (result?.message) {
+      status(`✓ ${result.message}`);
+    } else if (result?.ok && result?.radarId) {
       status(
         `✓ ${result.name || 'Artista'} aprovado, coletado e enviado automaticamente à Oportunidade Comercial e demais menus (${result.radarId})! Perfis vinculados: ${result.profilesLinked ?? 0} · YouTube coletado: ${result.youtubeCollected ?? 0} · Spotify coletado: ${result.spotifyCollected ?? 0}.`
       );

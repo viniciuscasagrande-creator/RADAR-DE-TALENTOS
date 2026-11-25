@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { addOpenProfile, confirmOpenProfile, recordOpenMetric, openCurrent, purgeOpen } from './open-social.mjs';
+import { addOpenProfile, confirmOpenProfile, openConfirmed, recordOpenMetric, openCurrent, purgeOpen } from './open-social.mjs';
 import { suggestRadarId, purgeBulkSuggestions, prospectYoutubeBulk } from './youtube-bulk.mjs';
-import { addYoutubeProfile, confirmYoutube, collectYoutube, youtubeCurrent, searchYoutube, purgeYoutube } from './youtube-current.mjs';
+import { addYoutubeProfile, confirmYoutube, confirmedYoutube, collectYoutube, youtubeCurrent, searchYoutube, purgeYoutube } from './youtube-current.mjs';
 import { globalSearch, saveWikidata, saveMusicBrainz, FREE_MOTOR_CAPABILITIES } from './global-search.mjs';
 import { openDiscovery, listCandidates, detail, review, discover, publish, publishIdentityOnly, recordAuthorizedObservation, enrich } from './engine.mjs';
 import { importNationalCsv, importRegionalCsv } from './csv-import.mjs';
@@ -222,8 +222,13 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
   c = detail(db, candidateId);
   const targetRadarId = c.radar_id || pubResult?.radarId;
 
-  // Confirma automaticamente todos os perfis trazidos na busca para este candidato aprovado pelo operador
+  const allowedConfirmNetworks = Array.isArray(payload.confirmNetworks)
+    ? new Set(payload.confirmNetworks.map(n => String(n).trim()))
+    : null;
+
+  // Confirma perfis (respeitando seleção individual por plataforma quando informada em confirmNetworks)
   for (const p of c.profiles) {
+    if (allowedConfirmNetworks && !allowedConfirmNetworks.has(p.network)) continue;
     if (p.network === 'YouTube' && /^https:\/\/youtube\.com\/channel\/UC[A-Za-z0-9_-]{22}$/.test(p.url)) {
       try {
         confirmYoutube(db, candidateId, p.id, { evidence: autoEv, reviewer });
@@ -239,14 +244,17 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
     }
   }
 
-  // Coleta oficial imediata do YouTube e do Spotify para tudo que veio na busca
+  // Coleta oficial imediata apenas dos perfis devidamente confirmados
   let youtubeCollected = 0;
   try {
     const ytRes = await collectYoutube(db, { candidateId, force: true, fetcher });
     youtubeCollected = ytRes.collected || 0;
   } catch {}
 
-  const spotifyCollected = await autoCollectSpotifyForCandidate(radar, targetRadarId, c.profiles, autoEv, fetcher);
+  const confirmedSpotifyProfiles = c.profiles.filter(p => p.network === 'Spotify' && openConfirmed(db, p));
+  const spotifyCollected = confirmedSpotifyProfiles.length
+    ? await autoCollectSpotifyForCandidate(radar, targetRadarId, confirmedSpotifyProfiles, autoEv, fetcher)
+    : 0;
   const dist = distributeVerifiedDiscoveryToRadar(radar, db);
 
   return {
@@ -256,6 +264,7 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
     radarId: targetRadarId,
     status: 'published',
     profilesLinked: c.profiles.length,
+    platformValidationMatrix: buildPlatformValidationMatrix(db, detail(db, candidateId)),
     youtubeCollected,
     spotifyCollected,
     distributed: dist.distributed,
@@ -267,6 +276,158 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
       ficha360Url: `/?talent=${encodeURIComponent(targetRadarId)}`,
       commercialUrl: `/commercial.html?q=${encodeURIComponent(c.name)}`
     }
+  };
+}
+
+/**
+ * Matriz de Validação Individual por Plataforma (YouTube, Spotify, Instagram, TikTok):
+ * Somente perfis com confirmed=true alimentam rankings e indicadores comerciais.
+ */
+export function buildPlatformValidationMatrix(db, candidate) {
+  const networks = ['YouTube', 'Spotify', 'Instagram', 'TikTok'];
+  const profiles = candidate?.profiles || [];
+  return networks.map(network => {
+    const p = profiles.find(x => x.network === network) || null;
+    if (!p) {
+      return {
+        network,
+        located: false,
+        profileId: null,
+        url: null,
+        source_id: null,
+        confirmed: false,
+        statusLabel: 'Não localizado',
+        feedsCommercialRankings: false
+      };
+    }
+    const isConfirmed = network === 'YouTube' ? confirmedYoutube(db, p) : openConfirmed(db, p);
+    return {
+      network,
+      located: true,
+      profileId: p.id,
+      url: p.url,
+      source_id: p.source_id,
+      confirmed: Boolean(isConfirmed),
+      statusLabel: isConfirmed ? 'Confirmado por evidências' : 'Aguardando validação',
+      feedsCommercialRankings: Boolean(isConfirmed)
+    };
+  });
+}
+
+/**
+ * Desfaz uma associação incorreta de perfil de uma plataforma específica e reprocessa
+ * todos os indicadores afetados nos painéis do Radar.
+ */
+export function unlinkProfileAndReprocess(db, radar, { id, profileId, network } = {}) {
+  const c = detail(db, id);
+  const p = c.profiles.find(x => (profileId && x.id === profileId) || (network && x.network === network));
+  if (!p) throw Error('Perfil não encontrado para desassociação');
+  const net = p.network;
+
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.prepare('DELETE FROM observations WHERE profile_id = ?').run(p.id);
+    db.prepare('DELETE FROM evidence WHERE candidate_id = ? AND (url = ? OR id = ?)').run(c.id, p.url, hash('open-confirm:' + p.id));
+    db.prepare('DELETE FROM profiles WHERE id = ?').run(p.id);
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+
+  let removedFromRadar = 0;
+  if (radar && c.radar_id) {
+    radar.exec('BEGIN IMMEDIATE');
+    try {
+      const commAccs = radar.prepare('SELECT id FROM commercial_accounts WHERE talent_id = ? AND network = ?').all(c.radar_id, net);
+      for (const acc of commAccs) {
+        removedFromRadar += radar.prepare('DELETE FROM commercial_snapshots WHERE account_id = ?').run(acc.id).changes;
+        radar.prepare('DELETE FROM metric_current WHERE account_id = ?').run(acc.id);
+        radar.prepare('DELETE FROM commercial_accounts WHERE id = ?').run(acc.id);
+      }
+      const socAccs = radar.prepare('SELECT id FROM social_accounts WHERE talent_id = ? AND network = ?').all(c.radar_id, net);
+      for (const acc of socAccs) {
+        removedFromRadar += radar.prepare('DELETE FROM metric_snapshots WHERE account_id = ?').run(acc.id).changes;
+        radar.prepare('DELETE FROM metric_current WHERE account_id = ?').run(acc.id);
+        radar.prepare('DELETE FROM social_accounts WHERE id = ?').run(acc.id);
+      }
+      removedFromRadar += radar.prepare('DELETE FROM media_metric_series WHERE talent_id = ? AND network = ?').run(c.radar_id, net).changes;
+      radar.prepare('DELETE FROM metric_current WHERE talent_id = ? AND network = ?').run(c.radar_id, net);
+      radar.prepare('DELETE FROM metric_review_quarantine WHERE talent_id = ? AND network = ?').run(c.radar_id, net);
+      radar.exec('COMMIT');
+    } catch (e) {
+      radar.exec('ROLLBACK');
+      throw e;
+    }
+    distributeVerifiedDiscoveryToRadar(radar, db);
+  }
+
+  const updated = detail(db, id);
+  return {
+    ok: true,
+    id,
+    unlinkedNetwork: net,
+    unlinkedUrl: p.url,
+    removedFromRadar,
+    platformValidationMatrix: buildPlatformValidationMatrix(db, updated),
+    message: `Associação de ${net} (${p.url}) desfeita e indicadores reprocessados em todos os módulos.`
+  };
+}
+
+/**
+ * Confirma individualmente uma única plataforma do candidato, coleta métricas e reprocessa a distribuição.
+ */
+export async function confirmSinglePlatformAndReprocess(db, radar, { id, profileId, network, evidence } = {}, { reviewer = 'admin', fetcher = fetch } = {}) {
+  let c = detail(db, id);
+  const p = c.profiles.find(x => (profileId && x.id === profileId) || (network && x.network === network));
+  if (!p) throw Error('Perfil não localizado para esta plataforma');
+  const autoEv =
+    (evidence && String(evidence).trim().startsWith('https://') ? String(evidence).trim() : null) ||
+    c.identity_evidence ||
+    c.evidence.find(e => e.source_id === 'wikidata-cc0')?.url ||
+    c.evidence[0]?.url ||
+    `https://www.wikidata.org/wiki/Special:Search?search=${encodeURIComponent(c.name)}`;
+
+  if (c.status === 'pending') {
+    const resolvedRadarId =
+      (c.radar_id && !String(c.radar_id).includes('://') ? c.radar_id : null) ||
+      (radar ? suggestRadarId(radar, c.name) : null);
+    review(db, id, { approve: true, reviewer, evidence: autoEv, radarId: resolvedRadarId });
+    c = detail(db, id);
+  }
+  if (radar && (!c.radar_id || !db.prepare('SELECT 1 FROM approved_imports WHERE candidate_id=?').get(id))) {
+    try {
+      publishIdentityOnly(db, radar, id);
+    } catch {
+      publish(db, radar, id, importCommercial);
+    }
+    c = detail(db, id);
+  }
+
+  if (p.network === 'YouTube') {
+    confirmYoutube(db, id, p.id, { evidence: autoEv, reviewer });
+    try {
+      await collectYoutube(db, { candidateId: id, force: true, fetcher });
+    } catch {}
+  } else {
+    const indepEv =
+      new URL(autoEv).hostname.replace(/^www\./, '') !== new URL(p.url).hostname.replace(/^www\./, '')
+        ? autoEv
+        : `https://www.wikidata.org/wiki/Special:Search?search=${encodeURIComponent(c.name)}`;
+    confirmOpenProfile(db, id, { profileId: p.id, evidence: indepEv, attested: true });
+    if (p.network === 'Spotify' && radar && c.radar_id) {
+      await autoCollectSpotifyForCandidate(radar, c.radar_id, [p], indepEv, fetcher);
+    }
+  }
+
+  if (radar) distributeVerifiedDiscoveryToRadar(radar, db);
+  const updated = detail(db, id);
+  return {
+    ok: true,
+    id,
+    confirmedNetwork: p.network,
+    platformValidationMatrix: buildPlatformValidationMatrix(db, updated),
+    message: `Perfil ${p.network} confirmado por evidências e indicadores distribuídos.`
   };
 }
 
@@ -486,6 +647,7 @@ export async function handleDiscovery(req, res, { radar, security } = {}) {
         send(res, 200, {
           ...c,
           suggestedRadarId: radar ? suggestRadarId(radar, c.name) : null,
+          platformValidationMatrix: buildPlatformValidationMatrix(db, c),
           observations: c.observations.filter(o => !['youtube-public-current', 'open-social-current'].includes(o.source_id)),
           youtube: youtubeCurrent(db, id),
           openSocial: openCurrent(db, id)
@@ -506,6 +668,10 @@ export async function handleDiscovery(req, res, { radar, security } = {}) {
       let result;
       if (action === 'approve-and-send') {
         result = await approveAndSendToRadar(db, radar, v, { reviewer: security?.username ?? 'admin' });
+      } else if (action === 'unlink-profile') {
+        result = unlinkProfileAndReprocess(db, radar, v);
+      } else if (action === 'confirm-platform') {
+        result = await confirmSinglePlatformAndReprocess(db, radar, v, { reviewer: security?.username ?? 'admin' });
       } else if (action === 'open-add') {
         result = addOpenProfile(db, v.id, v);
       } else if (action === 'open-confirm') {

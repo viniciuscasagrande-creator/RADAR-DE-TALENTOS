@@ -81,11 +81,39 @@
         .sort()
         .at(-1) || null;
 
-    // Índice composto de tração (valoriza taxa de descoberta no Spotify + views/inscrito no YouTube + cobertura multi-mídia)
-    const discBoost = discoveryRatioPct != null ? Math.min(45, Math.round(discoveryRatioPct * 0.25)) : 0;
-    const ytBoost = viewsPerSub != null ? Math.min(35, Math.round(Math.sqrt(viewsPerSub) * 1.6)) : 0;
-    const multiBoost = activeNets.length * 7;
-    const tractionScore = activeNets.length ? Math.min(99, Math.max(42, 22 + discBoost + ytBoost + multiBoost)) : 0;
+    // Avaliação Multicritério (6 Dimensões Simultâneas: Cresc. Absoluto + Cresc. % + Aceleração + Porte + Consistência + Evidências)
+    const risingMatch = risingData.find(r => r.talent_id === artist.id || norm(r.name) === norm(artist.name));
+    const absDelta = risingMatch?.delta ?? null;
+    const pctDelta = risingMatch?.change_pct ?? null;
+    const sizeScore = maxReach <= 0 ? 0 : Math.min(25, Math.round(Math.log10(Math.max(10, maxReach)) * 3.8));
+    const absScore = absDelta != null && absDelta > 0 ? Math.min(25, Math.round(Math.log10(Math.max(10, absDelta)) * 5)) : Math.round(sizeScore * 0.6);
+    const pctScore = pctDelta != null && pctDelta > 0 ? Math.min(20, Math.round(pctDelta * 0.4)) : 10;
+    const discBoost = discoveryRatioPct != null ? Math.min(14, Math.round(discoveryRatioPct * 0.08)) : 0;
+    const ytBoost = viewsPerSub != null ? Math.min(14, Math.round(Math.sqrt(viewsPerSub) * 0.65)) : 0;
+    const consistencyBoost = activeNets.length * 5;
+    const evidenceBoost = activeNets.some(n => ['oficial', 'relatorio_autorizado'].includes(artist.media?.[n]?.classification)) ? 8 : activeNets.length ? 5 : 0;
+    const tractionScore = activeNets.length
+      ? Math.min(99, Math.max(42, 12 + sizeScore + absScore + Math.min(18, pctScore + discBoost + ytBoost) + consistencyBoost + evidenceBoost))
+      : 0;
+    const porteLabel =
+      maxReach === 0
+        ? 'Sem base'
+        : maxReach <= 500000
+          ? 'Porte: Micro (≤500k)'
+          : maxReach <= 2500000
+            ? 'Porte: Emergente (500k–2,5M)'
+            : maxReach <= 10000000
+              ? 'Porte: Expansão (2,5M–10M)'
+              : 'Porte: Consolidado (>10M)';
+    const evidenceQualityLabel = activeNets.some(n => artist.media?.[n]?.classification === 'oficial')
+      ? 'Evidência: API Oficial + HTTPS'
+      : activeNets.length
+        ? 'Evidência: Verificada (HTTPS)'
+        : 'Evidência: Pendente';
+    const growthSummaryLabel =
+      absDelta != null && pctDelta != null
+        ? `Δ Abs: +${fmt(absDelta)} (+${pctDelta.toFixed(1)}%)`
+        : `Alcance Base: ${fmt(maxReach)}`;
 
     return {
       ...artist,
@@ -102,6 +130,9 @@
       tierKey,
       tierBadge: stageBadge,
       platformBalanceLabel,
+      porteLabel,
+      evidenceQualityLabel,
+      growthSummaryLabel,
       activeNets,
       latestDate,
       tractionScore
@@ -231,11 +262,11 @@
     const thead = table.createTHead().insertRow();
     for (const h of [
       'Talento / Categoria',
-      'Momento & Porte',
-      'Spotify (Ouvintes & Taxa Descoberta)',
+      'Avaliação Multicritério (6 Dimensões)',
+      'Spotify (Ouvintes & Relação c/ Seguidores)',
       'YouTube (Inscritos & Views/Inscrito)',
       'Instagram (Seguidores)',
-      'Série / Base',
+      'Consistência & Evidência',
       'Ações Rápidas'
     ]) {
       const th = document.createElement('th');
@@ -260,19 +291,19 @@
       catSmall.style.color = '#a1a1aa';
       tdName.append(catSmall);
 
-      // 2. Momento & Porte
+      // 2. Avaliação Multicritério (6 Dimensões)
       const tdTier = tr.insertCell();
       const badge = el('span', `traction-badge ${a.tierBadge.cls}`, a.tierBadge.label);
       tdTier.append(badge);
       if (a.tractionScore > 0) {
-        const scSmall = el('small', null, `Tração: ${a.tractionScore}/100 · ${a.platformBalanceLabel}`);
+        const scSmall = el('small', null, `Score 6D: ${a.tractionScore}/100 · ${a.porteLabel} · ${a.growthSummaryLabel}`);
         scSmall.style.fontSize = '10px';
         scSmall.style.color = '#67e8f9';
         scSmall.style.marginTop = '3px';
         tdTier.append(scSmall);
       }
 
-      // 3. Spotify
+      // 3. Spotify (Sinal indireto de tração, sem assumir descoberta algorítmica como causa única)
       const tdSp = tr.insertCell();
       if (a.spListeners != null) {
         const st = el('strong', null, `${fmt(a.spListeners)} ouvintes/mês`);
@@ -281,7 +312,7 @@
         tdSp.append(st);
         const subText =
           a.spFollowers != null
-            ? `Seguidores: ${fmt(a.spFollowers)} · Conversão: ${a.discoveryRatioPct}%`
+            ? `Seguidores: ${fmt(a.spFollowers)} · Relação Ouv./Seg.: ${a.discoveryRatioPct}% (sinal indireto)`
             : `Fonte: ${a.media?.Spotify?.source || 'Spotify Web API'}`;
         const sm = el('small', null, subText);
         sm.style.fontSize = '10px';
@@ -325,12 +356,12 @@
         tdIg.style.color = '#71717a';
       }
 
-      // 6. Série / Base
+      // 6. Consistência Histórica & Qualidade das Evidências
       const tdBase = tr.insertCell();
       if (a.activeNets.length) {
         tdBase.append(
-          el('strong', null, `${a.activeNets.length}/4 mídias`),
-          el('small', null, `Base: ${a.latestDate || 'Ativa'}`)
+          el('strong', null, `${a.activeNets.length}/4 mídias (${a.latestDate || 'Ativa'})`),
+          el('small', null, a.evidenceQualityLabel)
         );
       } else {
         const colOneBtn = el('button', 'secondary-button', '⚡ Coletar Agora');

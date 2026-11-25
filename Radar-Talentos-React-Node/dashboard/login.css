@@ -10,6 +10,10 @@
   --luminous-lavender: #B884FF;
   --premium-white: #F7F5FF;
   --muted-lavender: #8E82A6;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
   font: 13.5px/1.42 Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -70,8 +74,8 @@ body.ri-portal-body {
 /* Topo Esquerdo: • INTELIGÊNCIA DE MERCADO (com Edge-to-Edge Safe Area) */
 .ri-top-tag {
   position: absolute;
-  top: calc(22px + env(safe-area-inset-top, 0px));
-  left: calc(28px + env(safe-area-inset-left, 0px));
+  top: calc(22px + var(--safe-top));
+  left: calc(28px + var(--safe-left));
   z-index: 5;
   display: inline-flex;
   align-items: center;
@@ -561,9 +565,9 @@ body.ri-portal-body {
 
 /* Barra Inferior Global: © 2026 Radar de Talentos | Inteligência estratégica */
 .ri-bottom-bar {
-  min-height: calc(36px + env(safe-area-inset-bottom, 0px));
+  min-height: calc(36px + var(--safe-bottom));
   flex-shrink: 0;
-  padding: 6px calc(28px + env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) calc(28px + env(safe-area-inset-left, 0px));
+  padding: 6px calc(28px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(28px + var(--safe-left));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -590,24 +594,224 @@ body.ri-portal-body {
   background: rgba(154, 50, 239, 0.28);
 }
 
-@media (max-width: 900px) {
-  body.ri-portal-body,
-  .ri-page-shell,
+/* ==========================================================================
+   TABLETS (769px a 1024px) — Split-Screen proporcional Edge-to-Edge
+   ========================================================================== */
+@media (max-width: 1024px) and (min-width: 769px) {
   .ri-main-columns {
-    height: auto;
-    min-height: 100dvh;
-    max-height: none;
-    overflow-y: auto;
-  }
-  .ri-main-columns {
-    grid-template-columns: 1fr;
+    grid-template-columns: 48% 52%;
   }
   .ri-visual-stage {
-    padding: calc(56px + env(safe-area-inset-top, 0px)) 20px 24px;
-    border-right: 0;
-    border-bottom: 1px solid rgba(184, 132, 255, 0.14);
+    padding: calc(28px + var(--safe-top)) 18px 16px calc(18px + var(--safe-left));
   }
   .ri-auth-stage {
-    padding: 24px 20px 32px;
+    padding: calc(20px + var(--safe-top)) calc(24px + var(--safe-right)) 20px 24px;
+  }
+  .ri-radar-assembly {
+    width: 190px;
+    height: 190px;
+  }
+  .ri-radar-disc {
+    width: 182px;
+    height: 182px;
+  }
+  .ri-outer-orbit.orbit-1 { width: 260px; height: 260px; }
+  .ri-outer-orbit.orbit-2 { width: 340px; height: 340px; }
+  .ri-word-radar { font-size: 26px; }
+  .ri-word-talentos { font-size: 31px; }
+}
+
+/* ==========================================================================
+   MOBILE & SMARTPHONES (<= 768px) — Edge-to-Edge 100dvh Sem Scroll Desalinhado
+   ========================================================================== */
+@media (max-width: 768px) {
+  html,
+  body.ri-portal-body {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+    background: #0a0414;
+  }
+
+  .ri-page-shell {
+    height: 100dvh;
+    max-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+  }
+
+  .ri-main-columns {
+    flex: 1 1 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Hero Superior Compacto com Radar Giratório 360° + Logo */
+  .ri-visual-stage {
+    flex: 0 0 auto;
+    padding: calc(14px + var(--safe-top)) calc(16px + var(--safe-right)) 12px calc(16px + var(--safe-left));
+    border-right: 0;
+    border-bottom: 1px solid rgba(184, 132, 255, 0.14);
+    background: radial-gradient(circle at 50% 45%, rgba(126, 42, 224, 0.28) 0%, rgba(16, 7, 30, 0.92) 62%, #0a0414 100%);
+  }
+
+  .ri-top-tag {
+    position: static;
+    margin-bottom: 8px;
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+  }
+
+  .ri-outer-orbit.orbit-1 {
+    width: 156px;
+    height: 156px;
+    top: 44%;
+  }
+
+  .ri-outer-orbit.orbit-2 {
+    width: 210px;
+    height: 210px;
+    top: 44%;
+  }
+
+  .ri-center-piece {
+    margin-top: 0;
+    max-width: 100%;
+  }
+
+  .ri-radar-assembly {
+    width: 108px;
+    height: 108px;
+    margin-bottom: 8px;
+  }
+
+  .ri-radar-disc {
+    width: 104px;
+    height: 104px;
+  }
+
+  .ri-tick.tick-n,
+  .ri-tick.tick-s {
+    height: 8px;
+  }
+
+  .ri-tick.tick-e,
+  .ri-tick.tick-w {
+    width: 8px;
+  }
+
+  .ri-brand-lockup {
+    margin-bottom: 4px;
+  }
+
+  .ri-brand-title {
+    flex-direction: row;
+    gap: 6px;
+    align-items: baseline;
+  }
+
+  .ri-word-radar {
+    font-size: 20px;
+  }
+
+  .ri-word-talentos {
+    font-size: 20px;
+  }
+
+  .ri-sub-text {
+    margin: 3px 0 6px;
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+  }
+
+  .ri-brand-divider {
+    width: 150px;
+  }
+
+  .ri-sub-quote {
+    display: none;
+  }
+
+  .ri-pillars-caption {
+    margin-top: 4px;
+    font-size: 8.5px;
+    letter-spacing: 0.18em;
+  }
+
+  /* Card de Login Inferior Compacto e Integrado */
+  .ri-auth-stage {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px calc(18px + var(--safe-right)) 12px calc(18px + var(--safe-left));
+    background: #0d061a;
+  }
+
+  .ri-auth-card {
+    width: 100%;
+    max-width: 380px;
+    gap: 11px;
+  }
+
+  .ri-portal-eyebrow {
+    font-size: 9.5px;
+    margin-bottom: 4px;
+  }
+
+  .ri-auth-header h2 {
+    font-size: 21px;
+    margin: 0 0 3px;
+  }
+
+  .ri-auth-header p {
+    font-size: 12px;
+  }
+
+  .ri-form {
+    gap: 10px;
+  }
+
+  .ri-field {
+    gap: 4px;
+  }
+
+  .ri-field label {
+    font-size: 11.5px;
+  }
+
+  .ri-field input {
+    height: 40px;
+    font-size: 13px;
+  }
+
+  .ri-submit-btn {
+    height: 42px;
+    font-size: 13.5px;
+  }
+
+  .ri-auth-footer {
+    gap: 8px;
+    margin-top: 0;
+  }
+
+  .ri-bottom-bar {
+    min-height: calc(32px + var(--safe-bottom));
+    padding: 4px calc(14px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(14px + var(--safe-left));
+    font-size: 10px;
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+
+  .ri-apk-download-link {
+    padding: 2px 8px;
+    font-size: 9.5px;
+    white-space: nowrap;
   }
 }

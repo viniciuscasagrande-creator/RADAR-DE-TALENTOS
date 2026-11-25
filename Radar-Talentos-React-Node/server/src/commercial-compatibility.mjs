@@ -450,16 +450,43 @@ export function commercialCompatibility(db, p) {
   const v6DigitalPresenceScore = clamp(((networksWithNational * 0.5 + networksWithRadius * 0.3 + networksWithCity * 0.2) / 4) * 100);
 
   const v7ConfidenceScore = clamp(((networksWithNational * 0.35 + networksWithRadius * 0.40 + networksWithCity * 0.25) / 4) * 100);
+  const maxNationalReach = Math.max(0, ...media.map(m => Number(m.national?.value || 0)));
 
-  // Regra adotada: Ticketeiras e eventos publicados NÃO entram no cálculo do Score Comercial.
-  // O Score Comercial prioriza exclusivamente audiência comprovada, presença digital, crescimento e dados socioeconômicos.
+  // Regra adotada (Radar Score 2.0): Ticketeiras e eventos publicados NÃO entram no cálculo do Score Artístico nem do Score Territorial.
+  // Os eventos aparecem exclusivamente como o 3º resultado independente ("Contexto de Eventos") para apoiar a decisão humana.
+  const regionalAudienceComposite = v1DirectScore != null && v2RadiusScore != null
+    ? clamp(v1DirectScore * 0.6 + v2RadiusScore * 0.4)
+    : (v1DirectScore ?? v2RadiusScore);
+
+  const historicalConsistencyScore = clamp(
+    (networksWithNational * 15) +
+    (media.filter(m => m.national?.baseline_on != null).length * 10)
+  );
+
+  // 1) Radar Score Artístico (Popularidade, crescimento e tração nacional multi-mídia)
+  const reachLogScore = maxNationalReach > 0
+    ? clamp(Math.min(100, (Math.log10(Math.max(1000, maxNationalReach)) - 3) * 24))
+    : null;
+  const artisticComponents = [
+    [0.40, reachLogScore],
+    [0.35, v3GrowthScore],
+    [0.25, v6DigitalPresenceScore]
+  ].filter(([, val]) => val != null);
+  const artisticWeightSum = artisticComponents.reduce((sum, [w]) => sum + w, 0);
+  const artisticScoreValue = artisticWeightSum > 0
+    ? clamp(artisticComponents.reduce((sum, [w, val]) => sum + w * val, 0) / artisticWeightSum)
+    : null;
+
+  // 2) Radar Score Territorial 2.0 (Compatibilidade comercial entre artista e cidade — 6 pesos: 30/20/15/15/10/10)
   let overallScore = null;
   if (hasAnyData && (v1DirectScore != null || v2RadiusScore != null)) {
     const components = [
-      [0.36, v1DirectScore ?? (v2RadiusScore * 0.65)],
-      [0.28, v2RadiusScore ?? v1DirectScore],
-      [0.18, v3GrowthScore],
-      [0.18, v4AffinityScore]
+      [0.30, regionalAudienceComposite],
+      [0.20, v3GrowthScore],
+      [0.15, v4AffinityScore],
+      [0.15, v6DigitalPresenceScore],
+      [0.10, v5SocioeconomicScore],
+      [0.10, historicalConsistencyScore]
     ].filter(([, val]) => val != null);
     const totalWeight = components.reduce((sum, [w]) => sum + w, 0);
     const demandBase = totalWeight > 0
@@ -554,7 +581,6 @@ export function commercialCompatibility(db, p) {
     return artistEventIds.has(r.id) || (artistNameKey.length >= 4 && tNorm.includes(artistNameKey));
   });
 
-  const maxNationalReach = Math.max(0, ...media.map(m => Number(m.national?.value || 0)));
   const isSeatedCategory = categories.some(c => /Humor|Palestr|Ator|Mágic|Teatro/i.test(c.name));
   const estTier = maxNationalReach >= 10000000 ? 'A' : maxNationalReach >= 2500000 ? 'B' : maxNationalReach >= 400000 ? 'C' : 'D';
   const estPib = Number(cityDemo?.gdp_per_capita || 45000);
@@ -584,6 +610,15 @@ export function commercialCompatibility(db, p) {
           : overallScore >= 40
             ? '40–54 · Necessita investigação'
             : '0–39 · Baixa compatibilidade';
+
+  // Recomendação Comercial Qualificada por Cobertura e Confiança (Score × Confiança)
+  if (overallScore != null && confScore < 65 && (verdict.level === 'high' || verdict.level === 'good')) {
+    verdict = {
+      level: 'moderate',
+      label: `${verdict.label} (Sujeita a Validação — Cobertura Parcial ${confScore}%)`,
+      recommendation: `${verdict.recommendation} Nota de governança: como o Índice de Cobertura e Confiança é ${confScore}% (${networksWithNational}/4 mídias nacionais e ${networksWithRadius}/4 regionais), esta recomendação não recebe o mesmo selo prioritário de um artista com cobertura ampla verificada.`
+    };
+  }
 
   return {
     artist: {
@@ -622,17 +657,50 @@ export function commercialCompatibility(db, p) {
     days,
     score: overallScore,
     verdict,
+    threeIndependentResults: {
+      artisticScore: {
+        indicator: 'Radar Score Artístico',
+        purpose: 'Popularidade, crescimento e tração',
+        score: artisticScoreValue,
+        bandLabel: artisticScoreValue == null ? 'Dados insuficientes' : artisticScoreValue >= 80 ? 'Alta tração nacional' : artisticScoreValue >= 60 ? 'Boa tração multi-mídia' : 'Em construção',
+        summary: `${networksWithNational}/4 mídias ativas · Alcance líder: ${formatCompactPtBr(maxNationalReach)}${avgGrowthPct != null ? ` · Crescimento médio: ${avgGrowthPct >= 0 ? '+' : ''}${avgGrowthPct.toFixed(1)}%` : ''}`
+      },
+      territorialScore: {
+        indicator: 'Radar Score Territorial',
+        purpose: 'Compatibilidade entre artista e cidade (Radar Score 2.0)',
+        score: overallScore,
+        bandLabel: scoreBand,
+        summary: overallScore != null
+          ? `Score Territorial ${overallScore}/100 em ${city.name}/${city.uf} + raio de ${radius} km (${networksWithRadius}/4 mídias com audiência regional comprovada)`
+          : `Sem relatório municipal para ${city.name}/${city.uf} (avaliação neutra — não penaliza por ausência)`
+      },
+      eventsContext: {
+        indicator: 'Contexto de Eventos',
+        purpose: 'Concorrência, calendário e oferta anunciada (Isolado dos scores)',
+        isolatedFromScore: true,
+        cityEventsCount: cityCompetingEvents.length,
+        radiusEventsCount: radiusCompetingEvents.length,
+        artistUpcomingCount: futureArtistEvents.length,
+        daysSinceLastArtistEvent: daysSinceLastEvent,
+        statusLabel: radiusCompetingEvents.length > 0 || artistEventsInCatchment.length > 0
+          ? `${cityCompetingEvents.length} evento(s) no município · ${radiusCompetingEvents.length} na bacia de ${radius} km`
+          : 'Sem eventos concorrentes catalogados na janela',
+        summary: 'Consulta informativa de calendário e oferta anunciada em ticketeiras. Auxilia na decisão comercial sem interferir no cálculo do Radar Score Artístico ou Territorial.'
+      }
+    },
     radarScore: {
+      version: '2.0',
       score: overallScore,
+      artisticScore: artisticScoreValue,
       bandLabel: scoreBand,
+      methodologyNote: 'Radar Score 2.0 (Compatibilidade Territorial): eventos de ticketeiras permanecem 100% isolados no indicador "Contexto de Eventos" e não alteram a pontuação comercial.',
       weights: [
-        { key: 'regional_audience', label: 'Audiência regional comprovada', weightPct: 25, score: v1DirectScore ?? v2RadiusScore },
+        { key: 'regional_audience', label: 'Audiência regional comprovada', weightPct: 30, score: regionalAudienceComposite },
         { key: 'digital_growth', label: 'Crescimento digital', weightPct: 20, score: v3GrowthScore },
-        { key: 'engagement_quality', label: 'Engajamento e qualidade da audiência', weightPct: 15, score: v6DigitalPresenceScore },
-        { key: 'category_affinity', label: 'Afinidade artística com a praça', weightPct: 15, score: v4AffinityScore },
-        { key: 'economic_potential', label: 'Potencial econômico regional (IBGE)', weightPct: 10, score: v5SocioeconomicScore },
-        { key: 'event_history', label: 'Bacia regional e histórico territorial', weightPct: 10, score: v2RadiusScore },
-        { key: 'competition_saturation', label: 'Concorrência e saturação local', weightPct: 5, score: cityCompetingEvents.length === 0 ? 90 : Math.max(40, 90 - cityCompetingEvents.length * 10) }
+        { key: 'category_affinity', label: 'Afinidade artística regional', weightPct: 15, score: v4AffinityScore },
+        { key: 'engagement_traction', label: 'Engajamento e tração', weightPct: 15, score: v6DigitalPresenceScore },
+        { key: 'economic_potential', label: 'Potencial econômico da praça (IBGE)', weightPct: 10, score: v5SocioeconomicScore },
+        { key: 'historical_consistency', label: 'Consistência histórica', weightPct: 10, score: historicalConsistencyScore }
       ]
     },
     confidenceIndicator: {
@@ -640,7 +708,15 @@ export function commercialCompatibility(db, p) {
       level: confLevel,
       verifiedNetworksCount: networksWithNational,
       regionalNetworksCount: networksWithRadius,
-      independentRule: 'Indicador independente de confiança: a ausência de relatório regional nunca penaliza o artista com pontuação falsa.'
+      cityNetworksCount: networksWithCity,
+      qualifiedRecommendationTier: overallScore == null
+        ? 'Neutro — Aguardando Cobertura Regional'
+        : (overallScore >= 70 && confScore >= 65)
+          ? 'Recomendação Prioritária Verificada (Score Alto + Ampla Cobertura)'
+          : (overallScore >= 70 && confScore < 65)
+            ? 'Potencial Elevado com Baixa Cobertura — Validar Dados Antes da Contratação'
+            : 'Recomendação Padrão Auditada',
+      independentRule: 'Um artista com pontuação elevada mas poucas informações verificadas recebe alerta de validação e não recebe a mesma recomendação prioritária de outro com ampla cobertura de dados.'
     },
     roadTravelEstimate: {
       straightRadiusKm: radius,

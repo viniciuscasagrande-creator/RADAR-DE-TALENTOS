@@ -171,6 +171,16 @@ test('Simulador de Compatibilidade: Pastor Cláudio Duarte em Criciúma/SC retor
 
     assert.ok(res.score >= 80, `Score esperado >= 80, recebido ${res.score}`);
     assert.equal(res.verdict.level, 'high');
+    assert.equal(res.radarScore.version, '2.0');
+    assert.equal(res.radarScore.weights.length, 6);
+    assert.deepEqual(
+      res.radarScore.weights.map(w => w.weightPct),
+      [30, 20, 15, 15, 10, 10]
+    );
+    assert.ok(res.threeIndependentResults?.artisticScore?.score >= 70);
+    assert.equal(res.threeIndependentResults?.territorialScore?.score, res.score);
+    assert.equal(res.threeIndependentResults?.eventsContext?.isolatedFromScore, true);
+    assert.ok(res.confidenceIndicator?.score >= 65);
     assert.ok(res.salesPitch.length >= 4);
     assert.match(res.salesPitch[0], /Criciúma\/SC/);
   } finally {

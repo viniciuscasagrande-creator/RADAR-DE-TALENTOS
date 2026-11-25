@@ -783,7 +783,7 @@ function renderCompatibilityResult(d){
   el('h3',`${d.artist.name} × ${d.city.name} / ${d.city.uf} — ${d.verdict.label}`,left);
   el('p',d.verdict.recommendation,left);
   if(d.confidenceIndicator){
-    const confLine=el('small',`🛡 Confiança Independente dos Dados: ${d.confidenceIndicator.score}% (${d.confidenceIndicator.level}) · Faixa Radar Score: ${d.radarScore?.bandLabel||d.verdict.label}`,left);
+    const confLine=el('small',`🛡 Índice de Cobertura e Confiança: ${d.confidenceIndicator.score}% (${d.confidenceIndicator.level}) · Recomendação Qualificada: ${d.confidenceIndicator.qualifiedRecommendationTier||d.radarScore?.bandLabel||d.verdict.label}`,left);
     confLine.style.color='#67e8f9';
     confLine.style.display='block';
     confLine.style.marginTop='4px';
@@ -792,15 +792,78 @@ function renderCompatibilityResult(d){
   const badge=el('div',null,banner);
   badge.className='compat-score-badge';
   el('strong',d.score!=null?`${d.score}/100`:'Neutro',badge);
-  el('small','Radar Score Comercial',badge);
+  el('small','Radar Score Territorial 2.0',badge);
+
+  // 3 Resultados Independentes (Radar Score Artístico · Radar Score Territorial · Contexto de Eventos Isolado) + Índice de Cobertura e Confiança
+  if(d.threeIndependentResults){
+    const triadGrid=el('div',null,compatResult);
+    triadGrid.style.display='grid';
+    triadGrid.style.gridTemplateColumns='repeat(auto-fit,minmax(230px,1fr))';
+    triadGrid.style.gap='10px';
+    triadGrid.style.margin='12px 0';
+    const artR=d.threeIndependentResults.artisticScore;
+    const terR=d.threeIndependentResults.territorialScore;
+    const evtR=d.threeIndependentResults.eventsContext;
+    const cnfR=d.confidenceIndicator;
+    const triadCards=[
+      [artR.indicator,artR.score!=null?`${artR.score}/100`:'—',artR.purpose,artR.summary,'#c084fc'],
+      [terR.indicator,terR.score!=null?`${terR.score}/100`:'Neutro',terR.purpose,terR.summary,'#00f0ff'],
+      [evtR.indicator,evtR.statusLabel,evtR.purpose,evtR.summary,'#facc15'],
+      ['Índice de Cobertura e Confiança',`${cnfR?.score??0}%`,cnfR?.level||'Cobertura auditada',cnfR?.independentRule||'Indicador independente de cobertura e verificação.','#22c55e']
+    ];
+    for(const [indTitle,indVal,indPurpose,indSum,indColor] of triadCards){
+      const tc=el('div',null,triadGrid);
+      tc.style.padding='12px 14px';
+      tc.style.background='#130f22';
+      tc.style.border=`1.5px solid ${indColor}`;
+      tc.style.boxShadow=`0 0 14px ${indColor}33`;
+      tc.style.borderRadius='10px';
+      tc.style.display='flex';
+      tc.style.flexDirection='column';
+      tc.style.gap='4px';
+      const sPurp=el('small',indPurpose,tc);
+      sPurp.style.textTransform='uppercase';
+      sPurp.style.fontSize='9.5px';
+      sPurp.style.color='#cbd5e1';
+      const hInd=el('strong',`${indTitle}: ${indVal}`,tc);
+      hInd.style.fontSize='15px';
+      hInd.style.color=indColor;
+      const pSum=el('small',indSum,tc);
+      pSum.style.fontSize='11px';
+      pSum.style.color='#e2e8f0';
+    }
+  }
 
   const execGrid=el('div',null,compatResult);
   execGrid.className='compat-exec-grid';
 
-  // Coluna Esquerda: 7 Variáveis de Decisão para Vendas (Compactas)
+  // Coluna Esquerda: Composição do Radar Score 2.0 (6 Pesos Oficiais) + 7 Variáveis Operacionais
   const leftBox=el('div',null,execGrid);
   leftBox.className='compat-panel-box';
-  el('h4','7 Variáveis de Viabilidade para Vendas',leftBox);
+  el('h4','Composição do Radar Score Territorial 2.0 (Sem interferência de Ticketeiras)',leftBox);
+  if(d.radarScore?.weights?.length){
+    const wList=el('div',null,leftBox);
+    wList.className='compat-vars-list';
+    wList.style.marginBottom='12px';
+    for(const w of d.radarScore.weights){
+      const wr=el('div',null,wList);
+      wr.className='compat-var-row';
+      const wh=el('div',null,wr);
+      wh.className='compat-var-head';
+      el('span',`${w.label} (Peso ${w.weightPct}%)`,wh);
+      el('b',w.score!=null?`${w.score}/100`:'—',wh);
+      const bar=el('div',null,wr);
+      bar.className='compat-var-bar';
+      const fill=el('div',null,bar);
+      fill.className='compat-var-fill';
+      fill.style.width=`${w.score!=null?Math.max(4,w.score):0}%`;
+    }
+    const methNote=el('small',d.radarScore.methodologyNote||'Eventos de ticketeiras permanecem isolados no Contexto de Eventos e não interferem no cálculo do Radar Score.',leftBox);
+    methNote.style.display='block';
+    methNote.style.marginBottom='10px';
+    methNote.style.color='#a5f3fc';
+  }
+  el('h4','7 Variáveis Operacionais e Demográficas para Vendas',leftBox);
   const varsList=el('div',null,leftBox);
   varsList.className='compat-vars-list';
   for(const v of d.variables||[]){

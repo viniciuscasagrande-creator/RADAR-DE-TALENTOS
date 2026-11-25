@@ -857,15 +857,17 @@
       const tbl = el('table', 'studio-table');
       const thead = el('thead'),
         trH = el('tr');
-      ['Artista', 'Praça Recomendada', 'Radar Score', 'Confiança', 'Simulador Financeiro'].forEach(h => trH.append(el('th', null, h)));
+      ['Artista', 'Praça Recomendada', 'Score Artístico', 'Score Territorial 2.0', 'Cobertura & Confiança', 'Simulador P&L'].forEach(h => trH.append(el('th', null, h)));
       thead.append(trH);
       tbl.append(thead);
       const tb = el('tbody');
       topForOpp.forEach((art, idx) => {
         const hub = recommendedHubs[idx % recommendedHubs.length];
         const netsCount = ['Instagram', 'Spotify', 'YouTube', 'TikTok'].filter(n => art.media?.[n]?.value != null).length;
-        const confPct = Math.min(98, 55 + netsCount * 14);
-        const scoreEst = Math.min(96, Math.max(74, 78 + netsCount * 4 + (idx === 0 ? 4 : idx < 3 ? 2 : 0)));
+        const confPct = Math.min(98, 40 + netsCount * 14);
+        const artisticEst = Math.min(96, Math.max(70, 74 + netsCount * 5));
+        const scoreEst = Math.min(96, Math.max(72, 76 + netsCount * 4 + (idx === 0 ? 4 : idx < 3 ? 2 : 0)));
+        const isHighConf = confPct >= 65;
         const tr = el('tr');
         const tdA = el('td');
         const bA = el('button', 'studio-artist-btn', art.name);
@@ -880,12 +882,19 @@
           el('td', null, hub.city),
           (() => {
             const td = el('td');
-            const st = el('strong', null, `${scoreEst} / 100`);
-            st.style.color = '#00ff88';
+            const st = el('strong', null, `${artisticEst} / 100`);
+            st.style.color = '#c084fc';
             td.append(st);
             return td;
           })(),
-          el('td', null, `${confPct}% (${netsCount}/4 mídias)`),
+          (() => {
+            const td = el('td');
+            const st = el('strong', null, `${scoreEst} / 100`);
+            st.style.color = isHighConf ? '#00ff88' : '#facc15';
+            td.append(st);
+            return td;
+          })(),
+          el('td', null, `${confPct}% (${netsCount}/4 mídias · ${isHighConf ? 'Prioritária' : 'Validar cobertura'})`),
           (() => {
             const td = el('td');
             const sb = el('button', 'btn-simulate-show', '💰 Simular P&L');
@@ -991,12 +1000,12 @@
       );
     } else if (q.includes('score') || q.includes('financeiro') || q.includes('explique')) {
       addLine(
-        '📐 Composição do Radar Score Comercial (0–100) & Confiança Independente',
-        'Ponderação: Audiência regional comprovada (25%) + Crescimento digital (20%) + Engajamento/Qualidade (15%) + Afinidade com a praça (15%) + Potencial econômico IBGE (10%) + Bacia/Histórico territorial (10%) + Concorrência local (5%).'
+        '📐 3 Resultados Independentes + Radar Score Territorial 2.0 (0–100)',
+        '1) Radar Score Artístico (popularidade, crescimento e tração nacional); 2) Radar Score Territorial 2.0 (Audiência regional comprovada 30% + Crescimento digital 20% + Afinidade artística regional 15% + Engajamento e tração 15% + Potencial econômico IBGE 10% + Consistência histórica 10%); 3) Contexto de Eventos (concorrência e oferta em ticketeiras, 100% isolado dos scores).'
       );
       addLine(
-        '🛡 Regra de Confiança Independente',
-        'Artistas sem relatório regional recebem indicador de confiança separado e nunca são penalizados com nota baixa falsa. O Simulador Financeiro calcula Ponto de Equilíbrio (ingressos e % mínima), Receita Líquida e Margem Operacional.'
+        '🛡 Índice de Cobertura e Confiança (Qualificador de Recomendação)',
+        'Artistas com pontuação alta mas baixa cobertura verificada não recebem a mesma recomendação prioritária de artistas com ampla cobertura multi-mídia. O Simulador Financeiro calcula Ponto de Equilíbrio, Receita Líquida e Margem Operacional.'
       );
     } else {
       const matchedArtist = crossArtists.find(a => q && (normQ(a.name).includes(q) || q.includes(normQ(a.name))));

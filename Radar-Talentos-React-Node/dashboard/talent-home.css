@@ -1717,6 +1717,46 @@
   color: #d8b4fe;
   line-height: 1.25;
 }
+.talent-home .mmp-growing-talents {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  background: rgba(16, 28, 24, 0.72);
+  border: 1px solid rgba(34, 197, 94, 0.38);
+}
+.talent-home .mmp-growing-talents > span {
+  font-size: 9.2px;
+  font-weight: 750;
+  color: #86efac;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.talent-home .mmp-growing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.talent-home .mmp-talent-pill {
+  width: 100%;
+  height: 21px;
+  padding: 0 7px;
+  font-size: 9.8px;
+  font-weight: 650;
+  border-radius: 5px;
+  background: rgba(20, 16, 34, 0.9);
+  border: 1px solid rgba(74, 222, 128, 0.45);
+  color: #f0fdf4;
+  justify-content: flex-start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.talent-home .mmp-talent-pill:hover {
+  background: rgba(22, 101, 52, 0.65);
+  border-color: #4ade80;
+  color: #ffffff;
+}
 .talent-home .mmp-actions {
   display: flex;
   align-items: center;

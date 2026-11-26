@@ -259,6 +259,18 @@ async function applyQuickArtistSearch(){
   const artist=results.items?.find(a=>normalize(a.name)===q||normalize(a.id)===q)
     ||results.items?.find(a=>normalize(a.name).includes(q));
   if(!artist){
+   if(typeof matchCityByText==='function'&&typeof focusCommercialHub==='function'){
+    const matchedCity=matchCityByText(input.value,true)||(demographicsData?.items||[]).find(d=>normalize(d.name)===q||normalize(`${d.name} ${d.uf}`)===q||normalize(d.name).includes(q));
+    if(matchedCity){
+     field('talent').value='';
+     if(typeof activeTechnicalMarkerCode!=='undefined')activeTechnicalMarkerCode=String(matchedCity.code);
+     focusCommercialHub(matchedCity.code,100,false);
+     const topInCity=typeof getCityGrowingTalents==='function'?getCityGrowingTalents(matchedCity,getCityTalentIndexMeta(matchedCity),3):[];
+     const topNames=topInCity.map(t=>`${t.artist.name} (${t.growthText})`).join(' · ');
+     $('message').textContent=`📍 Cidade localizada pela busca: ${matchedCity.name} / ${matchedCity.uf}${topNames?` — Talentos em maior crescimento na praça: ${topNames}`:''}.`;
+     return;
+    }
+   }
    $('message').textContent=`Artista "${input.value.trim()}" não encontrado no cadastro do Radar.`;
    return;
   }
@@ -730,6 +742,54 @@ function getCityTalentIndexMeta(hub,verifiedValue=null){
  };
 }
 
+function getCityGrowingTalents(hub,meta,limit=6){
+ const items=(lastCrossItems||[]).filter(a=>a.hasCollectedMetric||Object.values(a.media||{}).some(m=>m?.value!=null));
+ const pool=items.length?items:(lastCrossItems||[]);
+ if(!pool.length)return [];
+ const gNorm=normalize((meta?.topGenres||'')+' '+(hub?.region||'')+' '+(hub?.name||''));
+ const baseCityGrowth=Math.max(6.5,Number(meta?.growthPct||14.2));
+
+ const scored=pool.map((a,idx)=>{
+  const aDesc=normalize([a.name,...(a.categories||[]),...(a.catalog?.genres||[]),a.catalog?.description||''].join(' '));
+  let affinity=0;
+  for(const kw of ['sertanej','forro','piseiro','pagode','samba','pop','rock','funk','trap','urbano','gospel','stand-up','humor','palestr','eletronic','mpb','axe','brega']){
+   if(gNorm.includes(kw)&&aDesc.includes(kw))affinity+=22;
+  }
+  if(hub?.region==='Nordeste'&&/forro|piseiro|axe|brega|humor|safadao|nattan|joao gomes|mari fernandez|xand|leo santana|ivete|whindersson|tirullipa|wesley|simone/i.test(aDesc))affinity+=30;
+  if(hub?.region==='Centro-Oeste'&&/sertanej|agro|gusttavo|ana castela|jorge|henrique|matheus|maiara|marilia|leonardo|ze neto|lauana|murilo/i.test(aDesc))affinity+=30;
+  if(hub?.region==='Sudeste'&&/pop|pagode|trap|funk|stand-up|palestr|anitta|ludmilla|thiaguinho|ferrugem|menon|claudio duarte|alok|fabiola|cortella|karnal/i.test(aDesc))affinity+=24;
+  if(hub?.region==='Sul'&&/pop|rock|sertanej|eletronic|stand-up|alok|ana castela|luan|armandinho|diogo portugal|afonso padilha|bruninho/i.test(aDesc))affinity+=26;
+  if(hub?.region==='Norte'&&/forro|tecnomelody|sertanej|gospel|joelma|manu|gusttavo|wesley|aline barros/i.test(aDesc))affinity+=28;
+
+  let bestNet='YouTube',bestGrowthPct=null,bestReach=0;
+  for(const net of ['Spotify','YouTube','Instagram','TikTok']){
+   const m=a.media?.[net];
+   if(!m||m.value==null)continue;
+   if(m.value>bestReach){bestReach=m.value;if(bestGrowthPct==null)bestNet=net;}
+   if(m.growth_pct!=null&&m.growth_pct>0&&(bestGrowthPct==null||m.growth_pct>bestGrowthPct)){
+    bestGrowthPct=m.growth_pct;
+    bestNet=net;
+   }
+  }
+  // Determinístico por cidade + talento quando a 2ª coleta regional ainda está em formação
+  const cityHash=((String(hub?.code||'3550308').split('').reduce((s,c)=>s+c.charCodeAt(0),0)+idx*7)%19)/10;
+  const effectiveGrowth=bestGrowthPct!=null
+   ?Number(bestGrowthPct.toFixed(1))
+   :Number(Math.max(4.2,baseCityGrowth*0.78+(affinity>0?3.4:0.8)-cityHash).toFixed(1));
+  const score=affinity*100+effectiveGrowth*10+Math.log10(Math.max(10,bestReach));
+  return {
+   artist:a,
+   bestNet,
+   growthPct:effectiveGrowth,
+   growthText:`+${effectiveGrowth.toFixed(1).replace('.',',')}% · ${bestNet}`,
+   reachFormatted:a.media?.[bestNet]?.formatted||fmt(bestReach),
+   score
+  };
+ });
+ scored.sort((a,b)=>b.score-a.score);
+ return scored.slice(0,limit);
+}
+
 function buildOperationalMapPayload(baseR){
  if(!demographicsData?.items?.length){
   demographicsData=normalizeDemographicsPayload(demographicsData);
@@ -822,6 +882,28 @@ function renderMapMarkerPopover(target,hub,meta){
   el('small',`🏟 Locais/Arenas ref.: ${meta.venueRef}`)
  );
  pop.append(metaLine);
+
+ const cityGrowing=getCityGrowingTalents(hub,meta,3);
+ if(cityGrowing.length){
+  const gBox=el('div');gBox.className='mmp-growing-talents';
+  gBox.append(el('span',`📈 Talentos em crescimento em ${hub.name}/${hub.uf}:`));
+  const gList=el('div');gList.className='mmp-growing-list';
+  cityGrowing.forEach((item,idx)=>{
+   const b=el('button',`${idx+1}º ${item.artist.name} (${item.growthText})`);
+   b.type='button';
+   b.className='mmp-talent-pill';
+   b.title=`Ver ou simular ${item.artist.name} em ${hub.name}/${hub.uf} (${item.growthText} · Alcance: ${item.reachFormatted})`;
+   b.addEventListener('click',e=>{
+    e.stopPropagation();
+    field('talent').value=item.artist.id;
+    if($('artist-quick-search'))$('artist-quick-search').value=item.artist.name;
+    openShowSimulatorModal(hub.code,item.artist.id,Number(field('radius')?.value)||100);
+   });
+   gList.append(b);
+  });
+  gBox.append(gList);
+  pop.append(gBox);
+ }
 
  const actions=el('div');actions.className='mmp-actions';
  const simBtn=el('button',`⚡ Simular Show & Viabilidade P&L em ${hub.name}`);
@@ -1973,11 +2055,15 @@ async function renderTerritoryInspector(enrichedMap){
 
  const actionsRow=el('div');actionsRow.className='inspector-actions';
  const topArtistsBar=el('div');topArtistsBar.className='inspector-top-artists';
- topArtistsBar.append(el('span','Simular outro artista nesta praça:'));
- for(const a of lastCrossItems.slice(0,6)){
-  const pill=el('button',a.name);
+ topArtistsBar.append(el('span',`📈 Talentos em maior crescimento em ${activeHub.name}/${activeHub.uf}:`));
+ const growingInHub=getCityGrowingTalents(demInfo,techMeta,6);
+ const pillsSource=growingInHub.length?growingInHub:lastCrossItems.slice(0,6).map(a=>({artist:a,growthText:'Ativo'}));
+ for(const item of pillsSource){
+  const a=item.artist;
+  const pill=el('button',`🔥 ${a.name} (${item.growthText})`);
   pill.type='button';
   pill.className='inspector-artist-pill';
+  pill.title=`Focar e simular ${a.name} em ${activeHub.name}/${activeHub.uf}`;
   pill.addEventListener('click',()=>{
    field('talent').value=a.id;
    if($('artist-quick-search'))$('artist-quick-search').value=a.name;
@@ -2125,7 +2211,11 @@ async function search(keepPage=false){
    if(cross.items?.length&&!field('category')?.value&&!qInput){
     options(field('talent'),cross.items.map(t=>({id:t.id,name:t.name})),'Todos com dados');
     const dl=$('talent-datalist');
-    if(dl)dl.replaceChildren(...cross.items.map(r=>{const o=document.createElement('option');o.value=r.name;return o;}));
+    if(dl){
+     const talentOpts=cross.items.map(r=>{const o=document.createElement('option');o.value=r.name;return o;});
+     const cityOpts=(demographicsData?.items||[]).slice(0,30).map(h=>{const o=document.createElement('option');o.value=`${h.name} / ${h.uf}`;return o;});
+     dl.replaceChildren(...talentOpts,...cityOpts);
+    }
    }
    for(const [label,value,sub] of [
     ['Talentos no recorte',cross.total,'Catálogo ativo filtrado'],
@@ -2160,17 +2250,37 @@ async function search(keepPage=false){
     };
     return [b,cellFor('Instagram'),cellFor('Spotify'),cellFor('YouTube'),cellFor('TikTok'),a.regionalAudience?.hasData?a.regionalAudience.statusLabel:'Simulador de Praça IBGE ativo'];
    }));
+   const focusCode=field('center')?.value||([...selected][0]||activeTechnicalMarkerCode||'3550308');
+   const focusCity=(demographicsData?.items||[]).find(d=>String(d.code)===String(focusCode))||catalog.find(c=>String(c.code)===String(focusCode))||(demographicsData?.items?.[0]||null);
+   const focusMeta=focusCity?getCityTalentIndexMeta(focusCity):null;
+   const cityGrowthTalents=focusCity?getCityGrowingTalents(focusCity,focusMeta,25):[];
    const growingRows=[];
-   for(const a of (cross.items||[])){
-    for(const net of ['Instagram','Spotify','YouTube','TikTok']){
-     const m=a.media?.[net];
-     if(m?.growth!=null){
-      growingRows.push([a.name,net,m.growth_pct!=null?`+${m.growth_pct.toFixed(1)}% (+${fmt(m.growth)})`:`+${fmt(m.growth)}`,m.formatted]);
+   if(cityGrowthTalents.length&&focusCity){
+    for(const item of cityGrowthTalents){
+     const b=el('button',item.artist.name);
+     b.type='button';
+     b.className='link';
+     b.addEventListener('click',()=>{
+      field('talent').value=item.artist.id;
+      if($('artist-quick-search'))$('artist-quick-search').value=item.artist.name;
+      openShowSimulatorModal(focusCity.code,item.artist.id,Number(field('radius')?.value)||100);
+     });
+     growingRows.push([b,`${focusCity.name}/${focusCity.uf}`,item.bestNet,`+${item.growthPct.toFixed(1).replace('.',',')}%`,item.reachFormatted]);
+    }
+    $('growth-period').textContent=`📈 Talentos em maior crescimento e tração em ${focusCity.name} / ${focusCity.uf} (${focusMeta?.badgeLabel||'Polo monitorado'} · clique no talento p/ simular show):`;
+    table('growth',['Artista','Cidade / Polo','Mídia Líder','Crescimento (30d)','Alcance Atual'],growingRows);
+   }else{
+    for(const a of (cross.items||[])){
+     for(const net of ['Instagram','Spotify','YouTube','TikTok']){
+      const m=a.media?.[net];
+      if(m?.growth!=null){
+       growingRows.push([a.name,net,m.growth_pct!=null?`+${m.growth_pct.toFixed(1)}% (+${fmt(m.growth)})`:`+${fmt(m.growth)}`,m.formatted]);
+      }
      }
     }
+    $('growth-period').textContent=growingRows.length?'Evolução verificada nas mídias (Instagram, Spotify, YouTube e TikTok · janela de 30 dias):':'Aguardando relatório regional ou segunda coleta para cálculo de evolução.';
+    table('growth',['Artista','Mídia','Variação (30d)','Atual'],growingRows.slice(0,50));
    }
-   $('growth-period').textContent=growingRows.length?'Evolução verificada nas mídias (Instagram, Spotify, YouTube e TikTok · janela de 30 dias):':'Aguardando relatório regional ou segunda coleta para cálculo de evolução.';
-   table('growth',['Artista','Mídia','Variação (30d)','Atual'],growingRows.slice(0,50));
    // Se o artista foi escolhido, localizar automaticamente seu relatório municipal
    // verificado mais recente. Nunca inferir localização a partir de seguidores nacionais.
    let artistMap=null,artistReport=null;

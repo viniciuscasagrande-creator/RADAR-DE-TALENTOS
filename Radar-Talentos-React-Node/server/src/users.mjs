@@ -215,7 +215,7 @@ export function ensureDefaultAdminUser(db) {
   try {
     db.prepare("UPDATE radar_users SET role = 'admin' WHERE lower(username) = 'vinicius.casagrande' AND role = 'user'").run();
     const nailaRows = db
-      .prepare("SELECT id FROM radar_users WHERE id = 'u-naila.longas-210a89' OR lower(username) = 'naila.longas'")
+      .prepare("SELECT id FROM radar_users WHERE id = 'u-naila.longas-210a89'")
       .all();
     for (const nr of nailaRows) {
       db.prepare('DELETE FROM radar_sessions WHERE user_id = ? OR impersonated_user_id = ?').run(nr.id, nr.id);

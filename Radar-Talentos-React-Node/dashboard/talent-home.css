@@ -1274,4 +1274,440 @@
   }
 }
 
+/* ==========================================================================
+   Bolinhas Neon Multi-Índice no Mapa, Etiquetas (Callouts), Legenda Flutuante,
+   Ficha Técnica Popover e Cards Laterais de Crescimento & Concentração
+   ========================================================================== */
+.talent-home #map {
+  position: relative;
+}
+.talent-home .map-side {
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+}
+.talent-home .legend-growth {
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  border-radius: 50% !important;
+}
+.talent-home .legend-concentration {
+  background: #ffffff;
+  border: 2px solid #22c55e;
+  box-shadow: 0 0 8px #a855f7, 0 0 12px #22c55e;
+  border-radius: 50% !important;
+}
+.talent-home .legend-city {
+  background: #facc15;
+  box-shadow: 0 0 6px #facc15;
+  border-radius: 50% !important;
+}
+
+/* Marcadores e Etiquetas SVG clicáveis no Mapa */
+.talent-home #map .map-index-marker,
+.talent-home #map .map-callout-badge {
+  cursor: pointer;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.talent-home #map .map-index-marker.is-dimmed {
+  opacity: 0.16;
+}
+.talent-home #map .map-index-marker:hover .ibge-hub-point,
+.talent-home #map .map-index-marker.is-selected .ibge-hub-point {
+  stroke: #ffffff;
+  stroke-width: 2.4px;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.85));
+}
+.talent-home #map .marker-type-growth .ibge-hub-point {
+  filter: drop-shadow(0 0 5px rgba(34, 197, 94, 0.85));
+}
+.talent-home #map .marker-type-concentration .ibge-hub-point {
+  filter: drop-shadow(0 0 7px rgba(34, 197, 94, 0.95));
+}
+.talent-home #map .marker-type-concentration .marker-halo-outer {
+  animation: radar-pulse-halo 2.6s infinite ease-in-out;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.talent-home #map .marker-type-growth .marker-halo-outer {
+  animation: radar-pulse-halo 3.2s infinite ease-in-out;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes radar-pulse-halo {
+  0%, 100% {
+    opacity: 0.72;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+.talent-home #map .map-callout-badge rect {
+  transition: stroke 0.15s ease, fill 0.15s ease;
+}
+.talent-home #map .map-callout-badge:hover rect,
+.talent-home #map .map-callout-badge.is-selected rect {
+  fill: rgba(24, 16, 42, 0.98);
+  stroke: #ffffff;
+  stroke-width: 1.7px;
+}
+
+/* Legenda Flutuante no Canto Superior Direito do Mapa */
+.talent-home .map-floating-legend {
+  position: absolute;
+  top: 34px;
+  right: 12px;
+  width: 238px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: rgba(14, 10, 24, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1.5px solid rgba(192, 132, 252, 0.65);
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.32), inset 0 0 10px rgba(192, 132, 252, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  z-index: 6;
+}
+.talent-home .mfl-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(192, 132, 252, 0.25);
+}
+.talent-home .mfl-head strong {
+  font-size: 11px;
+  color: #f5d0fe;
+  letter-spacing: 0.02em;
+}
+.talent-home .mfl-head small {
+  font-size: 9.5px;
+  color: #a5f3fc;
+}
+.talent-home .mfl-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  height: auto;
+  padding: 4px 6px;
+  border-radius: 7px;
+  background: rgba(24, 18, 38, 0.72);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  text-align: left;
+  transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+}
+.talent-home .mfl-item:hover {
+  background: rgba(45, 28, 72, 0.88);
+  border-color: #00f0ff;
+}
+.talent-home .mfl-item[aria-pressed="true"] {
+  background: linear-gradient(135deg, rgba(88, 28, 135, 0.85), rgba(30, 20, 56, 0.92));
+  border-color: #22c55e;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.45);
+}
+.talent-home .mfl-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.talent-home .mfl-dot-growth {
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  border: 1.5px solid #bbf7d0;
+}
+.talent-home .mfl-dot-concentration {
+  background: #ffffff;
+  border: 2.5px solid #22c55e;
+  box-shadow: 0 0 8px #22c55e, 0 0 12px #a855f7;
+}
+.talent-home .mfl-dot-economic {
+  background: #00f0ff;
+  box-shadow: 0 0 8px #00f0ff;
+  border: 1.5px solid #e0f2fe;
+}
+.talent-home .mfl-dot-opportunity {
+  background: #facc15;
+  box-shadow: 0 0 8px #facc15;
+  border: 1.5px solid #fef9c3;
+}
+.talent-home .mfl-txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.talent-home .mfl-txt span {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.2;
+}
+.talent-home .mfl-txt small {
+  font-size: 9px;
+  color: #cbd5e1;
+  line-height: 1.2;
+  white-space: normal;
+}
+.talent-home .mfl-reset {
+  height: 22px;
+  font-size: 10px;
+  background: rgba(0, 240, 255, 0.14);
+  border: 1px solid #00f0ff;
+  color: #a5f3fc;
+  border-radius: 6px;
+}
+
+/* Ficha Técnica Popover da Bolinha Clicada no Mapa */
+.talent-home .map-marker-popover {
+  position: absolute;
+  left: 12px;
+  bottom: 42px;
+  width: min(330px, calc(100% - 24px));
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: rgba(13, 10, 24, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1.5px solid #22c55e;
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.35), 0 0 30px rgba(168, 85, 247, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 7;
+}
+.talent-home .map-marker-popover[data-index-type="concentration"] {
+  border-color: #c084fc;
+  box-shadow: 0 0 22px rgba(192, 132, 252, 0.45), 0 0 28px rgba(34, 197, 94, 0.25);
+}
+.talent-home .map-marker-popover[data-index-type="economic"] {
+  border-color: #00f0ff;
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+}
+.talent-home .map-marker-popover[data-index-type="opportunity"] {
+  border-color: #facc15;
+  box-shadow: 0 0 20px rgba(250, 204, 21, 0.4);
+}
+.talent-home .mmp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.talent-home .mmp-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.talent-home .mmp-badge-growth {
+  background: rgba(34, 197, 94, 0.18);
+  border: 1px solid #22c55e;
+  color: #4ade80;
+}
+.talent-home .mmp-badge-concentration {
+  background: rgba(192, 132, 252, 0.2);
+  border: 1px solid #c084fc;
+  color: #f0abfc;
+}
+.talent-home .mmp-badge-economic {
+  background: rgba(0, 240, 255, 0.16);
+  border: 1px solid #00f0ff;
+  color: #67e8f9;
+}
+.talent-home .mmp-badge-opportunity {
+  background: rgba(250, 204, 21, 0.16);
+  border: 1px solid #facc15;
+  color: #fde047;
+}
+.talent-home .mmp-close {
+  height: 20px;
+  width: 20px;
+  padding: 0;
+  font-size: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #e4e4e7;
+}
+.talent-home .mmp-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.talent-home .mmp-title-row strong {
+  font-size: 13px;
+  color: #ffffff;
+}
+.talent-home .mmp-title-row span {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #00f0ff;
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+.talent-home .mmp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+.talent-home .mmp-cell {
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(24, 18, 38, 0.85);
+  border: 1px solid rgba(192, 132, 252, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.talent-home .mmp-cell span {
+  font-size: 9px;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.talent-home .mmp-cell strong {
+  font-size: 11px;
+  color: #ffffff;
+  line-height: 1.2;
+}
+.talent-home .mmp-meta-line {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.talent-home .mmp-meta-line small {
+  font-size: 9.8px;
+  color: #d8b4fe;
+  line-height: 1.25;
+}
+.talent-home .mmp-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+.talent-home .mmp-actions button {
+  height: 25px;
+  font-size: 10.5px;
+  padding: 0 9px;
+}
+
+/* Cards Laterais Neon: Regiões com Crescimento e Maior Concentração de Talentos */
+.talent-home .map-side-talent-insights {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.talent-home .talent-map-insight-card {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: linear-gradient(160deg, rgba(22, 18, 38, 0.95) 0%, rgba(13, 11, 22, 0.98) 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.talent-home .talent-map-insight-card.insight-growth {
+  border: 1.5px solid #22c55e;
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.25), inset 0 0 10px rgba(34, 197, 94, 0.08);
+}
+.talent-home .talent-map-insight-card.insight-concentration {
+  border: 1.5px solid #c084fc;
+  box-shadow: 0 0 14px rgba(192, 132, 252, 0.28), inset 0 0 10px rgba(192, 132, 252, 0.1);
+}
+.talent-home .tmic-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.talent-home .tmic-head h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 750;
+  color: #ffffff;
+}
+.talent-home .tmic-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.talent-home .tmic-dot.dot-green {
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+}
+.talent-home .tmic-dot.dot-purple {
+  background: #e879f9;
+  border: 1.5px solid #22c55e;
+  box-shadow: 0 0 8px #c084fc;
+}
+.talent-home .talent-map-insight-card p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #d4d4d8;
+}
+.talent-home .tmic-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.talent-home .tmic-city-pill {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 650;
+  border-radius: 999px;
+  background: rgba(16, 14, 28, 0.9);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.talent-home .tmic-city-pill.pill-growth {
+  border: 1px solid rgba(34, 197, 94, 0.65);
+  color: #86efac;
+}
+.talent-home .tmic-city-pill.pill-growth:hover {
+  background: rgba(20, 83, 45, 0.65);
+  border-color: #4ade80;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+  transform: translateY(-1px);
+}
+.talent-home .tmic-city-pill.pill-concentration {
+  border: 1px solid rgba(192, 132, 252, 0.7);
+  color: #f0abfc;
+}
+.talent-home .tmic-city-pill.pill-concentration:hover {
+  background: rgba(88, 28, 135, 0.65);
+  border-color: #e879f9;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(192, 132, 252, 0.55);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 900px) {
+  .talent-home .map-floating-legend {
+    position: static;
+    width: 100%;
+    margin-top: 6px;
+  }
+  .talent-home .map-marker-popover {
+    position: static;
+    width: 100%;
+    margin-top: 6px;
+  }
+}
+
+
 

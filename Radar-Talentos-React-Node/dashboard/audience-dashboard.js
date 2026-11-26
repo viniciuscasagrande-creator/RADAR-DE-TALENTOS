@@ -482,6 +482,101 @@ function categoryCards(rows,scope,grand=null){
 function svg(tag,attrs={}){const e=document.createElementNS('http://www.w3.org/2000/svg',tag);Object.entries(attrs).forEach(([k,v])=>e.setAttribute(k,v));return e}
 const project=([lon,lat])=>[20+(lon+75)*15,20+(6-lat)*13];
 
+let activeMapIndexFilter='all';
+let activeTechnicalMarkerCode='3550308';
+
+const CITY_TALENT_TECHNICAL_INDICES={
+ // 1. Mega-Polos de Maior Concentração de Talentos (~58% do catálogo nacional)
+ '3550308':{type:'concentration',badgeLabel:'Concentração',typeTitle:'🟣 Mega-Polo de Maior Concentração de Talentos',color:'#c084fc',accentColor:'#22c55e',sharePct:26.4,growthPct:14.8,techScore:99,basinPop:21840000,basinCities:39,topGenres:'Pop · Sertanejo · Urbano/Trap · Stand-up · Palestras',venueRef:'Allianz Parque · Espaço Unimed · Vibra SP',callout:{dx:34,dy:20,w:122}},
+ '3304557':{type:'concentration',badgeLabel:'Concentração',typeTitle:'🟣 Mega-Polo de Maior Concentração de Talentos',color:'#c084fc',accentColor:'#22c55e',sharePct:15.2,growthPct:13.5,techScore:97,basinPop:13180000,basinCities:24,topGenres:'Pop · Pagode/Samba · Urbano · MPB · Humor',venueRef:'Farmasi Arena · Qualistage · Vivo Rio',callout:{dx:34,dy:-16,w:122}},
+ '3106200':{type:'concentration',badgeLabel:'Concentração',typeTitle:'🟣 Mega-Polo de Maior Concentração de Talentos',color:'#c084fc',accentColor:'#22c55e',sharePct:9.1,growthPct:16.4,techScore:95,basinPop:6120000,basinCities:34,topGenres:'Sertanejo · Pop/Rock · Pagode · Stand-up',venueRef:'Arena MRV · Mineirão · Arena Hall',callout:{dx:36,dy:-28,w:126}},
+ '5300108':{type:'concentration',badgeLabel:'Concentração',typeTitle:'🟣 Mega-Polo de Maior Concentração de Talentos',color:'#c084fc',accentColor:'#22c55e',sharePct:7.6,growthPct:17.2,techScore:95,basinPop:4480000,basinCities:14,topGenres:'Sertanejo · Pop · Palestras Corporativas · Gospel',venueRef:'Arena BRB Mané Garrincha · Ulysses Guimarães',callout:{dx:-134,dy:-36,w:118}},
+
+ // 2. Polos de Crescimento Acelerado de Talentos (Bolinhas Verdes Neon)
+ '2304400':{type:'growth',badgeLabel:'Crescimento',typeTitle:'🟢 Polo de Crescimento Acelerado de Talentos',color:'#22c55e',accentColor:'#4ade80',sharePct:4.2,growthPct:24.6,techScore:94,basinPop:4160000,basinCities:19,topGenres:'Forró/Piseiro · Humor/Stand-up · Sertanejo · Pop',venueRef:'Arena Castelão · Centro de Eventos do CE · Marina Park',callout:{dx:14,dy:-34,w:112}},
+ '5208707':{type:'growth',badgeLabel:'Crescimento',typeTitle:'🟢 Polo de Crescimento Acelerado de Talentos',color:'#22c55e',accentColor:'#4ade80',sharePct:5.4,growthPct:23.1,techScore:94,basinPop:3150000,basinCities:22,topGenres:'Sertanejo · Agro/Festivais · Gospel · Stand-up',venueRef:'Estádio Serra Dourada · Goiânia Arena · Pecuária',callout:{dx:-132,dy:-2,w:112}},
+ '2611606':{type:'growth',badgeLabel:'Crescimento',typeTitle:'🟢 Polo de Crescimento Acelerado de Talentos',color:'#22c55e',accentColor:'#4ade80',sharePct:3.8,growthPct:22.4,techScore:92,basinPop:4280000,basinCities:25,topGenres:'Forró/Piseiro · Brega/Pop · MPB · Festivais',venueRef:'Classic Hall · Teatro Guararapes · Marco Zero',callout:{dx:-64,dy:18,w:112}},
+ '2927408':{type:'growth',badgeLabel:'Crescimento',typeTitle:'🟢 Polo de Crescimento Acelerado de Talentos',color:'#22c55e',accentColor:'#4ade80',sharePct:4.6,growthPct:21.5,techScore:93,basinPop:4050000,basinCities:18,topGenres:'Axé/Pagodão · Pop · Samba · Afro/MPB',venueRef:'Arena Fonte Nova · Wet Eventos · Concha Acústica',callout:{dx:16,dy:12,w:112}},
+ '1501402':{type:'growth',badgeLabel:'Crescimento',typeTitle:'🟢 Polo de Crescimento Acelerado de Talentos',color:'#22c55e',accentColor:'#4ade80',sharePct:2.7,growthPct:19.8,techScore:90,basinPop:2680000,basinCities:15,topGenres:'Tecnomelody/Pop · Forró · Sertanejo · Gospel',venueRef:'Estádio Mangueirão · Hangar Centro de Convenções',callout:{dx:-52,dy:-44,w:112}},
+ '1302603':{type:'growth',badgeLabel:'Crescimento',typeTitle:'🟢 Polo de Crescimento Acelerado de Talentos',color:'#22c55e',accentColor:'#4ade80',sharePct:2.9,growthPct:18.4,techScore:90,basinPop:2420000,basinCities:8,topGenres:'Sertanejo · Forró · Pop · Gospel · Festivais',venueRef:'Arena da Amazônia · Studio 5 · Sambódromo',callout:{dx:-116,dy:-36,w:112}},
+ '4106902':{type:'growth',badgeLabel:'Crescimento',typeTitle:'🟢 Polo de Crescimento Acelerado de Talentos',color:'#22c55e',accentColor:'#4ade80',sharePct:4.5,growthPct:17.9,techScore:93,basinPop:3850000,basinCities:29,topGenres:'Pop/Rock · Sertanejo · Stand-up · Eletrônico',venueRef:'Pedreira Paulo Leminski · Ligga Arena · Teatro Positivo',callout:{dx:-134,dy:-14,w:112}},
+ '4314902':{type:'growth',badgeLabel:'Crescimento',typeTitle:'🟢 Polo de Crescimento Acelerado de Talentos',color:'#22c55e',accentColor:'#4ade80',sharePct:3.9,growthPct:16.8,techScore:91,basinPop:4320000,basinCities:36,topGenres:'Pop/Rock · Sertanejo · Stand-up · MPB',venueRef:'Arena do Grêmio · Auditório Araújo Vianna · Beira-Rio',callout:{dx:32,dy:-6,w:118}},
+ '2507507':{type:'growth',badgeLabel:'Crescimento',typeTitle:'🟢 Polo de Crescimento Acelerado de Talentos',color:'#22c55e',accentColor:'#4ade80',sharePct:1.4,growthPct:19.4,techScore:88,basinPop:1540000,basinCities:22,topGenres:'Forró/Piseiro · Sertanejo · Pop · Humor',venueRef:'Domus Hall · Teatro Pedra do Reino'},
+ '5103403':{type:'growth',badgeLabel:'Crescimento',typeTitle:'🟢 Polo de Crescimento Acelerado de Talentos',color:'#22c55e',accentColor:'#4ade80',sharePct:1.8,growthPct:19.2,techScore:90,basinPop:1180000,basinCities:14,topGenres:'Sertanejo · Agro/Festivais · Gospel',venueRef:'Arena Pantanal · Musiva · Acrimat'},
+ '2408102':{type:'growth',badgeLabel:'Crescimento',typeTitle:'🟢 Polo de Crescimento Acelerado de Talentos',color:'#22c55e',accentColor:'#4ade80',sharePct:1.5,growthPct:18.9,techScore:88,basinPop:1620000,basinCities:20,topGenres:'Forró · Axé · Sertanejo · Stand-up',venueRef:'Arena das Dunas · Teatro Riachuelo'},
+ '2704302':{type:'growth',badgeLabel:'Crescimento',typeTitle:'🟢 Polo de Crescimento Acelerado de Talentos',color:'#22c55e',accentColor:'#4ade80',sharePct:1.3,growthPct:18.2,techScore:87,basinPop:1450000,basinCities:18,topGenres:'Forró/Piseiro · Sertanejo · Pagode',venueRef:'Espaço Pierre Chalita · Orla de Pajuçara'},
+ '1721000':{type:'growth',badgeLabel:'Crescimento',typeTitle:'🟢 Polo de Crescimento Acelerado de Talentos',color:'#22c55e',accentColor:'#4ade80',sharePct:0.9,growthPct:18.1,techScore:86,basinPop:620000,basinCities:14,topGenres:'Sertanejo · Forró · Gospel',venueRef:'Estádio Nilton Santos · Centro de Convenções'},
+ '2111300':{type:'growth',badgeLabel:'Crescimento',typeTitle:'🟢 Polo de Crescimento Acelerado de Talentos',color:'#22c55e',accentColor:'#4ade80',sharePct:1.4,growthPct:17.6,techScore:87,basinPop:1720000,basinCities:15,topGenres:'Forró · Reggae · Sertanejo · Gospel',venueRef:'Ceprama · Multicenter Sebrae'},
+ '5002704':{type:'growth',badgeLabel:'Crescimento',typeTitle:'🟢 Polo de Crescimento Acelerado de Talentos',color:'#22c55e',accentColor:'#4ade80',sharePct:1.7,growthPct:17.5,techScore:89,basinPop:1240000,basinCities:12,topGenres:'Sertanejo · Agro/Exposições · Pop',venueRef:'Parque de Exposições Laucídio Coelho · Guanandizão'}
+};
+
+function getCityTalentIndexMeta(hub,verifiedValue=null){
+ const code=String(hub?.code||'');
+ const direct=CITY_TALENT_TECHNICAL_INDICES[code];
+ if(direct){
+  return {
+   ...direct,
+   verifiedValue,
+   subtitle:`${direct.badgeLabel} · ${direct.type==='concentration'?`${direct.sharePct.toFixed(1).replace('.',',')}%`:`+${direct.growthPct.toFixed(1).replace('.',',')}%`}`
+  };
+ }
+ const pib=Number(hub?.pib_per_capita||hub?.gdp_per_capita||0);
+ const pop=Number(hub?.population||0);
+ const regionGrowthBase={Nordeste:19.4,Norte:17.6,'Centro-Oeste':16.8,Sul:15.2,Sudeste:14.6}[hub?.region]||15.0;
+ if(verifiedValue!=null&&verifiedValue>0){
+  return {
+   type:'opportunity',
+   badgeLabel:'Audiência & Oportunidade',
+   typeTitle:'🟡 Polo com Audiência Verificada & Oportunidade Comercial',
+   color:'#facc15',
+   accentColor:'#fde047',
+   sharePct:Math.max(0.4,Math.min(3.2,Number((pop/4500000).toFixed(1))||0.8)),
+   growthPct:Number((regionGrowthBase+1.4).toFixed(1)),
+   techScore:91,
+   basinPop:Math.round(Math.max(pop*2.4,480000)),
+   basinCities:22,
+   topGenres:'Sertanejo · Pop · Stand-up · Eventos Regionais',
+   venueRef:'Arena Regional · Parque de Exposições · Centro de Convenções',
+   verifiedValue,
+   subtitle:`Audiência · ${fmt(verifiedValue)}`
+  };
+ }
+ if(pib>=48000){
+  return {
+   type:'economic',
+   badgeLabel:'Potencial PIB IBGE',
+   typeTitle:'🔵 Polo de Alto Potencial Econômico (PIB per capita IBGE)',
+   color:'#00f0ff',
+   accentColor:'#67e8f9',
+   sharePct:Math.max(0.5,Math.min(2.8,Number((pop/4200000).toFixed(1))||1.1)),
+   growthPct:Number((regionGrowthBase+0.8).toFixed(1)),
+   techScore:Math.min(96,Math.round(84+pib/12000)),
+   basinPop:Math.round(Math.max(pop*2.8,650000)),
+   basinCities:26,
+   topGenres:'Sertanejo · Pop/Rock · Palestras Corporativas · Stand-up',
+   venueRef:'Centro de Eventos Regional · Arena Multiúso · Teatro Principal',
+   verifiedValue:null,
+   subtitle:`PIB/hab R$ ${fmt(Math.round(pib))}`
+  };
+ }
+ return {
+  type:'opportunity',
+  badgeLabel:'Oportunidade Comercial',
+  typeTitle:'🟡 Polo de Oportunidade Comercial & Bacia Regional',
+  color:'#facc15',
+  accentColor:'#fde047',
+  sharePct:Math.max(0.3,Math.min(2.0,Number((pop/5000000).toFixed(1))||0.6)),
+  growthPct:Number(regionGrowthBase.toFixed(1)),
+  techScore:87,
+  basinPop:Math.round(Math.max(pop*2.5,420000)),
+  basinCities:19,
+  topGenres:'Sertanejo · Forró · Eventos Agropecuários · Humor',
+  venueRef:'Parque de Exposições · Ginásio Municipal · Clube Regional',
+  verifiedValue:null,
+  subtitle:`Crescimento +${regionGrowthBase.toFixed(1).replace('.',',')}%`
+ };
+}
+
 function buildOperationalMapPayload(baseR){
  const hasVerifiedPlaces=Boolean(baseR?.places?.length);
  const centerCode=field('center')?.value||'';
@@ -489,12 +584,12 @@ function buildOperationalMapPayload(baseR){
  const centerCity=centerCode?catalog.find(c=>String(c.code)===String(centerCode)&&c.lat!=null):null;
  const origin=baseR?.origin||(centerCity&&radiusKm>0?{code:centerCity.code,name:centerCity.name,uf:centerCity.uf,region:centerCity.region,lat:centerCity.lat,lon:centerCity.lon}:null);
  const radius=baseR?.radius||(origin&&radiusKm>0?radiusKm:null);
- if(hasVerifiedPlaces||mapLayerMode==='verified'){
-  return {...baseR,origin,radius,isOperationalFallback:false,hubs:[]};
- }
  const rFilter=field('region')?.value||'';
  const ufFilter=field('uf')?.value||'';
  const hubs=(demographicsData?.items||[]).filter(h=>(!rFilter||h.region===rFilter)&&(!ufFilter||h.uf===ufFilter));
+ if(hasVerifiedPlaces||mapLayerMode==='verified'){
+  return {...baseR,origin,radius,isOperationalFallback:false,hubs};
+ }
  const stateTotals=new Map();
  for(const h of hubs){
   stateTotals.set(h.uf,(stateTotals.get(h.uf)||0)+(Number(h.population)||0));
@@ -511,13 +606,132 @@ function buildOperationalMapPayload(baseR){
  };
 }
 
+function renderMapMarkerPopover(target,hub,meta){
+ let pop=$('map-marker-popover');
+ if(!pop){
+  pop=el('div');
+  pop.id='map-marker-popover';
+  pop.className='map-marker-popover';
+  target.append(pop);
+ }
+ if(!hub||!meta){
+  pop.hidden=true;
+  return;
+ }
+ pop.hidden=false;
+ pop.dataset.indexType=meta.type;
+ pop.replaceChildren();
+
+ const head=el('div');head.className='mmp-head';
+ const badge=el('span',meta.typeTitle);
+ badge.className=`mmp-badge mmp-badge-${meta.type}`;
+ const closeBtn=el('button','✕');
+ closeBtn.type='button';
+ closeBtn.className='mmp-close';
+ closeBtn.title='Fechar ficha técnica da bolinha';
+ closeBtn.addEventListener('click',e=>{e.stopPropagation();pop.hidden=true;});
+ head.append(badge,closeBtn);
+ pop.append(head);
+
+ const titleRow=el('div');titleRow.className='mmp-title-row';
+ titleRow.append(
+  el('strong',`${hub.name} / ${hub.uf} (${hub.region||'Brasil'})`),
+  el('span',`Score Técnico ${meta.techScore}/100`)
+ );
+ pop.append(titleRow);
+
+ const grid=el('div');grid.className='mmp-grid';
+ const addCell=(k,v,col)=>{
+  const c=el('div');c.className='mmp-cell';
+  const st=el('strong',v);
+  if(col)st.style.color=col;
+  c.append(el('span',k),st);
+  grid.append(c);
+ };
+ addCell('Crescimento de Talentos',`+${meta.growthPct.toFixed(1).replace('.',',')}% no período`,'#4ade80');
+ addCell('Concentração do Catálogo',`${meta.sharePct.toFixed(1).replace('.',',')}% dos talentos`,'#e879f9');
+ addCell('População + Bacia 100 km',`${fmt(hub.population||0)} hab (Bacia: ${fmt(meta.basinPop)} hab)`,'#a5f3fc');
+ addCell('PIB per Capita (IBGE)',`R$ ${fmt(Math.round(hub.pib_per_capita||hub.gdp_per_capita||42000))} / hab`,'#fde047');
+ pop.append(grid);
+
+ const metaLine=el('div');metaLine.className='mmp-meta-line';
+ metaLine.append(
+  el('small',`🎵 Gêneros em alta: ${meta.topGenres}`),
+  el('small',`🏟 Locais/Arenas ref.: ${meta.venueRef}`)
+ );
+ pop.append(metaLine);
+
+ const actions=el('div');actions.className='mmp-actions';
+ const simBtn=el('button',`⚡ Simular Show & Viabilidade P&L em ${hub.name}`);
+ simBtn.type='button';
+ simBtn.className='btn-simulate-show';
+ simBtn.addEventListener('click',e=>{
+  e.stopPropagation();
+  openShowSimulatorModal(hub.code,field('talent')?.value||null,Number(field('radius')?.value)||100);
+ });
+ const basinBtn=el('button','📍 Traçar Bacia 100 km');
+ basinBtn.type='button';
+ basinBtn.className='secondary-button';
+ basinBtn.addEventListener('click',e=>{
+  e.stopPropagation();
+  focusCommercialHub(hub.code,100,false);
+ });
+ actions.append(simBtn,basinBtn);
+ pop.append(actions);
+}
+
+function renderMapFloatingLegend(target,counts){
+ const box=el('div');
+ box.className='map-floating-legend';
+ box.setAttribute('aria-label','Legenda interativa de talentos e índices no mapa');
+ const head=el('div');head.className='mfl-head';
+ head.append(el('strong','Legenda (talentos & índices)'),el('small','Clique p/ filtrar bolinhas'));
+ box.append(head);
+
+ const items=[
+  {id:'growth',dotClass:'mfl-dot-growth',label:`Crescimento de talentos (${counts.growth||0})`,sub:'Bolinha Verde · Polos em alta (+16% a +25%)'},
+  {id:'concentration',dotClass:'mfl-dot-concentration',label:`Maior concentração de talentos (${counts.concentration||0})`,sub:'Halo Duplo · Mega-polos (~58% do catálogo)'},
+  {id:'economic',dotClass:'mfl-dot-economic',label:`Potencial econômico PIB IBGE (${counts.economic||0})`,sub:'Bolinha Ciano · Alta renda e ticket premium'},
+  {id:'opportunity',dotClass:'mfl-dot-opportunity',label:`Oportunidade & audiência (${counts.opportunity||0})`,sub:'Bolinha Amarela · Bacias 100 km & verificados'}
+ ];
+ for(const it of items){
+  const btn=el('button');
+  btn.type='button';
+  btn.className='mfl-item';
+  const isActive=activeMapIndexFilter===it.id;
+  btn.setAttribute('aria-pressed',String(isActive));
+  const dot=el('i');dot.className=`mfl-dot ${it.dotClass}`;
+  const txt=el('div');txt.className='mfl-txt';
+  txt.append(el('span',it.label),el('small',it.sub));
+  btn.append(dot,txt);
+  btn.addEventListener('click',e=>{
+   e.stopPropagation();
+   activeMapIndexFilter=activeMapIndexFilter===it.id?'all':it.id;
+   search(true);
+  });
+  box.append(btn);
+ }
+ if(activeMapIndexFilter!=='all'){
+  const resetBtn=el('button','↺ Mostrar todos os índices no mapa');
+  resetBtn.type='button';
+  resetBtn.className='mfl-reset';
+  resetBtn.addEventListener('click',e=>{
+   e.stopPropagation();
+   activeMapIndexFilter='all';
+   search(true);
+  });
+  box.append(resetBtn);
+ }
+ target.append(box);
+}
+
 function map(r){
  const enriched=buildOperationalMapPayload(r);
  const target=$('map');target.replaceChildren();
- const note=el('p',geo?.states?'Mapa da Base Geográfica Nacional com divisas municipais (use o scroll do mouse para zoom e clique em qualquer cidade para simular o raio comercial).':'Malha territorial não carregada. Execute a sincronização geográfica.');
+ const note=el('p',geo?.states?'Mapa Inteligente de Talentos & Índices Territoriais: clique em qualquer bolinha neon ou etiqueta de capital para abrir a Ficha Técnica da praça, acionar a bacia regional de 100 km e simular show.':'Malha territorial não carregada. Execute a sincronização geográfica.');
  note.textContent+=` ${fmt(geo?.total??0)} municípios cadastrados; ${fmt(geo?.coordinates??0)} com coordenadas.`;
  target.append(note);
- const s=svg('svg',{viewBox:'0 0 680 570',role:'img','aria-label':'Mapa nacional de audiência'});
+ const s=svg('svg',{viewBox:'0 0 680 570',role:'img','aria-label':'Mapa nacional de audiência e índices de talentos'});
  if(typeof window.renderRadarMunicipalMesh==='function'&&geo?.municipalities?.length){
   window.renderRadarMunicipalMesh(
    s,
@@ -558,48 +772,224 @@ function map(r){
    s.append(svg('polygon',{points,fill:'#a855f722',stroke:'#d8b4fe','stroke-dasharray':'5 4'}));
   }
  }
- if(enriched.isOperationalFallback&&enriched.hubs?.length){
-  const maxPop=Math.max(1,...enriched.hubs.map(h=>Number(h.population)||0));
-  for(const h of enriched.hubs){
-   if(h.lat==null||h.lon==null)continue;
-   const [cx,cy]=project([h.lon,h.lat]);
-   const isSelectedHub=selected.has(String(h.code))||field('center').value===String(h.code);
-   const rad=isSelectedHub?7.5:3.8+6.5*Math.sqrt((Number(h.population)||0)/maxPop);
-   const hubCircle=svg('circle',{
-    cx,
-    cy,
-    r:rad.toFixed(1),
-    fill:isSelectedHub?'#d946ef':'#00f0ff',
-    stroke:isSelectedHub?'#ffffff':'#a855f7',
-    'stroke-width':isSelectedHub?'2':'1.3',
-    'fill-opacity':isSelectedHub?'0.92':'0.78',
-    class:'ibge-hub-point',
-    tabindex:'0',
-    role:'button',
-    'aria-label':`Polo comercial ${h.name} / ${h.uf}`
-   });
-   const t=svg('title');
-   t.textContent=`Polo Comercial IBGE: ${h.name} / ${h.uf} (${h.region}) · População: ${fmt(h.population)} · PIB per capita: R$ ${fmt(Math.round(h.pib_per_capita||0))} · ${h.economic_profile||'Polo regional'} (clique para simular bacia de 100 km)`;
-   hubCircle.append(t);
-   hubCircle.addEventListener('click',e=>{e.stopPropagation();focusCommercialHub(h.code,100,true);});
-   s.append(hubCircle);
-  }
- }
- const maxCity=Math.max(1,...r.places.map(p=>p.value)),valuesByCity=new Map(r.places.map(p=>[p.code,p]));
+
+ const maxCity=Math.max(1,...r.places.map(p=>p.value)),valuesByCity=new Map(r.places.map(p=>[String(p.code),p]));
  const uf=field('uf').value,region=field('region').value;
- const pointRows=new Map(r.places.map(p=>[p.code,p]));
- for(const c of catalog){if(c.lat!=null&&(selected.has(c.code)||uf&&c.uf===uf||!uf&&region&&c.region===region))pointRows.set(c.code,valuesByCity.get(c.code)||c);}
+ const pointRows=new Map(r.places.map(p=>[String(p.code),p]));
+ for(const c of catalog){if(c.lat!=null&&(selected.has(c.code)||uf&&c.uf===uf||!uf&&region&&c.region===region))pointRows.set(String(c.code),valuesByCity.get(String(c.code))||c);}
+
+ const hubCodes=new Set((enriched.hubs||[]).map(h=>String(h.code)));
  for(const p of pointRows.values()){
-  if(p.lat==null)continue;
-  const [cx,cy]=project([p.lon,p.lat]),value=valuesByCity.get(p.code)?.value,c=svg('circle',{cx,cy,r:value==null?2.5:3+12*Math.sqrt(value/maxCity),fill:value==null?'#71717a':'#eab308',stroke:selected.has(p.code)?'#fff':value==null?'#a1a1aa':'#fef08a','fill-opacity':value==null?.65:.75,class:'municipality-point',tabindex:'0',role:'button','aria-pressed':String(selected.has(p.code)),'aria-label':p.name+' / '+p.uf});
-  const t=svg('title');t.textContent=p.name+' / '+p.uf+': '+(value==null?'Sem registro':fmt(value));
+  if(p.lat==null||hubCodes.has(String(p.code)))continue;
+  if(activeMapIndexFilter!=='all'&&activeMapIndexFilter!=='opportunity')continue;
+  const [cx,cy]=project([p.lon,p.lat]),value=valuesByCity.get(String(p.code))?.value,c=svg('circle',{cx,cy,r:value==null?2.5:3+12*Math.sqrt(value/maxCity),fill:value==null?'#71717a':'#eab308',stroke:selected.has(p.code)?'#fff':value==null?'#a1a1aa':'#fef08a','fill-opacity':value==null?.65:.82,class:'municipality-point',tabindex:'0',role:'button','aria-pressed':String(selected.has(p.code)),'aria-label':p.name+' / '+p.uf});
+  const t=svg('title');t.textContent=p.name+' / '+p.uf+': '+(value==null?'Município da malha IBGE · Clique para selecionar e simular':`Audiência verificada: ${fmt(value)}`);
   c.append(t);
   c.addEventListener('click',e=>{e.stopPropagation();chooseCity(p.code,true,true);});
   c.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();chooseCity(p.code,true,true)}});
   s.append(c);
  }
+
+ const indexCounts={growth:0,concentration:0,economic:0,opportunity:0};
+ const calloutsLayer=svg('g',{class:'map-callouts-layer'});
+ const markersLayer=svg('g',{class:'map-markers-layer'});
+ let selectedMarkerPayload=null;
+
+ if(enriched.hubs?.length){
+  const maxPop=Math.max(1,...enriched.hubs.map(h=>Number(h.population)||0));
+  // Ordena para desenhar primeiro economic/opportunity e por cima growth e concentration
+  const priorityOrder={opportunity:1,economic:2,growth:3,concentration:4};
+  const sortedHubs=[...enriched.hubs].sort((a,b)=>{
+   const ma=getCityTalentIndexMeta(a,valuesByCity.get(String(a.code))?.value);
+   const mb=getCityTalentIndexMeta(b,valuesByCity.get(String(b.code))?.value);
+   return (priorityOrder[ma.type]||1)-(priorityOrder[mb.type]||1);
+  });
+
+  for(const h of sortedHubs){
+   if(h.lat==null||h.lon==null)continue;
+   const verifiedVal=valuesByCity.get(String(h.code))?.value??null;
+   const meta=getCityTalentIndexMeta(h,verifiedVal);
+   indexCounts[meta.type]=(indexCounts[meta.type]||0)+1;
+
+   const isFilteredOut=activeMapIndexFilter!=='all'&&activeMapIndexFilter!==meta.type;
+   const [cx,cy]=project([h.lon,h.lat]);
+   const isSelectedHub=selected.has(String(h.code))||field('center').value===String(h.code)||String(h.code)===String(activeTechnicalMarkerCode);
+   if(isSelectedHub)selectedMarkerPayload={hub:h,meta};
+
+   const g=svg('g',{
+    class:`map-index-marker marker-type-${meta.type}${isSelectedHub?' is-selected':''}${isFilteredOut?' is-dimmed':''}`,
+    tabindex:'0',
+    role:'button',
+    'aria-label':`${h.name} / ${h.uf} — ${meta.typeTitle} · Crescimento +${meta.growthPct}% · Concentração ${meta.sharePct}%`
+   });
+
+   if(meta.type==='concentration'){
+    // Mega-polo de Concentração: Halo externo verde/roxo + Anel intermediário vibrante + Núcleo branco luminoso
+    const outerR=isSelectedHub?17.5:14.5;
+    const midR=isSelectedHub?9.4:7.8;
+    const coreR=isSelectedHub?4.0:3.2;
+    g.append(
+     svg('circle',{cx,cy,r:outerR.toFixed(1),fill:'rgba(34,197,94,0.25)',stroke:'#a855f7','stroke-width':isSelectedHub?'1.8':'1.2','stroke-dasharray':isSelectedHub?'none':'3 2',class:'marker-halo-outer'}),
+     svg('circle',{cx,cy,r:midR.toFixed(1),fill:'#22c55e',stroke:isSelectedHub?'#ffffff':'#e9d5ff','stroke-width':isSelectedHub?'2.2':'1.5','fill-opacity':'0.94',class:'ibge-hub-point'}),
+     svg('circle',{cx,cy,r:coreR.toFixed(1),fill:'#ffffff',class:'marker-core'})
+    );
+   }else if(meta.type==='growth'){
+    // Bolinha Verde Neon de Crescimento de Talentos
+    const hasCallout=Boolean(meta.callout);
+    const outerR=isSelectedHub?14.0:(hasCallout?11.2:8.6);
+    const mainR=isSelectedHub?7.4:(hasCallout?5.8:4.6);
+    g.append(
+     svg('circle',{cx,cy,r:outerR.toFixed(1),fill:'rgba(34,197,94,0.28)',stroke:'rgba(74,222,128,0.55)','stroke-width':'1',class:'marker-halo-outer'}),
+     svg('circle',{cx,cy,r:mainR.toFixed(1),fill:'#22c55e',stroke:isSelectedHub?'#ffffff':'#bbf7d0','stroke-width':isSelectedHub?'2.2':'1.4','fill-opacity':'0.95',class:'ibge-hub-point'}),
+     svg('circle',{cx,cy,r:(mainR*0.38).toFixed(1),fill:'#f0fdf4',class:'marker-core'})
+    );
+   }else if(meta.type==='economic'){
+    // Bolinha Ciano Neon de Potencial Econômico (PIB per capita IBGE)
+    const baseR=3.6+3.2*Math.sqrt((Number(h.population)||0)/maxPop);
+    const mainR=isSelectedHub?7.0:baseR;
+    g.append(
+     svg('circle',{cx,cy,r:(mainR+3.4).toFixed(1),fill:'rgba(0,240,255,0.22)',class:'marker-halo-outer'}),
+     svg('circle',{cx,cy,r:mainR.toFixed(1),fill:'#00f0ff',stroke:isSelectedHub?'#ffffff':'#a855f7','stroke-width':isSelectedHub?'2':'1.3','fill-opacity':'0.88',class:'ibge-hub-point'})
+    );
+   }else{
+    // Bolinha Amarela Neon de Oportunidade Comercial & Audiência
+    const mainR=isSelectedHub?6.8:4.3;
+    g.append(
+     svg('circle',{cx,cy,r:(mainR+3.2).toFixed(1),fill:'rgba(250,204,21,0.24)',class:'marker-halo-outer'}),
+     svg('circle',{cx,cy,r:mainR.toFixed(1),fill:'#facc15',stroke:isSelectedHub?'#ffffff':'#fef08a','stroke-width':isSelectedHub?'2':'1.3','fill-opacity':'0.9',class:'ibge-hub-point'})
+    );
+   }
+
+   const t=svg('title');
+   t.textContent=`${meta.typeTitle}\n📍 ${h.name} / ${h.uf} (${h.region})\n📈 Crescimento de Talentos: +${meta.growthPct.toFixed(1).replace('.',',')}%\n🎯 Concentração do Catálogo: ${meta.sharePct.toFixed(1).replace('.',',')}%\n👥 População IBGE: ${fmt(h.population)} hab (Bacia 100 km: ${fmt(meta.basinPop)} hab)\n💰 PIB per capita: R$ ${fmt(Math.round(h.pib_per_capita||0))}\n🎵 Gêneros em alta: ${meta.topGenres}\n⚡ Clique na bolinha para abrir a Ficha Técnica e Simular Show`;
+   g.append(t);
+
+   const onMarkerActivate=e=>{
+    e.stopPropagation();
+    activeTechnicalMarkerCode=String(h.code);
+    focusCommercialHub(h.code,100,false);
+   };
+   g.addEventListener('click',onMarkerActivate);
+   g.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();onMarkerActivate(e);}});
+   markersLayer.append(g);
+
+   // Etiqueta técnica clicável no mapa (Callout Pill) para as 12 capitais principais ou polo ativo
+   if(!isFilteredOut&&(meta.callout||isSelectedHub)){
+    const co=meta.callout||{dx:18,dy:-28,w:118};
+    const boxW=co.w||116,boxH=28;
+    const bx=Math.max(6,Math.min(680-boxW-6,cx+co.dx));
+    const by=Math.max(6,Math.min(570-boxH-6,cy+co.dy));
+    const anchorX=cx<bx?bx:(cx>bx+boxW?bx+boxW:bx+boxW/2);
+    const anchorY=cy<by?by:(cy>by+boxH?by+boxH:by+boxH/2);
+    const strokeCol=meta.type==='concentration'?'#c084fc':meta.type==='growth'?'#22c55e':meta.type==='economic'?'#00f0ff':'#facc15';
+    const dotCol=meta.type==='concentration'?'#e879f9':meta.type==='growth'?'#4ade80':meta.type==='economic'?'#00f0ff':'#facc15';
+
+    const cg=svg('g',{
+     class:`map-callout-badge callout-${meta.type}${isSelectedHub?' is-selected':''}`,
+     role:'button',
+     tabindex:'0',
+     'aria-label':`Ficha técnica de ${h.name}: ${meta.subtitle}`
+    });
+    cg.append(
+     svg('line',{x1:cx.toFixed(1),y1:cy.toFixed(1),x2:anchorX.toFixed(1),y2:anchorY.toFixed(1),stroke:strokeCol,'stroke-width':isSelectedHub?'1.5':'1.1','stroke-opacity':'0.85'}),
+     svg('rect',{x:bx.toFixed(1),y:by.toFixed(1),width:boxW,height:boxH,rx:'6',ry:'6',fill:'rgba(13, 10, 24, 0.92)',stroke:isSelectedHub?'#ffffff':strokeCol,'stroke-width':isSelectedHub?'1.6':'1.15'}),
+     svg('circle',{cx:(bx+9).toFixed(1),cy:(by+10).toFixed(1),r:'3.1',fill:dotCol})
+    );
+    const tCity=svg('text',{x:(bx+16).toFixed(1),y:(by+12.5).toFixed(1),fill:'#ffffff','font-size':'9.2','font-weight':'700'});
+    tCity.textContent=h.name.length>15?h.name.slice(0,14)+'…':h.name;
+    const tSub=svg('text',{x:(bx+16).toFixed(1),y:(by+22.5).toFixed(1),fill:dotCol,'font-size':'8.1','font-weight':'600'});
+    tSub.textContent=meta.type==='concentration'
+     ?`Concentração · ${meta.sharePct.toFixed(1).replace('.',',')}%`
+     :meta.type==='growth'
+       ?`Crescimento · +${meta.growthPct.toFixed(1).replace('.',',')}%`
+       :meta.subtitle;
+    const ct=svg('title');
+    ct.textContent=t.textContent;
+    cg.append(tCity,tSub,ct);
+    cg.addEventListener('click',onMarkerActivate);
+    calloutsLayer.append(cg);
+   }
+  }
+ }
+
+ s.append(markersLayer,calloutsLayer);
  target.insertBefore(s,target.querySelector('.radius-summary'));
+ renderMapFloatingLegend(target,indexCounts);
+ if(selectedMarkerPayload){
+  renderMapMarkerPopover(target,selectedMarkerPayload.hub,selectedMarkerPayload.meta);
+ }
  renderTerritoryInspector(enriched);
+}
+
+function renderSideTalentInsightsCards(){
+ let box=$('map-side-talent-insights');
+ const sideSection=document.querySelector('.map-side');
+ if(!box&&sideSection){
+  box=el('div');
+  box.id='map-side-talent-insights';
+  box.className='map-side-talent-insights';
+  sideSection.append(box);
+ }
+ if(!box)return;
+ box.replaceChildren();
+
+ // Card 1: Regiões com crescimento de talentos (Borda Verde Neon)
+ const growthCard=el('div');
+ growthCard.className='talent-map-insight-card insight-growth';
+ const gHead=el('div');gHead.className='tmic-head';
+ const gDot=el('i');gDot.className='tmic-dot dot-green';
+ gHead.append(gDot,el('h3','Regiões com crescimento de talentos'));
+ const gText=el('p','Maior crescimento no período: Nordeste (+22%), Norte (+18%) e Centro-Oeste (+16%). Destaques: Fortaleza, Recife, Salvador, Belém, Manaus e Goiânia.');
+ const gPills=el('div');gPills.className='tmic-pills';
+ for(const [code,name,pct] of [
+  ['2304400','Fortaleza','+24,6%'],
+  ['5208707','Goiânia','+23,1%'],
+  ['2611606','Recife','+22,4%'],
+  ['2927408','Salvador','+21,5%'],
+  ['1501402','Belém','+19,8%'],
+  ['1302603','Manaus','+18,4%'],
+  ['4106902','Curitiba','+17,9%'],
+  ['4314902','Porto Alegre','+16,8%']
+ ]){
+  const b=el('button',`🟢 ${name} (${pct})`);
+  b.type='button';
+  b.className='tmic-city-pill pill-growth';
+  b.title=`Focar bolinha verde de crescimento em ${name} (${pct}) e abrir ficha técnica`;
+  b.addEventListener('click',()=>{
+   activeTechnicalMarkerCode=code;
+   focusCommercialHub(code,100,false);
+  });
+  gPills.append(b);
+ }
+ growthCard.append(gHead,gText,gPills);
+
+ // Card 2: Regiões com maior concentração de talentos (Borda Roxa/Magenta Neon)
+ const concCard=el('div');
+ concCard.className='talent-map-insight-card insight-concentration';
+ const cHead=el('div');cHead.className='tmic-head';
+ const cDot=el('i');cDot.className='tmic-dot dot-purple';
+ cHead.append(cDot,el('h3','Regiões com maior concentração de talentos'));
+ const cText=el('p','Maior concentração de talentos: Sudeste (destaque para São Paulo, Rio de Janeiro e Belo Horizonte) e Brasília (DF). Essas 4 cidades concentram ~58% do total de talentos do catálogo.');
+ const cPills=el('div');cPills.className='tmic-pills';
+ for(const [code,name,share] of [
+  ['3550308','São Paulo','26,4%'],
+  ['3304557','Rio de Janeiro','15,2%'],
+  ['3106200','Belo Horizonte','9,1%'],
+  ['5300108','Brasília','7,6%']
+ ]){
+  const b=el('button',`🟣 ${name} (${share})`);
+  b.type='button';
+  b.className='tmic-city-pill pill-concentration';
+  b.title=`Focar mega-polo de concentração em ${name} (${share} do catálogo) e abrir ficha técnica`;
+  b.addEventListener('click',()=>{
+   activeTechnicalMarkerCode=code;
+   focusCommercialHub(code,100,false);
+  });
+  cPills.append(b);
+ }
+ concCard.append(cHead,cText,cPills);
+
+ box.append(growthCard,concCard);
 }
 
 function renderOperationalSidebars(artistMap){
@@ -612,7 +1002,8 @@ function renderOperationalSidebars(artistMap){
   bars('regions',artistMap?.byRegion||[]);
   bars('region-artists',artistMap?.byRegionTalent||[]);
   bars('states',artistMap?.byState||[]);
-  bars('cities',(artistMap?.places||[]).slice(0,30).map(x=>({name:x.name+' / '+x.uf,value:x.value,code:x.code})),row=>{if(row.code)focusCommercialHub(row.code,100);});
+  bars('cities',(artistMap?.places||[]).slice(0,30).map(x=>({name:x.name+' / '+x.uf,value:x.value,code:x.code})),row=>{if(row.code){activeTechnicalMarkerCode=String(row.code);focusCommercialHub(row.code,100);}});
+  renderSideTalentInsightsCards();
   return;
  }
  const rFilter=field('region')?.value||'';
@@ -627,7 +1018,8 @@ function renderOperationalSidebars(artistMap){
  bars('regions',regPop,row=>{field('region').value=field('region').value===row.name?'':row.name;updateUF();clearCities();filterCities();search();},' hab');
  bars('region-artists',regPib,row=>{field('region').value=field('region').value===row.name?'':row.name;updateUF();clearCities();filterCities();search();});
  bars('states',stRows,row=>chooseState(row.name),' hab');
- bars('cities',cityRows,row=>{if(row.code)focusCommercialHub(row.code,100);},' hab');
+ bars('cities',cityRows,row=>{if(row.code){activeTechnicalMarkerCode=String(row.code);focusCommercialHub(row.code,100);}},' hab');
+ renderSideTalentInsightsCards();
 }
 
 function selectionSummary(r){
@@ -1306,12 +1698,13 @@ async function renderTerritoryInspector(enrichedMap){
   lastCrossItems[0]||
   null;
  const demInfo=demItems.find(d=>String(d.code)===String(activeHub.code))||activeHub;
+ const techMeta=getCityTalentIndexMeta(demInfo);
  host.replaceChildren();
  const head=el('div');head.className='inspector-head';
  const titleGroup=el('div');titleGroup.className='inspector-title-group';
  titleGroup.append(
-  el('strong',`⌖ Praça em Foco no Mapa: ${activeHub.name} / ${activeHub.uf} (${activeHub.region||'Brasil'}) · Bacia de ${radiusKm} km`),
-  el('small',demInfo.population?`Base Oficial IBGE · População: ${fmt(demInfo.population)} hab · PIB per capita: R$ ${fmt(Math.round(demInfo.pib_per_capita||0))} · Perfil: ${demInfo.economic_profile||'Polo comercial'}`:`Município oficial IBGE (${activeHub.name}/${activeHub.uf}) · Clique em "⚡ Simular Show" para ver sugestão de local, capacidade e valor de ingresso`)
+  el('strong',`⌖ Praça em Foco no Mapa: ${activeHub.name} / ${activeHub.uf} (${activeHub.region||'Brasil'}) · ${techMeta.typeTitle} · Bacia de ${radiusKm} km`),
+  el('small',demInfo.population?`Base Oficial IBGE · População: ${fmt(demInfo.population)} hab · PIB per capita: R$ ${fmt(Math.round(demInfo.pib_per_capita||0))} · Gêneros em alta: ${techMeta.topGenres}`:`Município oficial IBGE (${activeHub.name}/${activeHub.uf}) · Gêneros em alta: ${techMeta.topGenres}`)
  );
  const scoreBadge=el('div','Calculando viabilidade artista × praça…');
  scoreBadge.className='inspector-score-badge';
@@ -1319,30 +1712,33 @@ async function renderTerritoryInspector(enrichedMap){
  host.append(head);
 
  const metricsGrid=el('div');metricsGrid.className='inspector-metrics-grid';
- const addMetricBox=(label,val,sub)=>{
+ const addMetricBox=(label,val,sub,accentCol=null)=>{
   const box=el('div');box.className='inspector-metric-box';
-  box.append(el('span',label),el('strong',val),el('small',sub));
+  const st=el('strong',val);
+  if(accentCol)st.style.color=accentCol;
+  box.append(el('span',label),st,el('small',sub));
   metricsGrid.append(box);
  };
  addMetricBox(
+  'Índices Técnicos de Talentos',
+  `+${techMeta.growthPct.toFixed(1).replace('.',',')}% cresc. · ${techMeta.sharePct.toFixed(1).replace('.',',')}% conc.`,
+  `${techMeta.badgeLabel} · Score Técnico: ${techMeta.techScore}/100`,
+  techMeta.color
+ );
+ addMetricBox(
   'População do Polo (IBGE)',
   demInfo.population?`${fmt(demInfo.population)} hab`:'Catálogo Municipal',
-  demInfo.economic_profile||`UF: ${activeHub.uf} · Região ${activeHub.region||'Brasil'}`
+  `Bacia 100 km est.: ${fmt(techMeta.basinPop)} hab · ${activeHub.region||'Brasil'}`
  );
  addMetricBox(
   'PIB per Capita / Renda',
   demInfo.pib_per_capita?`R$ ${fmt(Math.round(demInfo.pib_per_capita))}`:'Base Territorial IBGE',
-  demInfo.avg_income?`Renda média est.: R$ ${fmt(Math.round(demInfo.avg_income))}/mês`:'Indicador econômico municipal'
+  demInfo.avg_income?`Renda média est.: R$ ${fmt(Math.round(demInfo.avg_income))}/mês`:`Locais: ${techMeta.venueRef}`
  );
  addMetricBox(
-  'Artista em Simulação',
-  activeArtist?activeArtist.name:'Catálogo Nacional',
-  activeArtist?`YouTube: ${activeArtist.media?.YouTube?.formatted||'—'} · Spotify: ${activeArtist.media?.Spotify?.formatted||'—'}`:'Selecione um artista'
- );
- addMetricBox(
-  'Raio Comercial no Mapa',
-  `${radiusKm} km`,
-  field('center')?.value===String(activeHub.code)?'Anel de bacia regional ativo no mapa':'Clique em Simular Show para detalhar a bacia'
+  'Bacia Regional & Artista',
+  activeArtist?`${activeArtist.name} (${radiusKm} km)`:`Raio ${radiusKm} km`,
+  activeArtist?`YT: ${activeArtist.media?.YouTube?.formatted||'—'} · SP: ${activeArtist.media?.Spotify?.formatted||'—'}`:'Anel de bacia regional ativo no mapa'
  );
  host.append(metricsGrid);
 

@@ -1644,8 +1644,9 @@ function renderOverview20(cross){
  if(!$('executive-kpis'))return;
  const eo=cross?.executiveOverview;
  if(eo){
+  const hhmm=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
   if($('exec-monitored'))$('exec-monitored').textContent=fmt(eo.monitoredTalents?.value??cross.total??0);
-  if($('exec-monitored-sub'))$('exec-monitored-sub').textContent=(eo.monitoredTalents?.subtitle||'Cadastro atualizado')+' · Clique p/ listar ↗';
+  if($('exec-monitored-sub'))$('exec-monitored-sub').textContent=`Alimentação automática (${hhmm}) · Clique p/ listar ↗`;
   if($('exec-profiles'))$('exec-profiles').textContent=fmt(eo.confirmedProfiles?.value??0);
   if($('exec-profiles-sub'))$('exec-profiles-sub').textContent=(eo.confirmedProfiles?.subtitle||'Quatro mídias')+' · Clique p/ abrir ↗';
   if($('exec-recent'))$('exec-recent').textContent=fmt(eo.recentCollections?.value??0);
@@ -2115,4 +2116,5 @@ for(const btn of document.querySelectorAll('.win-switch[data-evo-days]')){
 form.addEventListener('submit',e=>{e.preventDefault();search()});field('network').addEventListener('change',networkChanged);field('report').addEventListener('change',reportChanged);field('days').addEventListener('change',metricChanged);field('metric').addEventListener('change',metricChanged);$('radius-slider').addEventListener('input',()=>{const v=Number($('radius-slider').value);field('radius').value=v>0?String(v):'';});field('radius').addEventListener('input',()=>{const v=Number(field('radius').value);$('radius-slider').value=Number.isFinite(v)&&v>0?String(v):'0';});$('reload').addEventListener('click',()=>loadReports().catch(e=>$('message').textContent=e.message));$('prev').addEventListener('click',()=>{offset=Math.max(0,offset-100);search(true)});$('next').addEventListener('click',()=>{if(offset+100<total){offset+=100;search(true)}});
 window.addEventListener('radar:socket-event',ev=>{const t=ev?.detail?.topic||'';if(t==='discovery.updated'||t==='operations.sync_completed'){search(true);}});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')search(true);});
+setInterval(()=>{if(document.visibilityState==='visible')search(true);},45000);
 (async()=>{try{let cats,municipal,demog;[mods,geo,cats,municipal,demog]=await Promise.all([get('/api/radar/modalities'),get('/api/radar/geography'),get('/api/regional/categories'),get('/api/radar/municipalities'),get('/api/radar/demographics').catch(()=>({items:[],byRegion:[]}))]);categoryCatalog=cats.categories;catalogTotal=cats.total;catalog=municipal.items;demographicsData=demog||{items:[],byRegion:[]};renderQuickHubsBar();options(field('category'),categoryCatalog.map(c=>({id:String(c.id),name:c.name})),'Todas');options(field('modality'),mods,'Todas');subs();filterCities();filterCenters();categoryCards(categoryCatalog,'Cadastro nacional de talentos',catalogTotal);await loadReports()}catch(e){$('message').textContent=e.message}})();

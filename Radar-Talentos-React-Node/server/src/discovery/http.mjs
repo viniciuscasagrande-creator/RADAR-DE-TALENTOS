@@ -536,12 +536,138 @@ export async function confirmSinglePlatformAndReprocess(db, radar, { id, profile
   };
 }
 
+const AUTO_EXPANSION_BRAZILIAN_TALENTS = [
+  { name: 'Simone Mendes', description: 'cantora brasileira de música sertaneja' },
+  { name: 'Nattan', description: 'cantor brasileiro de forró' },
+  { name: 'Matuê', description: 'rapper e cantor brasileiro de trap' },
+  { name: 'Thiaguinho', description: 'cantor e compositor brasileiro de pagode' },
+  { name: 'Sorriso Maroto', description: 'grupo musical brasileiro de pagode' },
+  { name: 'Péricles', description: 'cantor brasileiro de samba e pagode' },
+  { name: 'Grupo Menos é Mais', description: 'grupo brasileiro de pagode' },
+  { name: 'Ferrugem', description: 'cantor brasileiro de pagode' },
+  { name: 'Dilsinho', description: 'cantor e compositor brasileiro de pagode' },
+  { name: 'Ludmilla', description: 'cantora e compositora brasileira de pop e pagode' },
+  { name: 'Ivete Sangalo', description: 'cantora brasileira de axé e pop' },
+  { name: 'Bell Marques', description: 'cantor brasileiro de axé' },
+  { name: 'Xand Avião', description: 'cantor brasileiro de forró' },
+  { name: 'Wesley Safadão', description: 'cantor brasileiro de forró' },
+  { name: 'João Gomes', description: 'cantor brasileiro de piseiro e forró' },
+  { name: 'Zé Vaqueiro', description: 'cantor brasileiro de forró e piseiro' },
+  { name: 'Mari Fernandez', description: 'cantora brasileira de forró e piseiro' },
+  { name: 'Henry Freitas', description: 'cantor brasileiro de forró' },
+  { name: 'Felipe Amorim', description: 'cantor brasileiro de forró e pop' },
+  { name: 'Gustavo Mioto', description: 'cantor brasileiro de música sertaneja' },
+  { name: 'Murilo Huff', description: 'cantor e compositor brasileiro de música sertaneja' },
+  { name: 'Lauana Prado', description: 'cantora brasileira de música sertaneja' },
+  { name: 'Guilherme & Benuto', description: 'dupla sertaneja brasileira' },
+  { name: 'Matheus & Kauan', description: 'dupla sertaneja brasileira' },
+  { name: 'Israel & Rodolffo', description: 'dupla sertaneja brasileira' },
+  { name: 'Hugo & Guilherme', description: 'dupla sertaneja brasileira' },
+  { name: 'Diego & Victor Hugo', description: 'dupla sertaneja brasileira' },
+  { name: 'Clayton & Romário', description: 'dupla sertaneja brasileira' },
+  { name: 'Chitãozinho & Xororó', description: 'dupla sertaneja brasileira' },
+  { name: 'Zezé Di Camargo & Luciano', description: 'dupla sertaneja brasileira' },
+  { name: 'Leonardo', description: 'cantor brasileiro de música sertaneja' },
+  { name: 'Michel Teló', description: 'cantor brasileiro de música sertaneja' },
+  { name: 'Léo Santana', description: 'cantor brasileiro de pagode baiano e axé' },
+  { name: 'Pedro Sampaio', description: 'DJ e produtor musical brasileiro' },
+  { name: 'Dennis DJ', description: 'DJ e produtor musical brasileiro' },
+  { name: 'Vintage Culture', description: 'DJ e produtor brasileiro de música eletrônica' },
+  { name: 'Dubdogz', description: 'duo brasileiro de música eletrônica' },
+  { name: 'Luísa Sonza', description: 'cantora e compositora brasileira de pop' },
+  { name: 'Jão', description: 'cantor e compositor brasileiro de pop' },
+  { name: 'Iza', description: 'cantora brasileira de pop e R&B' },
+  { name: 'Gloria Groove', description: 'cantora e rapper brasileira' },
+  { name: 'Pabllo Vittar', description: 'cantora brasileira de pop' },
+  { name: 'Marina Sena', description: 'cantora e compositora brasileira de pop' },
+  { name: 'Liniker', description: 'cantora e compositora brasileira de soul e MPB' },
+  { name: 'Djavan', description: 'cantor e compositor brasileiro de MPB' },
+  { name: 'Caetano Veloso', description: 'cantor e compositor brasileiro de MPB' },
+  { name: 'Gilberto Gil', description: 'cantor e compositor brasileiro de MPB' },
+  { name: 'Marisa Monte', description: 'cantora e compositora brasileira de MPB' },
+  { name: 'Seu Jorge', description: 'cantor e ator brasileiro de MPB e samba' },
+  { name: 'Lulu Santos', description: 'cantor e guitarrista brasileiro de pop rock' },
+  { name: 'Capital Inicial', description: 'banda brasileira de rock' },
+  { name: 'Natiruts', description: 'banda brasileira de reggae' },
+  { name: 'Maneva', description: 'banda brasileira de reggae' },
+  { name: 'Pitty', description: 'cantora brasileira de rock' },
+  { name: 'Filipe Ret', description: 'rapper e cantor brasileiro' },
+  { name: 'L7NNON', description: 'rapper brasileiro' },
+  { name: 'Veigh', description: 'rapper e cantor brasileiro de trap' },
+  { name: 'KayBlack', description: 'rapper e cantor brasileiro de trap' },
+  { name: 'MC Cabelinho', description: 'cantor, rapper e ator brasileiro' },
+  { name: 'Orochi', description: 'rapper brasileiro' },
+  { name: 'WIU', description: 'rapper e produtor musical brasileiro' },
+  { name: 'Teto', description: 'rapper e cantor brasileiro de trap' },
+  { name: 'MC Hariel', description: 'cantor brasileiro de funk' },
+  { name: 'MC Livinho', description: 'cantor brasileiro de funk' },
+  { name: 'Aline Barros', description: 'cantora brasileira de música gospel' },
+  { name: 'Gabriela Rocha', description: 'cantora brasileira de música gospel' },
+  { name: 'Fernandinho', description: 'cantor brasileiro de música gospel' },
+  { name: 'Isaias Saad', description: 'cantor brasileiro de música gospel' },
+  { name: 'Padre Marcelo Rossi', description: 'padre, cantor e escritor brasileiro' },
+  { name: 'Padre Reginaldo Manzotti', description: 'padre, escritor e cantor brasileiro' },
+  { name: 'Roberto Carlos', description: 'cantor e compositor brasileiro' },
+  { name: 'Alexandre Pires', description: 'cantor brasileiro de pagode e samba' },
+  { name: 'Raça Negra', description: 'grupo musical brasileiro de samba e pagode' },
+  { name: 'Belo', description: 'cantor brasileiro de pagode' },
+  { name: 'Zeca Pagodinho', description: 'cantor e compositor brasileiro de samba' },
+  { name: 'Alcione', description: 'cantora brasileira de samba' },
+  { name: 'Alceu Valença', description: 'cantor e compositor brasileiro de MPB e forró' },
+  { name: 'Joelma', description: 'cantora brasileira de calypso e brega pop' },
+  { name: 'Manu Bahtidão', description: 'cantora brasileira de tecnomelody e sertanejo' },
+  { name: 'Nadson O Ferinha', description: 'cantor brasileiro de arrocha' },
+  { name: 'Fábio Porchat', description: 'humorista, ator e apresentador brasileiro' },
+  { name: 'Tatá Werneck', description: 'humorista, atriz e apresentadora brasileira' },
+  { name: 'Danilo Gentili', description: 'humorista e apresentador brasileiro de stand-up' },
+  { name: 'Thiago Ventura', description: 'humorista brasileiro de stand-up comedy' },
+  { name: 'Rodrigo Marques', description: 'humorista brasileiro de stand-up' },
+  { name: 'Bruna Louise', description: 'humorista brasileira de stand-up comedy' },
+  { name: 'Diogo Portugal', description: 'humorista brasileiro de stand-up' },
+  { name: 'Tirullipa', description: 'humorista e artista brasileiro' },
+  { name: 'Renato Albani', description: 'humorista brasileiro de stand-up' },
+  { name: 'Mario Sergio Cortella', description: 'filósofo, escritor e palestrante brasileiro' },
+  { name: 'Clóvis de Barros Filho', description: 'filósofo, professor e palestrante brasileiro' },
+  { name: 'Monja Coen', description: 'monja budista e palestrante brasileira' },
+  { name: 'Augusto Cury', description: 'médico psiquiatra, escritor e palestrante brasileiro' },
+  { name: 'Joel Jota', description: 'mentor de alta performance e palestrante brasileiro' },
+  { name: 'Thiago Nigro', description: 'educador financeiro, youtuber e palestrante brasileiro' },
+  { name: 'Camila Farani', description: 'investidora, empresária e palestrante brasileira' },
+  { name: 'Deive Leonardo', description: 'evangelista, escritor e palestrante brasileiro' },
+  { name: 'Padre Fábio de Melo', description: 'padre, escritor, cantor e palestrante brasileiro' },
+  { name: 'Virginia Fonseca', description: 'influenciadora digital e apresentadora brasileira' },
+  { name: 'Carlinhos Maia', description: 'influenciador digital e humorista brasileiro' },
+  { name: 'Bianca Andrade', description: 'influenciadora digital e empresária brasileira' },
+  { name: 'Casimiro Miguel', description: 'streamer, jornalista e influenciador digital brasileiro' },
+  { name: 'Enaldinho', description: 'youtuber e influenciador digital brasileiro' },
+  { name: 'Felipe Neto', description: 'youtuber, empresário e influenciador brasileiro' },
+  { name: 'Manual do Mundo', description: 'canal educativo e criador de conteúdo brasileiro' },
+  { name: 'Erick Jacquin', description: 'chef de cozinha e apresentador de gastronomia' },
+  { name: 'Henrique Fogaça', description: 'chef de cozinha e jurado de gastronomia brasileiro' },
+  { name: 'Helena Rizzo', description: 'chef de cozinha brasileira premiada em gastronomia' },
+  { name: 'Rodrigo Hilbert', description: 'apresentador de culinária e gastronomia brasileiro' },
+  { name: 'Felipe Bronze', description: 'chef de cozinha e apresentador de gastronomia brasileiro' },
+  { name: 'Mundo Bita', description: 'projeto musical infantil e família brasileiro' },
+  { name: 'Galinha Pintadinha', description: 'projeto musical infantil e família brasileiro' },
+  { name: 'Palavra Cantada', description: 'dupla musical infantil e família brasileira' },
+  { name: 'Patati Patatá', description: 'dupla de palhaços infantil e família brasileira' },
+  { name: 'Luccas Neto', description: 'ator e produtor de conteúdo infantil e família brasileiro' },
+  { name: 'Fernanda Montenegro', description: 'atriz brasileira de teatro, cinema e televisão' },
+  { name: 'Selton Mello', description: 'ator e diretor brasileiro de cinema e teatro' },
+  { name: 'Wagner Moura', description: 'ator e diretor brasileiro de cinema e teatro' },
+  { name: 'Lázaro Ramos', description: 'ator, diretor e escritor brasileiro de teatro e cinema' },
+  { name: 'Claudia Raia', description: 'atriz e produtora brasileira de peças de teatro e musicais' },
+  { name: 'Miguel Falabella', description: 'ator, dramaturgo e diretor brasileiro de peças de teatro e musicais' }
+];
+
 /**
- * Ciclo Automático de Prospecção, Aprovação, Coleta e Distribuição Multi-Menu:
+ * Ciclo Automático Intradiário de Prospecção, Aprovação, Coleta e Distribuição Multi-Menu:
  * 1. Aprova, coleta (YouTube + Spotify) e envia ao Radar todos os candidatos pendentes/aprovados na fila.
  * 2. Busca automaticamente no Wikidata + YouTube API v3 + Spotify os talentos do catálogo que ainda
- *    não possuem métricas coletadas, aprovando e distribuindo para Oportunidade Comercial, Visão Geral,
- *    Audiência Geográfica e Talentos Emergentes.
+ *    não possuem métricas coletadas.
+ * 3. Alimenta automaticamente novos talentos brasileiros reais (a partir de eventos detectados e da
+ *    fila nacional de expansão nas 8 categorias), aumentando continuamente o total de Talentos Monitorados.
+ * 4. Atualiza múltiplas vezes ao dia (rotação intradiária a cada 2h) as métricas dos talentos já monitorados.
  */
 export async function autoDiscoverApproveAndSyncCycle(db, radar, { limit = 6, category = '', talentId = '', force = false, fetcher = fetch } = {}) {
   if (!db || !radar) return { ok: false, processed: 0 };
@@ -549,6 +675,8 @@ export async function autoDiscoverApproveAndSyncCycle(db, radar, { limit = 6, ca
   let ytExtra = 0;
   let spExtra = 0;
   let pendingApproved = 0;
+  let newlyFedTalents = 0;
+  let intradayRefreshed = 0;
   const refreshedNames = [];
 
   // Etapa 1: Aprova e distribui automaticamente todos os candidatos pendentes na fila do Discovery (incorporando novos talentos ao Radar)
@@ -656,6 +784,111 @@ export async function autoDiscoverApproveAndSyncCycle(db, radar, { limit = 6, ca
     } catch {}
   }
 
+  // Etapa 3: Alimentação automática contínua de novos talentos monitorados (eventos detectados + fila nacional de expansão)
+  if (!talentFilter) {
+    const existingNames = new Set(
+      radar
+        .prepare('SELECT lower(trim(name)) nm FROM talents')
+        .all()
+        .map(r => r.nm)
+    );
+    const eventArtists = radar
+      .prepare('SELECT DISTINCT trim(name) AS name FROM event_listing_artists WHERE length(trim(name)) >= 3 LIMIT 40')
+      .all()
+      .map(r => ({ name: r.name, description: 'atração artística e musical brasileira' }));
+    const expansionCandidates = [...eventArtists, ...AUTO_EXPANSION_BRAZILIAN_TALENTS].filter(
+      item => item?.name && !existingNames.has(item.name.toLowerCase().trim())
+    );
+    const feedLimit = Math.min(4, Math.max(2, Math.ceil((Number(limit) || 6) / 2)));
+    for (const newItem of expansionCandidates.slice(0, feedLimit)) {
+      try {
+        const gSearch = await globalSearch(db, radar, newItem.name, { includeMusicBrainzLive: false, fetcher }).catch(() => null);
+        const bestExt = gSearch?.external?.find(e => e.profiles?.length > 0) || gSearch?.external?.[0] || null;
+        const extraProfiles = [];
+        if (Array.isArray(gSearch?.youtubeChannels) && gSearch.youtubeChannels[0]?.url) {
+          extraProfiles.push({ network: 'YouTube', url: gSearch.youtubeChannels[0].url });
+        } else if (process.env.YOUTUBE_API_KEY) {
+          const ytChans = await searchYoutube(newItem.name, { fetcher }).catch(() => []);
+          if (ytChans?.[0]?.url) extraProfiles.push({ network: 'YouTube', url: ytChans[0].url });
+        }
+        if (Array.isArray(gSearch?.crossValidation?.profiles)) {
+          for (const cp of gSearch.crossValidation.profiles) {
+            if (cp?.network && cp?.url) extraProfiles.push({ network: cp.network, url: cp.url });
+          }
+        }
+        const ap = await approveAndSendToRadar(
+          db,
+          radar,
+          bestExt?.external_id
+            ? {
+                source: 'wikidata',
+                external_id: bestExt.external_id,
+                description: bestExt.description || newItem.description,
+                evidence: bestExt.evidence_url,
+                extraProfiles
+              }
+            : {
+                name: newItem.name,
+                description: newItem.description,
+                evidence:
+                  extraProfiles[0]?.url ||
+                  `https://www.wikidata.org/wiki/Special:Search?search=${encodeURIComponent(newItem.name)}`,
+                extraProfiles
+              },
+          { reviewer: 'auto-feeder', fetcher }
+        );
+        if (ap?.ok) {
+          newlyFedTalents++;
+          existingNames.add(newItem.name.toLowerCase().trim());
+          ytExtra += ap.youtubeCollected || 0;
+          spExtra += ap.spotifyCollected || 0;
+          if (!refreshedNames.includes(ap.name)) refreshedNames.push(ap.name);
+        }
+      } catch {}
+    }
+  }
+
+  // Etapa 4: Atualização intradiária contínua (múltiplas vezes ao dia para talentos cuja última coleta tem mais de 2 horas)
+  if (!talentFilter) {
+    const twoHoursAgoIso = new Date(Date.now() - 2 * 3600000).toISOString();
+    const staleTalents = radar
+      .prepare(
+        `SELECT t.id, t.name, MIN(mc.collected_at) AS oldest_collected
+         FROM talents t
+         JOIN metric_current mc ON mc.talent_id = t.id
+         WHERE t.blocked = 0
+           AND mc.value IS NOT NULL
+           AND mc.collected_at < ?
+         GROUP BY t.id
+         ORDER BY oldest_collected ASC
+         LIMIT ?`
+      )
+      .all(twoHoursAgoIso, Math.min(4, Math.max(2, Math.floor((Number(limit) || 6) / 2))));
+
+    for (const st of staleTalents) {
+      try {
+        const candRow = db.prepare('SELECT id FROM candidates WHERE radar_id = ? LIMIT 1').get(st.id);
+        if (candRow?.id) {
+          const ytR = await collectYoutube(db, { candidateId: candRow.id, force: true, fetcher }).catch(() => ({ collected: 0 }));
+          ytExtra += ytR.collected || 0;
+        }
+        const spComm = radar.prepare("SELECT url, identity_source FROM commercial_accounts WHERE talent_id = ? AND network = 'Spotify' LIMIT 1").get(st.id);
+        if (spComm?.url) {
+          const spCount = await autoCollectSpotifyForCandidate(
+            radar,
+            st.id,
+            [{ network: 'Spotify', url: spComm.url }],
+            spComm.identity_source || spComm.url,
+            fetcher
+          ).catch(() => 0);
+          spExtra += spCount;
+        }
+        intradayRefreshed++;
+        if (!refreshedNames.includes(st.name)) refreshedNames.push(st.name);
+      } catch {}
+    }
+  }
+
   const dist = distributeVerifiedDiscoveryToRadar(radar, db);
   const totalTalents = radar.prepare('SELECT count(*) n FROM talents WHERE blocked = 0').get().n;
   const totalWithMetrics = radar.prepare('SELECT count(DISTINCT talent_id) n FROM metric_current WHERE value IS NOT NULL').get().n;
@@ -664,9 +897,11 @@ export async function autoDiscoverApproveAndSyncCycle(db, radar, { limit = 6, ca
   return {
     ok: true,
     status: 'completed',
-    processed: pendingApproved + candidatesToEnrich.length,
-    approvedAndPublished: pendingApproved + refreshedNames.length,
+    processed: pendingApproved + candidatesToEnrich.length + newlyFedTalents + intradayRefreshed,
+    approvedAndPublished: pendingApproved + newlyFedTalents + refreshedNames.length,
     pendingApproved,
+    newlyFedTalents,
+    intradayRefreshed,
     collected: (ytBatch.collected || 0) + ytExtra + spExtra,
     youtubeCollected: (ytBatch.collected || 0) + ytExtra,
     spotifyCollected: spExtra,
@@ -675,7 +910,8 @@ export async function autoDiscoverApproveAndSyncCycle(db, radar, { limit = 6, ca
     totalTalents,
     totalWithMetrics,
     remainingPendingTalents: Math.max(0, totalTalents - totalWithMetrics),
-    totalMetrics
+    totalMetrics,
+    updatedAt: new Date().toISOString()
   };
 }
 

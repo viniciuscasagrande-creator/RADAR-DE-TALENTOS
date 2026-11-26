@@ -1278,12 +1278,18 @@
    Bolinhas Neon Multi-Índice no Mapa, Etiquetas (Callouts), Legenda Flutuante,
    Ficha Técnica Popover e Cards Laterais de Crescimento & Concentração
    ========================================================================== */
+.talent-home #geography {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
 .talent-home #map {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 272px;
   gap: 10px;
-  align-items: start;
+  align-items: stretch;
+  flex: 1;
 }
 .talent-home #map > p,
 .talent-home #map > .radius-summary {
@@ -1292,20 +1298,43 @@
 .talent-home #map > svg {
   grid-column: 1;
   width: 100%;
-  min-height: 440px;
-  max-height: 560px;
+  height: 100% !important;
+  min-height: 530px !important;
+  max-height: none !important;
+  aspect-ratio: auto !important;
 }
 .talent-home #map > .map-smart-dock {
   grid-column: 2;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   gap: 8px;
   min-width: 0;
+  height: 100%;
 }
 .talent-home .map-side {
   max-height: none;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
+}
+.talent-home #states {
+  max-height: 172px;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: #a855f7 rgba(18, 14, 30, 0.75);
+}
+.talent-home #states::-webkit-scrollbar {
+  width: 6px;
+}
+.talent-home #states::-webkit-scrollbar-track {
+  background: rgba(18, 14, 30, 0.75);
+  border-radius: 999px;
+}
+.talent-home #states::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #a855f7, #00f0ff);
+  border-radius: 999px;
 }
 .talent-home .legend-growth {
   background: #22c55e;
@@ -1387,42 +1416,43 @@
 .talent-home .map-floating-legend {
   position: static;
   width: 100%;
-  padding: 11px 12px;
+  padding: 8px 10px;
   border-radius: 12px;
   background: #17171a;
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 14px rgba(168, 85, 247, 0.16);
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 2px;
+  flex-shrink: 0;
 }
 .talent-home .mfl-head {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding-bottom: 5px;
-  margin-bottom: 2px;
+  padding-bottom: 4px;
+  margin-bottom: 1px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 .talent-home .mfl-head strong {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 750;
   color: #ffffff;
   letter-spacing: -0.01em;
 }
 .talent-home .mfl-head small {
-  font-size: 9.5px;
+  font-size: 9px;
   color: #a1a1aa;
 }
 .talent-home .mfl-item {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 9px;
+  gap: 8px;
   width: 100%;
   height: auto;
-  padding: 4px 6px;
-  border-radius: 8px;
+  padding: 2.5px 5px;
+  border-radius: 7px;
   background: transparent;
   border: 1px solid transparent;
   text-align: left;
@@ -1438,8 +1468,8 @@
   box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
 }
 .talent-home .mfl-icon-wrap {
-  width: 24px;
-  height: 24px;
+  width: 21px;
+  height: 21px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1552,14 +1582,16 @@
 .talent-home .map-marker-popover {
   position: static;
   width: 100%;
-  padding: 10px 12px;
+  flex: 1;
+  padding: 9px 11px;
   border-radius: 12px;
   background: #141122;
   border: 1.5px solid #22c55e;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55), 0 0 16px rgba(34, 197, 94, 0.25);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 5px;
 }
 .talent-home .map-marker-popover[data-index-type="concentration"] {
   border-color: #22c55e;

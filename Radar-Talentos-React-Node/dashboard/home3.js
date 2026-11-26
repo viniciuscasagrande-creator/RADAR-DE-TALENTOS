@@ -16,12 +16,12 @@
       return node;
     };
 
-    // Aplica o logo oficial na barra lateral e no hero banner da Visão Geral
+    // Aplica o logo oficial em alta definição na barra lateral e no hero banner da Visão Geral
     const mark = document.querySelector('.sidebar .radar-mark');
-    if (mark && !mark.querySelector('img')) {
+    if (mark && !mark.querySelector('svg') && !mark.querySelector('img')) {
       mark.textContent = '';
       const logoImg = el('img', 'brand-logo-img');
-      logoImg.src = '/radar-logo-mark.png';
+      logoImg.src = '/radar-logo-mark.svg';
       logoImg.alt = '';
       mark.append(logoImg);
     }
@@ -30,7 +30,7 @@
     const heroBanner = el('div', 'home3-hero-banner');
     const heroLeft = el('div', 'home3-hero-left');
     const heroArt = el('img', 'home3-hero-art');
-    heroArt.src = '/radar-hero-banner.png';
+    heroArt.src = '/radar-hero-banner.svg';
     heroArt.alt = 'Radar de Talentos — Inteligência de mercado';
     const heroText = el('div', 'home3-hero-text');
     const eyebrow = el('div', 'home3-intro-eyebrow', 'INTELIGÊNCIA ARTÍSTICA · VISÃO GERAL EXECUTIVA');

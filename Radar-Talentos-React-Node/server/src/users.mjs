@@ -101,6 +101,11 @@ export function isAdminRole(role = '') {
   return role === 'admin' || role === 'superadmin';
 }
 
+export function hasUsersAdminPower(user) {
+  if (!user) return false;
+  return isAdminRole(user.role) || Boolean(user.permissions?.users);
+}
+
 export function defaultPermissionsForRole(role = 'producer') {
   if (isAdminRole(role)) return { ...ALL_TRUE_PERMS };
   const found = RADAR_ROLE_PROFILES.find(r => r.role === role);
@@ -207,9 +212,19 @@ export function ensureDefaultAdminUser(db) {
   ]) {
     try { db.exec(alterSql); } catch {}
   }
-  const count = db.prepare('SELECT count(*) AS n FROM radar_users').get().n;
-  if (count > 0) {
-    return db.prepare("SELECT * FROM radar_users WHERE role IN ('admin','superadmin') ORDER BY created_at ASC LIMIT 1").get();
+  try {
+    db.prepare("UPDATE radar_users SET role = 'admin' WHERE lower(username) = 'vinicius.casagrande' AND role = 'user'").run();
+    const nailaRows = db
+      .prepare("SELECT id FROM radar_users WHERE id = 'u-naila.longas-210a89' OR lower(username) = 'naila.longas'")
+      .all();
+    for (const nr of nailaRows) {
+      db.prepare('DELETE FROM radar_sessions WHERE user_id = ? OR impersonated_user_id = ?').run(nr.id, nr.id);
+      db.prepare('DELETE FROM radar_users WHERE id = ?').run(nr.id);
+    }
+  } catch {}
+  const adminRow = db.prepare("SELECT * FROM radar_users WHERE role IN ('admin','superadmin') ORDER BY created_at ASC LIMIT 1").get();
+  if (adminRow) {
+    return adminRow;
   }
   const now = new Date().toISOString();
   const defaultPwd = process.env.RADAR_ADMIN_INITIAL_PASSWORD || 'Radar@2026';
@@ -261,7 +276,7 @@ export function resolveSessionContext(db, req) {
         const baseUser = formatUserRow(baseUserRow);
         let effectiveUser = baseUser;
         let impersonating = false;
-        if (sess.impersonated_user_id && isAdminRole(baseUser.role)) {
+        if (sess.impersonated_user_id && hasUsersAdminPower(baseUser)) {
           const impRow = db.prepare('SELECT * FROM radar_users WHERE id = ?').get(sess.impersonated_user_id);
           if (impRow) {
             effectiveUser = formatUserRow(impRow);
@@ -616,7 +631,7 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
 
     // 6. POST /api/auth/impersonate (Admin troca o perfil ativo para o usuário selecionado ou volta ao Admin)
     if (req.method === 'POST' && url.pathname === '/api/auth/impersonate') {
-      if (!isAdminRole(ctx.user?.role)) {
+      if (!hasUsersAdminPower(ctx.user) && !hasUsersAdminPower(ctx.effectiveUser)) {
         send(res, 403, { error: 'Somente o Administrador pode alternar para o perfil de outro usuário.' });
         return true;
       }
@@ -768,8 +783,8 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
       return true;
     }
 
-    // Operações de escrita em /api/users exigem perfil base de Administrador
-    if (!isAdminRole(ctx.user?.role)) {
+    // Operações de escrita em /api/users exigem perfil de Administrador ou permissão de Gestão de Usuários
+    if (!hasUsersAdminPower(ctx.user) && !hasUsersAdminPower(ctx.effectiveUser)) {
       send(res, 403, { error: 'Operação restrita ao Administrador do Radar.' });
       return true;
     }
@@ -899,16 +914,61 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
       return true;
     }
 
-    // 11. POST /api/users/delete (Admin remove usuário não-admin padrão)
+    // 11. POST /api/users/delete (Admin pode remover qualquer usuário, inclusive contas de administrador)
     if (req.method === 'POST' && url.pathname === '/api/users/delete') {
       const b = await readJsonBody(req);
       const userId = String(b.userId || '').trim();
-      if (userId === 'u-admin' || userId === ctx.user?.id) {
-        send(res, 400, { error: 'Não é permitido excluir o administrador principal.' });
+      const usernameParam = String(b.username || '').trim().toLowerCase();
+      const targetRow = userId
+        ? database.prepare('SELECT * FROM radar_users WHERE id = ?').get(userId)
+        : usernameParam
+          ? database.prepare('SELECT * FROM radar_users WHERE lower(username) = ?').get(usernameParam)
+          : null;
+      if (!targetRow) {
+        send(res, 404, { error: 'Usuário não localizado para exclusão.' });
         return true;
       }
-      database.prepare('DELETE FROM radar_users WHERE id = ?').run(userId);
-      send(res, 200, { ok: true, message: 'Usuário removido.' });
+      database.prepare('DELETE FROM radar_sessions WHERE user_id = ? OR impersonated_user_id = ?').run(targetRow.id, targetRow.id);
+      try {
+        if (targetRow.username) {
+          database
+            .prepare("DELETE FROM radar_signup_requests WHERE lower(assigned_username) = lower(?)")
+            .run(targetRow.username);
+        }
+      } catch {}
+      database.prepare('DELETE FROM radar_users WHERE id = ?').run(targetRow.id);
+      ensureDefaultAdminUser(database);
+      recordAccessLog(database, {
+        username: targetRow.username,
+        userId: targetRow.id,
+        action: 'user_deleted_by_admin',
+        ip: clientIp,
+        status: 'ok',
+        detail: `Usuário ${targetRow.display_name} (@${targetRow.username}) excluído pelo Admin (@${ctx.user?.username || 'admin'})`
+      });
+      send(res, 200, {
+        ok: true,
+        deletedUserId: targetRow.id,
+        message: `Usuário "${targetRow.display_name}" (@${targetRow.username}) excluído com sucesso.`
+      });
+      return true;
+    }
+
+    // 11b. POST /api/users/signup-requests/delete (Admin exclui solicitação da fila de cadastros)
+    if (req.method === 'POST' && url.pathname === '/api/users/signup-requests/delete') {
+      const b = await readJsonBody(req);
+      const requestId = String(b.requestId || '').trim();
+      const reqRow = database.prepare('SELECT * FROM radar_signup_requests WHERE id = ?').get(requestId);
+      if (!reqRow) {
+        send(res, 404, { error: 'Solicitação de cadastro não encontrada.' });
+        return true;
+      }
+      database.prepare('DELETE FROM radar_signup_requests WHERE id = ?').run(requestId);
+      send(res, 200, {
+        ok: true,
+        deletedRequestId: requestId,
+        message: `Solicitação de "${reqRow.full_name}" excluída com sucesso.`
+      });
       return true;
     }
 

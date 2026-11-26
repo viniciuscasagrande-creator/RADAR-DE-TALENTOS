@@ -177,37 +177,41 @@ input[type="range"] {
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #fafafa;
-  font-size: 13px;
-  line-height: 1.1;
-  font-weight: 800;
+  gap: 10px;
+  color: #ffffff;
+  font-size: 13.5px;
+  line-height: 1.15;
+  font-weight: 900;
   text-decoration: none;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .brand b {
-  color: var(--accent);
+  color: #e879f9;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
 }
 
 .radar-mark {
   display: grid;
   place-items: center;
-  border: 1px solid #a855f7;
-  background: #21152f;
-  box-shadow: inset 0 0 0 3px #111113;
+  border: 1.5px solid #00f0ff;
+  background: radial-gradient(circle at 50% 50%, #241242 0%, #090414 100%);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.42), 0 0 20px rgba(168, 85, 247, 0.32), inset 0 0 8px rgba(192, 132, 252, 0.35);
   border-radius: 50%;
-  width: 30px;
-  height: 30px;
-  font-size: 18px;
+  width: 44px;
+  height: 44px;
+  font-size: 20px;
   color: var(--accent);
   flex-shrink: 0;
 }
 
 .brand-sub {
   font-size: 10.5px;
-  margin: 3px 0 8px 38px;
-  color: var(--muted);
+  margin: 5px 0 10px 0;
+  color: #f1f5f9;
+  font-weight: 600;
 }
 
 .sidebar nav {

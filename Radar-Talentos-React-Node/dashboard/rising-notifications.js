@@ -1,12 +1,70 @@
 'use strict';(()=>{
  const mark=document.querySelector('.sidebar .radar-mark');
- if(mark&&!mark.querySelector('img')){
-  mark.textContent='';
-  const logoImg=document.createElement('img');
-  logoImg.className='brand-logo-img';
-  logoImg.src='/radar-logo-mark.png';
-  logoImg.alt='';
-  mark.append(logoImg);
+ if(mark&&!mark.querySelector('.brand-logo-svg')){
+  mark.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" class="brand-logo-svg" viewBox="0 0 120 120" width="100%" height="100%" shape-rendering="geometricPrecision" aria-hidden="true">
+   <defs>
+    <radialGradient id="sb-rd-bg" cx="50%" cy="50%" r="52%">
+     <stop offset="0%" stop-color="#261347"/>
+     <stop offset="65%" stop-color="#100722"/>
+     <stop offset="100%" stop-color="#06020d"/>
+    </radialGradient>
+    <linearGradient id="sb-rd-rim" x1="0%" y1="0%" x2="100%" y2="100%">
+     <stop offset="0%" stop-color="#00f0ff"/>
+     <stop offset="38%" stop-color="#f0abfc"/>
+     <stop offset="72%" stop-color="#a855f7"/>
+     <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="sb-rd-sweep" x1="15%" y1="85%" x2="88%" y2="12%">
+     <stop offset="0%" stop-color="#a855f7" stop-opacity="0.06"/>
+     <stop offset="48%" stop-color="#d946ef" stop-opacity="0.48"/>
+     <stop offset="82%" stop-color="#f0abfc" stop-opacity="0.86"/>
+     <stop offset="100%" stop-color="#00f0ff" stop-opacity="0.98"/>
+    </linearGradient>
+   </defs>
+   <circle cx="60" cy="60" r="56" fill="url(#sb-rd-bg)"/>
+   <circle cx="60" cy="60" r="54.5" fill="none" stroke="url(#sb-rd-rim)" stroke-width="3.6"/>
+   <circle cx="60" cy="60" r="48.5" fill="none" stroke="#e879f9" stroke-opacity="0.78" stroke-width="2.4" stroke-dasharray="1.3 3.4"/>
+   <circle cx="60" cy="60" r="48.5" fill="none" stroke="#00f0ff" stroke-opacity="0.98" stroke-width="3.8" stroke-dasharray="1.8 23.6"/>
+   <circle cx="60" cy="60" r="41" fill="none" stroke="#c084fc" stroke-opacity="0.68" stroke-width="1.45"/>
+   <circle cx="60" cy="60" r="28" fill="none" stroke="#c084fc" stroke-opacity="0.62" stroke-width="1.35"/>
+   <circle cx="60" cy="60" r="15" fill="none" stroke="#f0abfc" stroke-opacity="0.7" stroke-width="1.35"/>
+   <line x1="60" y1="11" x2="60" y2="109" stroke="#a855f7" stroke-opacity="0.38" stroke-width="1.1" stroke-dasharray="2.5 2.5"/>
+   <line x1="11" y1="60" x2="109" y2="60" stroke="#a855f7" stroke-opacity="0.38" stroke-width="1.1" stroke-dasharray="2.5 2.5"/>
+   <line x1="60" y1="9" x2="60" y2="23" stroke="#ffffff" stroke-width="2.8" stroke-linecap="round"/>
+   <line x1="60" y1="97" x2="60" y2="111" stroke="#ffffff" stroke-width="2.8" stroke-linecap="round"/>
+   <line x1="9" y1="60" x2="23" y2="60" stroke="#ffffff" stroke-width="2.8" stroke-linecap="round"/>
+   <line x1="97" y1="60" x2="111" y2="60" stroke="#ffffff" stroke-width="2.8" stroke-linecap="round"/>
+   <g class="radar-telemetry-rotor">
+    <path d="M60,60 L78,11 A53,53 0 0,1 105,31 Z" fill="url(#sb-rd-sweep)"/>
+    <line x1="60" y1="60" x2="104.5" y2="30.5" stroke="#00f0ff" stroke-width="3.4" stroke-linecap="round"/>
+    <line x1="60" y1="60" x2="104.5" y2="30.5" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/>
+   </g>
+   <circle cx="39" cy="38" r="5.6" fill="#d946ef" fill-opacity="0.5"/>
+   <circle cx="39" cy="38" r="3.3" fill="#ffffff"/>
+   <circle cx="83" cy="73" r="5.6" fill="#00f0ff" fill-opacity="0.5"/>
+   <circle cx="83" cy="73" r="3.3" fill="#ffffff"/>
+   <circle cx="41" cy="83" r="5.4" fill="#e879f9" fill-opacity="0.5"/>
+   <circle cx="41" cy="83" r="3.1" fill="#ffffff"/>
+   <circle cx="85" cy="34" r="5.2" fill="#22c55e" fill-opacity="0.6"/>
+   <circle cx="85" cy="34" r="2.8" fill="#ffffff"/>
+   <circle cx="60" cy="60" r="8.5" fill="#d946ef" fill-opacity="0.42"/>
+   <circle cx="60" cy="60" r="5" fill="#ffffff" stroke="#00f0ff" stroke-width="1.5"/>
+  </svg>`;
+ }
+ const brandSub=document.querySelector('.sidebar .brand-sub');
+ if(brandSub&&!brandSub.querySelector('.brand-telemetry-dot')){
+  const rawText=(brandSub.textContent||'Inteligência de mercado').trim();
+  brandSub.textContent='';
+  const dot=document.createElement('span');
+  dot.className='brand-telemetry-dot';
+  dot.setAttribute('aria-hidden','true');
+  const txt=document.createElement('span');
+  txt.className='brand-sub-text';
+  txt.textContent=rawText;
+  const pill=document.createElement('span');
+  pill.className='brand-telemetry-pill';
+  pill.textContent='HD · 24/7';
+  brandSub.append(dot,txt,pill);
  }
  // Suporte nativo Edge-to-Edge (Android 15/16 WindowCompat + Safe Area Insets) para Mobile e Tablet
  const vpMeta=document.querySelector('meta[name="viewport"]');

@@ -63,14 +63,19 @@
     host.replaceChildren();
 
     const activeUser = currentSession?.effectiveUser;
-    const isAdminBase = currentSession?.adminUser?.role === 'admin';
+    const isAdminRole = role => role === 'admin' || role === 'superadmin';
+    const isAdminBase =
+      isAdminRole(currentSession?.adminUser?.role) ||
+      isAdminRole(activeUser?.role) ||
+      Boolean(currentSession?.adminUser?.permissions?.users) ||
+      Boolean(activeUser?.permissions?.users);
 
     if ($('kpi-users-total')) $('kpi-users-total').textContent = String(usersList.length);
     if ($('kpi-active-user')) $('kpi-active-user').textContent = activeUser?.displayName || 'Administrador Radar';
     if ($('kpi-active-role')) {
       $('kpi-active-role').textContent = currentSession?.impersonating
         ? `🎭 Visualizando como @${activeUser?.username} (Admin: @${currentSession?.adminUser?.username})`
-        : `@${activeUser?.username || 'admin'} · ${activeUser?.role === 'admin' ? 'Administrador' : 'Usuário Padrão'}`;
+        : `@${activeUser?.username || 'admin'} · ${activeUser?.roleLabel || (isAdminRole(activeUser?.role) ? 'Administrador' : 'Usuário Padrão')}`;
     }
     const pendingCount = usersList.filter(u => u.mustChangePassword).length;
     if ($('kpi-pending-pwd')) $('kpi-pending-pwd').textContent = String(pendingCount);
@@ -170,25 +175,38 @@
           actRight.append(impBtn);
         }
 
-        // 2. Botão de Resetar Senha
+        // 2. Botão de Resetar Senha (habilitado para qualquer usuário, inclusive o próprio Administrador)
         const rstBtn = el('button', 'secondary-button', '🔄 Resetar Senha');
         rstBtn.type = 'button';
+        rstBtn.title = 'Definir nova senha provisória para este usuário (inclusive Administrador)';
         rstBtn.addEventListener('click', () => openResetPasswordModal(u));
         actRight.append(rstBtn);
 
-        // 3. Excluir (somente se não for o admin principal)
-        if (u.id !== 'u-admin' && u.id !== currentSession?.adminUser?.id) {
-          const delBtn = el('button', 'secondary-button', '🗑 Excluir');
-          delBtn.type = 'button';
-          delBtn.style.borderColor = '#ef4444';
-          delBtn.style.color = '#fca5a5';
-          delBtn.addEventListener('click', async () => {
-            await api('/api/users/delete', 'POST', { userId: u.id });
-            if ($('users-status-banner')) $('users-status-banner').textContent = `Usuário "${u.displayName}" removido.`;
+        // 3. Botão de Excluir (habilitado para qualquer usuário, inclusive contas de Administrador)
+        const delBtn = el('button', 'secondary-button', '🗑 Excluir');
+        delBtn.type = 'button';
+        delBtn.style.borderColor = '#ef4444';
+        delBtn.style.color = '#fca5a5';
+        delBtn.title = 'Excluir permanentemente este usuário e encerrar suas sessões';
+        delBtn.addEventListener('click', async () => {
+          const isSelf = u.id === currentSession?.adminUser?.id || u.id === activeUser?.id;
+          const confirmMsg = isSelf
+            ? `Confirma a exclusão da conta de Administrador "${u.displayName} (@${u.username})"?`
+            : `Confirma a exclusão permanente do usuário "${u.displayName} (@${u.username})"?`;
+          if (typeof window.confirm === 'function' && !window.confirm(confirmMsg)) return;
+          try {
+            const res = await api('/api/users/delete', 'POST', { userId: u.id });
+            if ($('users-status-banner')) {
+              $('users-status-banner').textContent = res.message || `Usuário "${u.displayName}" removido.`;
+            }
             await loadUsers();
-          });
-          actRight.append(delBtn);
-        }
+          } catch (err) {
+            if ($('users-status-banner')) {
+              $('users-status-banner').textContent = 'Erro ao excluir usuário: ' + err.message;
+            }
+          }
+        });
+        actRight.append(delBtn);
       }
 
       topRow.append(infoLeft, actRight);
@@ -203,16 +221,47 @@
       permsHead.style.display = 'flex';
       permsHead.style.alignItems = 'center';
       permsHead.style.justifyContent = 'space-between';
+      permsHead.style.flexWrap = 'wrap';
+      permsHead.style.gap = '8px';
       permsHead.style.marginBottom = '8px';
       permsHead.append(
         el(
           'small',
           null,
-          u.role === 'admin'
+          isAdminRole(u.role)
             ? '☑ Permissões de Administrador (Acesso Total Liberado a Todos os Módulos):'
             : '☑ Permissões Liberadas em Check (clique para liberar ou bloquear qualquer módulo instantaneamente):'
         )
       );
+      if (isAdminBase && roleProfiles.length) {
+        const roleChangeSel = el('select');
+        roleChangeSel.style.height = '26px';
+        roleChangeSel.style.borderRadius = '6px';
+        roleChangeSel.style.background = '#0d061a';
+        roleChangeSel.style.color = '#f0abfc';
+        roleChangeSel.style.border = '1px solid rgba(192,132,252,0.45)';
+        roleChangeSel.style.fontSize = '11px';
+        roleChangeSel.title = 'Alterar perfil de acesso deste usuário';
+        for (const rp of roleProfiles) {
+          const opt = new Option(`Perfil: ${rp.label}`, rp.role);
+          if (rp.role === u.role) opt.selected = true;
+          roleChangeSel.append(opt);
+        }
+        roleChangeSel.addEventListener('change', async () => {
+          try {
+            const res = await api('/api/users/permissions', 'POST', {
+              userId: u.id,
+              role: roleChangeSel.value
+            });
+            if ($('users-status-banner')) $('users-status-banner').textContent = res.message;
+            await loadUsers();
+            window.dispatchEvent(new Event('radar:auth-updated'));
+          } catch (err) {
+            if ($('users-status-banner')) $('users-status-banner').textContent = 'Erro ao alterar perfil: ' + err.message;
+          }
+        });
+        permsHead.append(roleChangeSel);
+      }
       permsWrap.append(permsHead);
 
       const permsGrid = el('div');
@@ -230,12 +279,12 @@
         lbl.style.borderRadius = '7px';
         lbl.style.background = currentPerms[p.key] ? 'rgba(56,189,248,0.12)' : 'rgba(24,24,27,0.75)';
         lbl.style.border = currentPerms[p.key] ? '1px solid rgba(56,189,248,0.5)' : '1px solid #27272a';
-        lbl.style.cursor = u.role === 'admin' || !isAdminBase ? 'default' : 'pointer';
+        lbl.style.cursor = isAdminRole(u.role) || !isAdminBase ? 'default' : 'pointer';
 
         const chk = el('input');
         chk.type = 'checkbox';
-        chk.checked = u.role === 'admin' ? true : Boolean(currentPerms[p.key]);
-        chk.disabled = u.role === 'admin' || !isAdminBase;
+        chk.checked = isAdminRole(u.role) ? true : Boolean(currentPerms[p.key]);
+        chk.disabled = isAdminRole(u.role) || !isAdminBase;
         chk.style.width = '15px';
         chk.style.height = '15px';
 
@@ -674,7 +723,25 @@
         }
       });
 
-      controls.append(roleSel, tempPwdInp, noteInp, approveBtn, rejectBtn);
+      const deleteReqBtn = el('button', 'secondary-button', '🗑 Excluir');
+      deleteReqBtn.type = 'button';
+      deleteReqBtn.style.height = '30px';
+      deleteReqBtn.style.borderColor = '#ef4444';
+      deleteReqBtn.style.color = '#fca5a5';
+      deleteReqBtn.addEventListener('click', async () => {
+        if (typeof window.confirm === 'function' && !window.confirm(`Excluir solicitação de "${r.fullName}"?`)) return;
+        deleteReqBtn.disabled = true;
+        try {
+          const res = await api('/api/users/signup-requests/delete', 'POST', { requestId: r.id });
+          if ($('users-status-banner')) $('users-status-banner').textContent = res.message;
+          await loadUsers();
+        } catch (err) {
+          if ($('users-status-banner')) $('users-status-banner').textContent = 'Erro ao excluir solicitação: ' + err.message;
+          deleteReqBtn.disabled = false;
+        }
+      });
+
+      controls.append(roleSel, tempPwdInp, noteInp, approveBtn, rejectBtn, deleteReqBtn);
       card.append(controls);
       host.append(card);
     }

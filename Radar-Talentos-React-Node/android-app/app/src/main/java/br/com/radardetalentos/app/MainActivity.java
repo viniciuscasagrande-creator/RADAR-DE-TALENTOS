@@ -48,7 +48,7 @@ import android.widget.Toast;
 
 public class MainActivity extends Activity {
 
-    private static final String RADAR_PORTAL_URL = "https://radar.34.70.140.94.sslip.io/";
+    private static final String RADAR_PORTAL_URL = "https://radardetalentos.net.br/";
     private static final String NOTIF_CHANNEL_ID = "radar_e2e_alerts";
     private int notifSeq = 1000;
 

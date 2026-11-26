@@ -1331,7 +1331,41 @@ function renderSideTalentInsightsCards(){
  }
  concCard.append(cHead,cText,cPills);
 
- box.append(growthCard,concCard);
+ // Card 3: Polos comerciais de alta renda & PIB per capita IBGE (Borda Azul/Ciano Neon)
+ const commCard=el('div');
+ commCard.className='talent-map-insight-card insight-commercial';
+ const mHead=el('div');mHead.className='tmic-head';
+ const mDot=el('i');mDot.className='tmic-dot dot-cyan';
+ mHead.append(mDot,el('h3','Polos comerciais de alta renda (PIB per capita IBGE)'));
+ const mText=el('p','Praças com alto poder aquisitivo e forte absorção de ingressos (ticket médio premium, shows e eventos corporativos):');
+ const mPills=el('div');mPills.className='tmic-pills';
+ for(const [code,name,pib] of [
+  ['3205309','Vitória','R$ 85,4 mil'],
+  ['4209102','Joinville','R$ 66,8 mil'],
+  ['3509502','Campinas','R$ 64,1 mil'],
+  ['3549904','S. J. dos Campos','R$ 63,5 mil'],
+  ['3552205','Sorocaba','R$ 61,9 mil'],
+  ['3170206','Uberlândia','R$ 60,5 mil'],
+  ['3543402','Ribeirão Preto','R$ 56,8 mil'],
+  ['4202008','Baln. Camboriú','R$ 54,3 mil'],
+  ['4115200','Maringá','R$ 52,2 mil'],
+  ['4205407','Florianópolis','R$ 48,6 mil'],
+  ['4204608','Criciúma','R$ 46,1 mil'],
+  ['4113700','Londrina','R$ 43,8 mil']
+ ]){
+  const b=el('button',`🔵 ${name} (${pib})`);
+  b.type='button';
+  b.className='tmic-city-pill pill-commercial';
+  b.title=`Focar polo comercial ${name} (PIB per capita: ${pib}) e abrir ficha técnica`;
+  b.addEventListener('click',()=>{
+   activeTechnicalMarkerCode=code;
+   focusCommercialHub(code,100,false);
+  });
+  mPills.append(b);
+ }
+ commCard.append(mHead,mText,mPills);
+
+ box.append(growthCard,concCard,commCard);
 }
 
 function renderOperationalSidebars(artistMap){

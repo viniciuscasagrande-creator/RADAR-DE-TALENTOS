@@ -1052,6 +1052,8 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
       const now = new Date().toISOString();
       const reviewerName = ctx.user?.username || 'admin';
       const portalUrl = 'https://radardetalentos.net.br/login.html';
+      const senderEmail = 'radardetalentosnet@gmail.com';
+      const senderFrom = process.env.RADAR_EMAIL_FROM || `Radar de Talentos (Não Responda) <${senderEmail}>`;
 
       if (decision === 'approve') {
         const tempNum = String(Math.floor(1000 + Math.random() * 9000));
@@ -1091,7 +1093,7 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
             .run(userId, username, reqRow.full_name, reqRow.email.toLowerCase(), role, hash, salt, JSON.stringify(perms), now, now);
         }
 
-        const emailSubject = 'Radar de Talentos — Seu cadastro foi APROVADO (Acesso e Senha Temporária)';
+        const emailSubject = 'Radar de Talentos — Confirmação de Cadastro Aprovado (Não responda este e-mail)';
         const emailBody = [
           `Olá, ${reqRow.full_name}!`,
           '',
@@ -1107,7 +1109,10 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
           reviewNote ? `\nObservação da equipe: ${reviewNote}` : '',
           '',
           'Atenciosamente,',
-          'Equipe Radar de Talentos — https://radardetalentos.net.br'
+          'Equipe Radar de Talentos — https://radardetalentos.net.br',
+          `E-mail de confirmação: ${senderEmail}`,
+          '────────────────────────────────────────────────────────',
+          'AVISO AUTOMÁTICO: Por favor, não responda este e-mail (mensagem automática de confirmação de cadastro).'
         ]
           .filter((line, idx, arr) => !(line === '' && arr[idx - 1] === ''))
           .join('\n');
@@ -1123,7 +1128,8 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                from: process.env.RADAR_EMAIL_FROM || 'Radar de Talentos <acesso@radardetalentos.net.br>',
+                from: senderFrom,
+                reply_to: 'naoresponda@radardetalentos.net.br',
                 to: [reqRow.email],
                 subject: emailSubject,
                 text: emailBody
@@ -1151,12 +1157,13 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
           action: 'signup_approved',
           ip: clientIp,
           status: 'approved',
-          detail: `Cadastro de ${reqRow.full_name} (${reqRow.email}) aprovado com senha temporária e troca obrigatória no 1º acesso`
+          detail: `Cadastro de ${reqRow.full_name} (${reqRow.email}) aprovado via ${senderEmail} com senha temporária e troca obrigatória no 1º acesso`
         });
 
         const cleanPhone = String(reqRow.phone || '').replace(/\D+/g, '');
         const waPhone = cleanPhone.length >= 10 ? (cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone) : '';
         const mailtoUrl = `mailto:${encodeURIComponent(reqRow.email)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+        const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&authuser=${encodeURIComponent(senderEmail)}&to=${encodeURIComponent(reqRow.email)}&su=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
         const whatsappUrl = waPhone
           ? `https://wa.me/${waPhone}?text=${encodeURIComponent(emailBody)}`
           : `https://wa.me/?text=${encodeURIComponent(emailBody)}`;
@@ -1167,26 +1174,31 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
           requestId,
           username,
           email: reqRow.email,
+          senderEmail,
           tempPassword,
           autoDelivered,
           emailSubject,
           emailBody,
           mailtoUrl,
+          gmailComposeUrl,
           whatsappUrl,
-          message: `Cadastro de "${reqRow.full_name}" (${reqRow.email}) APROVADO! Conta @${username} criada com senha temporária "${tempPassword}" (troca obrigatória no 1º acesso).`
+          message: `Cadastro de "${reqRow.full_name}" (${reqRow.email}) APROVADO! Confirmação pronta para envio pelo e-mail ${senderEmail} com senha temporária "${tempPassword}".`
         });
         return true;
       } else {
-        const emailSubject = 'Radar de Talentos — Atualização sobre sua solicitação de cadastro';
+        const emailSubject = 'Radar de Talentos — Atualização sobre sua solicitação de cadastro (Não responda este e-mail)';
         const emailBody = [
           `Olá, ${reqRow.full_name},`,
           '',
           'Agradecemos seu interesse no Radar de Talentos (https://radardetalentos.net.br).',
           'Após análise dos dados enviados, informamos que sua solicitação de cadastro não pôde ser aprovada neste momento.',
-          reviewNote ? `\nMotivo / Orientação da equipe: ${reviewNote}` : '\nCaso deseje complementar as informações da sua empresa ou produtora, responda a este e-mail.',
+          reviewNote ? `\nMotivo / Orientação da equipe: ${reviewNote}` : '',
           '',
           'Atenciosamente,',
-          'Equipe Radar de Talentos — https://radardetalentos.net.br'
+          'Equipe Radar de Talentos — https://radardetalentos.net.br',
+          `E-mail institucional: ${senderEmail}`,
+          '────────────────────────────────────────────────────────',
+          'AVISO AUTOMÁTICO: Por favor, não responda este e-mail (mensagem automática do sistema).'
         ].join('\n');
 
         let autoDelivered = false;
@@ -1200,7 +1212,8 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                from: process.env.RADAR_EMAIL_FROM || 'Radar de Talentos <acesso@radardetalentos.net.br>',
+                from: senderFrom,
+                reply_to: 'naoresponda@radardetalentos.net.br',
                 to: [reqRow.email],
                 subject: emailSubject,
                 text: emailBody
@@ -1230,16 +1243,19 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
         });
 
         const mailtoUrl = `mailto:${encodeURIComponent(reqRow.email)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+        const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&authuser=${encodeURIComponent(senderEmail)}&to=${encodeURIComponent(reqRow.email)}&su=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
         send(res, 200, {
           ok: true,
           decision: 'rejected',
           requestId,
           email: reqRow.email,
+          senderEmail,
           autoDelivered,
           emailSubject,
           emailBody,
           mailtoUrl,
-          message: `Solicitação de "${reqRow.full_name}" (${reqRow.email}) marcada como NÃO APROVADA. E-mail de retorno pronto para envio.`
+          gmailComposeUrl,
+          message: `Solicitação de "${reqRow.full_name}" (${reqRow.email}) marcada como NÃO APROVADA. E-mail de retorno pronto para envio via ${senderEmail}.`
         });
         return true;
       }

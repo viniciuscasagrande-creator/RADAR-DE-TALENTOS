@@ -493,7 +493,12 @@
     top.append(title, closeBtn);
     box.append(top);
 
-    const pre = el('pre', null, `Assunto: ${res.emailSubject}\n\n${res.emailBody}`);
+    const senderAddr = res.senderEmail || 'radardetalentosnet@gmail.com';
+    const pre = el(
+      'pre',
+      null,
+      `De: ${senderAddr} (Não responda este e-mail)\nPara: ${res.email}\nAssunto: ${res.emailSubject}\n\n${res.emailBody}`
+    );
     pre.style.margin = '10px 0';
     pre.style.padding = '12px';
     pre.style.borderRadius = '8px';
@@ -509,8 +514,21 @@
     actions.style.gap = '8px';
     actions.style.flexWrap = 'wrap';
 
+    if (res.gmailComposeUrl) {
+      const gmailA = el('a', 'btn-simulate-show', `📨 Enviar pelo Gmail (${senderAddr})`);
+      gmailA.href = res.gmailComposeUrl;
+      gmailA.target = '_blank';
+      gmailA.rel = 'noopener noreferrer';
+      gmailA.style.textDecoration = 'none';
+      gmailA.style.display = 'inline-flex';
+      gmailA.style.alignItems = 'center';
+      gmailA.style.height = '32px';
+      gmailA.style.padding = '0 14px';
+      actions.append(gmailA);
+    }
+
     if (res.mailtoUrl) {
-      const mailA = el('a', 'btn-simulate-show', `📧 Enviar E-mail Agora para ${res.email}`);
+      const mailA = el('a', 'secondary-button', `📧 Abrir no App de E-mail (${res.email})`);
       mailA.href = res.mailtoUrl;
       mailA.style.textDecoration = 'none';
       mailA.style.display = 'inline-flex';

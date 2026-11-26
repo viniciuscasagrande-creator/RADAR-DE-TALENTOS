@@ -149,7 +149,13 @@ export function createRadarServer({
         return;
       }
 
-      if (!authenticate(req, security)) {
+      if (/^\/(.*\/)?tiktok[A-Za-z0-9_-]*\.txt$/i.test(path)) {
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(req.method === 'HEAD' ? undefined : 'tiktok-developers-site-verification=f8787Q2dLcnUXfPyq8PnW85aKsPZRnZA');
+        return;
+      }
+
+      if (!authenticate(req, security) && !['/terms.html', '/privacy.html'].includes(path)) {
         res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Radar", charset="UTF-8"' }).end();
         return;
       }

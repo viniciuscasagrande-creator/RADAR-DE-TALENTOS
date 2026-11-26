@@ -1316,10 +1316,11 @@
   max-height: none;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
+  gap: 4px;
 }
 .talent-home #states {
-  max-height: 172px;
+  max-height: 158px;
   overflow-y: auto;
   padding-right: 6px;
   scrollbar-width: thin;

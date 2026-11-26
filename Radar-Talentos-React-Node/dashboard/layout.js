@@ -130,10 +130,6 @@
         return project([lon*180/Math.PI,lat*180/Math.PI]);
       });
       s.append(svg('polygon',{points:pts.map(p=>p.join(',')).join(' '),fill:'#a855f71a',stroke:'#e9d5ff','stroke-width':'1.4','stroke-dasharray':'5 3','pointer-events':'none',class:'radius-ring'}));
-      if(!framedBox){
-        const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
-        framedBox=[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];
-      }
 
       coveredMunis.sort((p,q)=>p.km-q.km);
       const box=document.createElement('div');

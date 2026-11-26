@@ -135,11 +135,13 @@ function focusCommercialHub(code,radiusKm=100,openSimModal=false){
  const codeStr=String(code);
  const cityObj=catalog.find(c=>String(c.code)===codeStr)||(demographicsData?.items||[]).find(d=>String(d.code)===codeStr);
  if(!cityObj)return;
+ activeTechnicalMarkerCode=String(cityObj.code);
  selected.clear();
  selected.add(String(cityObj.code));
- field('region').value=cityObj.region||'';
+ // Mantém a visão nacional completa no mapa para preservar todas as bolinhas e comparativos regionais
+ field('region').value='';
  updateUF();
- field('uf').value=cityObj.uf||'';
+ field('uf').value='';
  filterCities();
  $('center-search').value=`${cityObj.name} / ${cityObj.uf}`;
  filterCenters(false);
@@ -1029,9 +1031,8 @@ function map(r){
  }
 
  const maxCity=Math.max(1,...r.places.map(p=>p.value)),valuesByCity=new Map(r.places.map(p=>[String(p.code),p]));
- const uf=field('uf').value,region=field('region').value;
  const pointRows=new Map(r.places.map(p=>[String(p.code),p]));
- for(const c of catalog){if(c.lat!=null&&(selected.has(c.code)||uf&&c.uf===uf||!uf&&region&&c.region===region))pointRows.set(String(c.code),valuesByCity.get(String(c.code))||c);}
+ for(const c of catalog){if(c.lat!=null&&selected.has(c.code))pointRows.set(String(c.code),valuesByCity.get(String(c.code))||c);}
 
  const hubCodes=new Set((enriched.hubs||[]).map(h=>String(h.code)));
  for(const p of pointRows.values()){
@@ -1244,6 +1245,36 @@ function renderSideTalentInsightsCards(){
  if(!box)return;
  box.replaceChildren();
 
+ // Card 0: Talentos em Crescimento na Praça Selecionada
+ const focusCode=field('center')?.value||([...selected][0]||activeTechnicalMarkerCode||'3550308');
+ const focusCity=(demographicsData?.items||[]).find(d=>String(d.code)===String(focusCode))||catalog.find(c=>String(c.code)===String(focusCode))||(demographicsData?.items?.[0]||null);
+ if(focusCity){
+  const focusMeta=getCityTalentIndexMeta(focusCity);
+  const topTalents=getCityGrowingTalents(focusCity,focusMeta,4);
+  if(topTalents.length){
+   const cityCard=el('div');
+   cityCard.className='talent-map-insight-card insight-growth';
+   const ccHead=el('div');ccHead.className='tmic-head';
+   const ccDot=el('i');ccDot.className='tmic-dot dot-green';
+   ccHead.append(ccDot,el('h3',`Talentos em crescimento em ${focusCity.name}/${focusCity.uf}`));
+   const ccText=el('p',`${focusMeta.badgeLabel} (+${focusMeta.growthPct.toFixed(1).replace('.',',')}% no período) · Gêneros líderes: ${focusMeta.topGenres}. Clique em um talento para simular show:`);
+   const ccPills=el('div');ccPills.className='tmic-pills';
+   topTalents.forEach((item,idx)=>{
+    const b=el('button',`${idx+1}º ${item.artist.name} (${item.growthText})`);
+    b.type='button';
+    b.className='tmic-city-pill pill-growth';
+    b.addEventListener('click',()=>{
+     field('talent').value=item.artist.id;
+     if($('artist-quick-search'))$('artist-quick-search').value=item.artist.name;
+     openShowSimulatorModal(focusCity.code,item.artist.id,Number(field('radius')?.value)||100);
+    });
+    ccPills.append(b);
+   });
+   cityCard.append(ccHead,ccText,ccPills);
+   box.append(cityCard);
+  }
+ }
+
  // Card 1: Regiões com crescimento de talentos (Borda Verde Neon)
  const growthCard=el('div');
  growthCard.className='talent-map-insight-card insight-growth';
@@ -1319,13 +1350,20 @@ function renderOperationalSidebars(artistMap){
  }
  const rFilter=field('region')?.value||'';
  const ufFilter=field('uf')?.value||'';
- const hubs=(demographicsData?.items||[]).filter(h=>(!rFilter||h.region===rFilter)&&(!ufFilter||h.uf===ufFilter));
- const regPop=(demographicsData?.byRegion||[]).filter(r=>!rFilter||r.region===rFilter).map(r=>({name:r.region,value:Number(r.population)||0}));
- const regPib=(demographicsData?.byRegion||[]).filter(r=>!rFilter||r.region===rFilter).map(r=>({name:r.region,value:Math.round(Number(r.avg_pib_per_capita)||0)}));
+ const allHubs=demographicsData?.items||[];
+ const filteredHubs=allHubs.filter(h=>(!rFilter||h.region===rFilter)&&(!ufFilter||h.uf===ufFilter));
+ const displayHubs=filteredHubs.length>=4?filteredHubs:allHubs;
+
+ // Sempre exibe todas as 5 macrorregiões para manter o comparativo nacional completo sem espaços vazios
+ const regPop=(demographicsData?.byRegion||[]).map(r=>({name:r.region,value:Number(r.population)||0}));
+ const regPib=(demographicsData?.byRegion||[]).map(r=>({name:r.region,value:Math.round(Number(r.avg_pib_per_capita)||0)}));
  const stMap=new Map();
- for(const h of hubs){stMap.set(h.uf,(stMap.get(h.uf)||0)+(Number(h.population)||0));}
- const stRows=[...stMap.entries()].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value);
- const cityRows=hubs.slice(0,30).map(h=>({name:`${h.name} / ${h.uf}`,value:Number(h.population)||0,code:h.code}));
+ for(const h of allHubs){stMap.set(h.uf,(stMap.get(h.uf)||0)+(Number(h.population)||0));}
+ const stRows=[...stMap.entries()].map(([name,value])=>({name,value})).sort((a,b)=>{
+  if(ufFilter&&(a.name===ufFilter)!==(b.name===ufFilter))return a.name===ufFilter?-1:1;
+  return b.value-a.value;
+ });
+ const cityRows=displayHubs.slice(0,30).map(h=>({name:`${h.name} / ${h.uf}`,value:Number(h.population)||0,code:h.code}));
  bars('regions',regPop,row=>{field('region').value=field('region').value===row.name?'':row.name;updateUF();clearCities();filterCities();search();},' hab');
  bars('region-artists',regPib,row=>{field('region').value=field('region').value===row.name?'':row.name;updateUF();clearCities();filterCities();search();});
  bars('states',stRows,row=>chooseState(row.name),' hab');

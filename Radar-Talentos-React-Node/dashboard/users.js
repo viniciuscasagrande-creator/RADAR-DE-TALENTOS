@@ -643,7 +643,8 @@
         ['entrepreneur', '💼 Perfil: Empresário'],
         ['consultant', '📊 Perfil: Consultor'],
         ['visitor', '👁 Perfil: Visitante'],
-        ['analyst', '🔬 Perfil: Analista']
+        ['analyst', '🔬 Perfil: Analista'],
+        ['admin', '🛡 Perfil: Administrador']
       ]) {
         const opt = new Option(lbl, val);
         if (val === (r.assignedRole || 'producer')) opt.selected = true;
@@ -677,11 +678,19 @@
       noteInp.style.border = '1px solid rgba(192,132,252,0.35)';
       noteInp.style.fontSize = '11.5px';
 
+      const reqFeedback = el('small');
+      reqFeedback.style.display = 'none';
+      reqFeedback.style.fontSize = '12px';
+      reqFeedback.style.fontWeight = '700';
+
       const approveBtn = el('button', 'btn-simulate-show', '✓ Aprovar e Gerar E-mail c/ Senha Temporária');
       approveBtn.type = 'button';
       approveBtn.style.height = '30px';
       approveBtn.addEventListener('click', async () => {
         approveBtn.disabled = true;
+        reqFeedback.style.display = 'block';
+        reqFeedback.style.color = '#67e8f9';
+        reqFeedback.textContent = 'Processando aprovação e criando conta com senha temporária…';
         try {
           const res = await api('/api/users/signup-requests/review', 'POST', {
             requestId: r.id,
@@ -694,6 +703,8 @@
           showEmailDispatchResult(res);
           await loadUsers();
         } catch (err) {
+          reqFeedback.style.color = '#fca5a5';
+          reqFeedback.textContent = '⚠ Erro ao aprovar cadastro: ' + err.message;
           if ($('users-status-banner')) $('users-status-banner').textContent = 'Erro ao aprovar cadastro: ' + err.message;
         } finally {
           approveBtn.disabled = false;
@@ -707,6 +718,9 @@
       rejectBtn.style.color = '#fca5a5';
       rejectBtn.addEventListener('click', async () => {
         rejectBtn.disabled = true;
+        reqFeedback.style.display = 'block';
+        reqFeedback.style.color = '#67e8f9';
+        reqFeedback.textContent = 'Processando retorno…';
         try {
           const res = await api('/api/users/signup-requests/review', 'POST', {
             requestId: r.id,
@@ -717,6 +731,8 @@
           showEmailDispatchResult(res);
           await loadUsers();
         } catch (err) {
+          reqFeedback.style.color = '#fca5a5';
+          reqFeedback.textContent = '⚠ Erro ao recusar cadastro: ' + err.message;
           if ($('users-status-banner')) $('users-status-banner').textContent = 'Erro ao recusar cadastro: ' + err.message;
         } finally {
           rejectBtn.disabled = false;
@@ -736,13 +752,16 @@
           if ($('users-status-banner')) $('users-status-banner').textContent = res.message;
           await loadUsers();
         } catch (err) {
+          reqFeedback.style.display = 'block';
+          reqFeedback.style.color = '#fca5a5';
+          reqFeedback.textContent = '⚠ Erro ao excluir solicitação: ' + err.message;
           if ($('users-status-banner')) $('users-status-banner').textContent = 'Erro ao excluir solicitação: ' + err.message;
           deleteReqBtn.disabled = false;
         }
       });
 
       controls.append(roleSel, tempPwdInp, noteInp, approveBtn, rejectBtn, deleteReqBtn);
-      card.append(controls);
+      card.append(controls, reqFeedback);
       host.append(card);
     }
   }

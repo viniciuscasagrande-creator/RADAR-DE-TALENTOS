@@ -6,11 +6,108 @@
   <meta name="theme-color" content="#0a0414" />
   <meta name="tiktok-developers-site-verification" content="f8787Q2dLcnUXfPyq8PnW85aKsPZRnZA" />
   <link rel="manifest" href="/manifest.json" />
-  <title>RADAR DE TALENTOS — Portal de Inteligência</title>
+  <title>Acesso Restrito — Autenticação</title>
   <link rel="stylesheet" href="/login.css" />
   <script defer src="/login.js"></script>
 </head>
 <body class="ri-portal-body">
+  <!-- =====================================================================
+       CAMADA TEMPORÁRIA NEUTRA PRÉ-INAUGURAÇÃO (SOBREPOSTA À PÁGINA DE LOGIN)
+       Usa o mesmo login e senha dos usuários do banco, sem exibir informações do Radar.
+       ===================================================================== -->
+  <div class="neutral-prelaunch-overlay" id="neutral-prelaunch-overlay" role="region" aria-label="Autenticação de acesso restrito">
+    <div class="neutral-auth-card">
+      <div class="neutral-auth-header">
+        <div class="neutral-lock-badge" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <span class="neutral-eyebrow">AMBIENTE PRIVADO &bull; ACESSO RESTRITO</span>
+        <h1 id="neutral-title">Autenticação de Usuário</h1>
+        <p id="neutral-subtitle">Informe suas credenciais autorizadas para continuar.</p>
+      </div>
+
+      <!-- Formulário 1: Login e Senha dos Usuários -->
+      <form id="neutral-login-form" class="neutral-form" novalidate>
+        <div class="neutral-field">
+          <label for="neutral-username">E-mail ou usuário</label>
+          <input
+            id="neutral-username"
+            type="text"
+            autocomplete="username"
+            placeholder="Digite seu e-mail ou usuário"
+            required
+          />
+        </div>
+
+        <div class="neutral-field">
+          <label for="neutral-password">Senha</label>
+          <div class="neutral-pwd-wrap">
+            <input
+              id="neutral-password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Digite sua senha"
+              required
+            />
+            <button type="button" id="neutral-toggle-pwd" class="neutral-show-pwd-btn" aria-label="Mostrar ou ocultar senha">Mostrar</button>
+          </div>
+        </div>
+
+        <div class="neutral-options-row">
+          <label class="neutral-remember-label">
+            <input type="checkbox" id="neutral-remember" />
+            <span>Lembrar acesso neste dispositivo</span>
+          </label>
+        </div>
+
+        <p id="neutral-login-feedback" class="neutral-feedback" role="status"></p>
+
+        <button type="submit" id="neutral-login-submit" class="neutral-submit-btn">
+          <span>Entrar</span>
+        </button>
+      </form>
+
+      <!-- Formulário 2: Troca Obrigatória de Senha Temporária no 1º Acesso -->
+      <form id="neutral-force-pwd-form" class="neutral-form" hidden novalidate>
+        <div class="neutral-force-banner">
+          <strong id="neutral-force-title">Primeiro Acesso — Defina sua Nova Senha</strong>
+          <p>Por segurança, cadastre uma senha definitiva antes de prosseguir.</p>
+        </div>
+
+        <div class="neutral-field">
+          <label for="neutral-new-password">Nova senha</label>
+          <input id="neutral-new-password" type="password" autocomplete="new-password" placeholder="Mínimo 8 caracteres, A-Z, 0-9 e símbolo" required />
+        </div>
+
+        <div class="neutral-field">
+          <label for="neutral-confirm-password">Confirmar nova senha</label>
+          <input id="neutral-confirm-password" type="password" autocomplete="new-password" placeholder="Repita a nova senha" required />
+        </div>
+
+        <ul class="neutral-pwd-checklist" id="neutral-pwd-checklist">
+          <li data-rule="len">○ Mínimo de 8 caracteres</li>
+          <li data-rule="upper">○ Pelo menos 1 letra maiúscula (A–Z)</li>
+          <li data-rule="lower">○ Pelo menos 1 letra minúscula (a–z)</li>
+          <li data-rule="num">○ Pelo menos 1 número (0–9)</li>
+          <li data-rule="sym">○ Pelo menos 1 caractere especial (@, #, $, !, %)</li>
+        </ul>
+
+        <p id="neutral-force-feedback" class="neutral-feedback" role="status"></p>
+
+        <button type="submit" id="neutral-force-submit" class="neutral-submit-btn">
+          <span>Salvar Nova Senha e Entrar</span>
+        </button>
+      </form>
+
+      <div class="neutral-auth-footer">
+        <span>Acesso exclusivo para usuários autorizados</span>
+      </div>
+    </div>
+  </div>
+
   <div class="ri-page-shell" id="ri-split-layout">
     <div class="ri-main-columns">
       <!-- ===================================================================

@@ -213,6 +213,37 @@ export function ensureDefaultAdminUser(db) {
     try { db.exec(alterSql); } catch {}
   }
   try {
+    const tableMeta = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'radar_users'").get();
+    if (tableMeta?.sql && /CHECK\s*\(\s*role\s+IN/i.test(tableMeta.sql)) {
+      db.exec(`
+        PRAGMA foreign_keys = OFF;
+        BEGIN;
+        CREATE TABLE radar_users_v2 (
+          id TEXT PRIMARY KEY,
+          username TEXT NOT NULL UNIQUE,
+          display_name TEXT NOT NULL,
+          email TEXT NOT NULL DEFAULT '',
+          role TEXT NOT NULL DEFAULT 'user',
+          password_hash TEXT NOT NULL,
+          password_salt TEXT NOT NULL,
+          must_change_password INTEGER NOT NULL DEFAULT 1 CHECK(must_change_password IN (0,1)),
+          active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
+          permissions_json TEXT NOT NULL DEFAULT '{}',
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          last_login_at TEXT
+        ) STRICT;
+        INSERT INTO radar_users_v2 SELECT id, username, display_name, email, role, password_hash, password_salt, must_change_password, active, permissions_json, created_at, updated_at, last_login_at FROM radar_users;
+        DROP TABLE radar_users;
+        ALTER TABLE radar_users_v2 RENAME TO radar_users;
+        COMMIT;
+        PRAGMA foreign_keys = ON;
+      `);
+    }
+  } catch {
+    try { db.exec('ROLLBACK; PRAGMA foreign_keys = ON;'); } catch {}
+  }
+  try {
     db.prepare("UPDATE radar_users SET role = 'admin' WHERE lower(username) = 'vinicius.casagrande' AND role = 'user'").run();
     const nailaRows = db
       .prepare("SELECT id FROM radar_users WHERE id = 'u-naila.longas-210a89'")

@@ -834,3 +834,242 @@ body.ri-portal-body {
     white-space: nowrap;
   }
 }
+
+/* =========================================================================
+   CAMADA TEMPORÁRIA NEUTRA PRÉ-INAUGURAÇÃO (SOBREPOSTA À PÁGINA DE LOGIN)
+   ========================================================================= */
+.neutral-prelaunch-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 55%, #090d16 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.neutral-auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: #111827;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  padding: 32px 28px 26px;
+  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  color: #f8fafc;
+}
+
+.neutral-auth-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.neutral-lock-badge {
+  width: 46px;
+  height: 46px;
+  border-radius: 12px;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+  display: grid;
+  place-items: center;
+  margin-bottom: 4px;
+}
+
+.neutral-eyebrow {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
+.neutral-auth-header h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: -0.02em;
+}
+
+.neutral-auth-header p {
+  margin: 0;
+  font-size: 13px;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+.neutral-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.neutral-form[hidden] {
+  display: none !important;
+}
+
+.neutral-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.neutral-field label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.neutral-field input {
+  width: 100%;
+  height: 44px;
+  padding: 0 13px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: #0b1120;
+  color: #f8fafc;
+  font-size: 13.5px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.neutral-field input:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+}
+
+.neutral-pwd-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.neutral-pwd-wrap input {
+  padding-right: 74px;
+}
+
+.neutral-show-pwd-btn {
+  position: absolute;
+  right: 8px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #cbd5e1;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.neutral-show-pwd-btn:hover {
+  border-color: #475569;
+  color: #ffffff;
+}
+
+.neutral-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.neutral-remember-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.neutral-remember-label input {
+  width: 15px;
+  height: 15px;
+  accent-color: #0284c7;
+}
+
+.neutral-feedback {
+  margin: -4px 0;
+  min-height: 17px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #93c5fd;
+}
+
+.neutral-submit-btn {
+  height: 44px;
+  border-radius: 8px;
+  border: 0;
+  background: linear-gradient(90deg, #0284c7 0%, #2563eb 100%);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.neutral-submit-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.neutral-submit-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.neutral-force-banner {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(2, 132, 199, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.neutral-force-banner strong {
+  display: block;
+  font-size: 12.5px;
+  color: #7dd3fc;
+  margin-bottom: 3px;
+}
+
+.neutral-force-banner p {
+  margin: 0;
+  font-size: 11.5px;
+  color: #cbd5e1;
+}
+
+.neutral-pwd-checklist {
+  list-style: none;
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: #0b1120;
+  border: 1px solid #1e293b;
+  display: grid;
+  gap: 3px;
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+.neutral-pwd-checklist li.is-valid {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.neutral-auth-footer {
+  padding-top: 14px;
+  border-top: 1px solid #1e293b;
+  text-align: center;
+  font-size: 11.5px;
+  color: #64748b;
+}

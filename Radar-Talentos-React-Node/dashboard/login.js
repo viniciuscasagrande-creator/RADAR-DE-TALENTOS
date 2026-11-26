@@ -299,4 +299,155 @@
       }
     }
   });
+
+  // =========================================================================
+  // 3. CAMADA TEMPORÁRIA NEUTRA PRÉ-INAUGURAÇÃO (USA O MESMO LOGIN DO BANCO)
+  // =========================================================================
+  const nLoginForm = $('neutral-login-form');
+  const nForceForm = $('neutral-force-pwd-form');
+  const nUserInp = $('neutral-username');
+  const nPwdInp = $('neutral-password');
+  const nToggleBtn = $('neutral-toggle-pwd');
+  const nFeedback = $('neutral-login-feedback');
+  const nSubmitBtn = $('neutral-login-submit');
+  const nNewPwdInp = $('neutral-new-password');
+  const nConfPwdInp = $('neutral-confirm-password');
+  const nForceFeedback = $('neutral-force-feedback');
+  const nForceSubmit = $('neutral-force-submit');
+
+  nToggleBtn?.addEventListener('click', () => {
+    if (!nPwdInp) return;
+    const isPwd = nPwdInp.type === 'password';
+    nPwdInp.type = isPwd ? 'text' : 'password';
+    nToggleBtn.textContent = isPwd ? 'Ocultar' : 'Mostrar';
+  });
+
+  function updateNeutralChecklist(pwd = '') {
+    const s = String(pwd);
+    const checks = {
+      len: s.length >= 8,
+      upper: /[A-Z]/.test(s),
+      lower: /[a-z]/.test(s),
+      num: /[0-9]/.test(s),
+      sym: /[^A-Za-z0-9]/.test(s)
+    };
+    document.querySelectorAll('#neutral-pwd-checklist li').forEach(li => {
+      const rule = li.dataset.rule;
+      const ok = Boolean(checks[rule]);
+      li.classList.toggle('is-valid', ok);
+      const cleanTxt = li.textContent.replace(/^[✓○]\s*/, '');
+      li.textContent = `${ok ? '✓' : '○'} ${cleanTxt}`;
+    });
+  }
+
+  nNewPwdInp?.addEventListener('input', () => updateNeutralChecklist(nNewPwdInp.value));
+
+  nLoginForm?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const username = nUserInp?.value?.trim() || '';
+    const password = nPwdInp?.value || '';
+    const remember = Boolean($('neutral-remember')?.checked);
+
+    if (!username || !password) {
+      if (nFeedback) {
+        nFeedback.style.color = '#fca5a5';
+        nFeedback.textContent = 'Informe seu e-mail ou usuário e sua senha.';
+      }
+      return;
+    }
+
+    if (nSubmitBtn) {
+      nSubmitBtn.disabled = true;
+      nSubmitBtn.textContent = 'Autenticando…';
+    }
+    if (nFeedback) {
+      nFeedback.style.color = '#93c5fd';
+      nFeedback.textContent = 'Validando credenciais…';
+    }
+
+    try {
+      const r = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, remember })
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw Error(d.error || 'Usuário ou senha inválidos.');
+
+      if (d.mustChangePassword || d.user?.mustChangePassword) {
+        if (nLoginForm) nLoginForm.hidden = true;
+        if (nForceForm) nForceForm.hidden = false;
+        if ($('neutral-title')) $('neutral-title').textContent = 'Primeiro Acesso';
+        if ($('neutral-subtitle')) {
+          $('neutral-subtitle').textContent = `Olá, ${d.user?.displayName || username}! Cadastre sua nova senha pessoal.`;
+        }
+        if ($('neutral-force-title')) {
+          $('neutral-force-title').textContent = `Cadastro Obrigatório de Nova Senha (@${d.user?.username || username})`;
+        }
+        updateNeutralChecklist('');
+        nNewPwdInp?.focus();
+        return;
+      }
+
+      if (nFeedback) {
+        nFeedback.style.color = '#4ade80';
+        nFeedback.textContent = '✓ Acesso autorizado! Redirecionando…';
+      }
+      location.href = explicitNext || d.redirectUrl || '/';
+    } catch (err) {
+      if (nFeedback) {
+        nFeedback.style.color = '#fca5a5';
+        nFeedback.textContent = err.message;
+      }
+    } finally {
+      if (nSubmitBtn) {
+        nSubmitBtn.disabled = false;
+        nSubmitBtn.innerHTML = '<span>Entrar</span>';
+      }
+    }
+  });
+
+  nForceForm?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const newPassword = nNewPwdInp?.value || '';
+    const confirmPassword = nConfPwdInp?.value || '';
+    if (!newPassword || newPassword !== confirmPassword) {
+      if (nForceFeedback) {
+        nForceFeedback.style.color = '#fca5a5';
+        nForceFeedback.textContent = 'A confirmação da nova senha não confere.';
+      }
+      return;
+    }
+
+    if (nForceSubmit) {
+      nForceSubmit.disabled = true;
+      nForceSubmit.textContent = 'Salvando…';
+    }
+
+    try {
+      const r = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword, confirmPassword })
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw Error(d.error || 'Não foi possível salvar a nova senha.');
+
+      if (nForceFeedback) {
+        nForceFeedback.style.color = '#4ade80';
+        nForceFeedback.textContent = '✓ Nova senha salva! Redirecionando…';
+      }
+      location.href = explicitNext || d.redirectUrl || '/';
+    } catch (err) {
+      if (nForceFeedback) {
+        nForceFeedback.style.color = '#fca5a5';
+        nForceFeedback.textContent = err.message;
+      }
+    } finally {
+      if (nForceSubmit) {
+        nForceSubmit.disabled = false;
+        nForceSubmit.innerHTML = '<span>Salvar Nova Senha e Entrar</span>';
+      }
+    }
+  });
 })();

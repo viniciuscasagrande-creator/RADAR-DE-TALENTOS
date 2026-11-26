@@ -53,7 +53,7 @@
  }
  const brandSub=document.querySelector('.sidebar .brand-sub');
  if(brandSub&&!brandSub.querySelector('.brand-telemetry-dot')){
-  const rawText=(brandSub.textContent||'Inteligência de mercado').trim();
+  const rawText=(brandSub.textContent||'Inteligência de mercado').replace(/HD\s*·\s*24\/7/g,'').trim();
   brandSub.textContent='';
   const dot=document.createElement('span');
   dot.className='brand-telemetry-dot';
@@ -61,10 +61,7 @@
   const txt=document.createElement('span');
   txt.className='brand-sub-text';
   txt.textContent=rawText;
-  const pill=document.createElement('span');
-  pill.className='brand-telemetry-pill';
-  pill.textContent='HD · 24/7';
-  brandSub.append(dot,txt,pill);
+  brandSub.append(dot,txt);
  }
  // Suporte nativo Edge-to-Edge (Android 15/16 WindowCompat + Safe Area Insets) para Mobile e Tablet
  const vpMeta=document.querySelector('meta[name="viewport"]');

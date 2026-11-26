@@ -1372,29 +1372,45 @@ function renderOperationalSidebars(artistMap){
 }
 
 function selectionSummary(r){
- const demByCode=new Map((demographicsData?.items||[]).map(d=>[String(d.code),d]));
- const codesToShow=selected.size?[...selected]:(field('center')?.value?[field('center').value]:[]);
+ const demItems=demographicsData?.items||[];
+ const demByCode=new Map(demItems.map(d=>[String(d.code),d]));
+ const baseCodes=selected.size?[...selected]:(field('center')?.value?[field('center').value]:(activeTechnicalMarkerCode?[activeTechnicalMarkerCode]:[]));
+ const codeSet=new Set(baseCodes.map(String));
+ for(const h of demItems){
+  if(codeSet.size>=18)break;
+  codeSet.add(String(h.code));
+ }
+ const codesToShow=[...codeSet];
  const rows=codesToShow.map(code=>{
-  const c=catalog.find(x=>String(x.code)===String(code));
+  const c=catalog.find(x=>String(x.code)===String(code))||demByCode.get(String(code));
   const place=r?.places?.find(x=>String(x.code)===String(code));
-  const dem=demByCode.get(String(code));
-  const label=c?`${c.name} / ${c.uf} (${c.region})`:code;
+  const dem=demByCode.get(String(code))||c;
+  const meta=getCityTalentIndexMeta(dem,place?.value);
+  const isFocused=selected.has(String(code))||field('center')?.value===String(code)||String(code)===String(activeTechnicalMarkerCode);
+  const cityBtn=el('button',`${isFocused?'📍 ':''}${c?`${c.name} / ${c.uf} (${c.region||'Brasil'})`:code}`);
+  cityBtn.type='button';
+  cityBtn.className='link';
+  cityBtn.addEventListener('click',()=>{
+   activeTechnicalMarkerCode=String(code);
+   focusCommercialHub(code,100,false);
+  });
+  const sign=meta.growthPct>0?'+':'';
   const valText=place
-   ?fmt(place.value)
-   :dem
-     ?`Pop. IBGE: ${fmt(dem.population)} · PIB/hab: R$ ${fmt(Math.round(dem.pib_per_capita||0))}`
+   ?`${fmt(place.value)} (${meta.badgeLabel} ${sign}${meta.growthPct.toFixed(1).replace('.',',')}%)`
+   :dem?.population
+     ?`${meta.badgeLabel} (${sign}${meta.growthPct.toFixed(1).replace('.',',')}%) · Pop.: ${fmt(dem.population)} · PIB/hab: R$ ${fmt(Math.round(dem.pib_per_capita||0))}`
      :`Bacia Regional (${c?.region||'Brasil'})`;
   const simBtn=el('button','⚡ Simular Show');
   simBtn.type='button';
   simBtn.className='btn-simulate-show';
   simBtn.addEventListener('click',()=>openShowSimulatorModal(code));
-  return [label,valText,simBtn];
+  return [cityBtn,valText,simBtn];
  });
  const known=r?.places?.filter(p=>selected.has(p.code))??[];
  if(selected.size&&known.length){
   rows.push(['Total observado ('+known.length+' de '+selected.size+' cidades)',fmt(known.reduce((a,b)=>a+b.value,0)),'—']);
  }
- table('selection-summary',['Município / UF','Audiência / Potencial IBGE','Ação no Mapa'],rows);
+ table('selection-summary',['Município / UF','Crescimento & Potencial IBGE','Ação no Mapa'],rows);
 }
 
 function clientDistKm(a,b){

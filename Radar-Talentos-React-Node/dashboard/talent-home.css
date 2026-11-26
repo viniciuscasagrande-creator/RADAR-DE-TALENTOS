@@ -1337,6 +1337,65 @@
   background: linear-gradient(180deg, #a855f7, #00f0ff);
   border-radius: 999px;
 }
+
+/* Alinhamento simétrico sem espaços vazios nos 4 cards de .detail-grid (#cities, #ranking, #growth-panel, #selection-panel) */
+.talent-home .detail-grid > section {
+  display: flex;
+  flex-direction: column;
+}
+.talent-home #cities {
+  max-height: 365px;
+  min-height: 365px;
+  overflow-y: auto;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: #a855f7 rgba(18, 14, 30, 0.75);
+}
+.talent-home #artists {
+  flex: 1;
+  max-height: 335px !important;
+  min-height: 335px !important;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #a855f7 rgba(18, 14, 30, 0.75);
+}
+.talent-home #growth {
+  flex: 1;
+  max-height: 290px !important;
+  min-height: 290px !important;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #a855f7 rgba(18, 14, 30, 0.75);
+}
+.talent-home #selection-summary {
+  flex: 1;
+  max-height: 312px;
+  min-height: 312px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #a855f7 rgba(18, 14, 30, 0.75);
+}
+.talent-home #cities::-webkit-scrollbar,
+.talent-home #artists::-webkit-scrollbar,
+.talent-home #growth::-webkit-scrollbar,
+.talent-home #selection-summary::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.talent-home #cities::-webkit-scrollbar-track,
+.talent-home #artists::-webkit-scrollbar-track,
+.talent-home #growth::-webkit-scrollbar-track,
+.talent-home #selection-summary::-webkit-scrollbar-track {
+  background: rgba(18, 14, 30, 0.75);
+  border-radius: 999px;
+}
+.talent-home #cities::-webkit-scrollbar-thumb,
+.talent-home #artists::-webkit-scrollbar-thumb,
+.talent-home #growth::-webkit-scrollbar-thumb,
+.talent-home #selection-summary::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #a855f7, #00f0ff);
+  border-radius: 999px;
+}
 .talent-home .legend-growth {
   background: #22c55e;
   box-shadow: 0 0 8px #22c55e;

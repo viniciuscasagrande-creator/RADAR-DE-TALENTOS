@@ -996,97 +996,148 @@
         });
         aiPrompts.append(chip);
       }
-      aiBtn.addEventListener('click', () => answerRadarAI(aiInput.value));
+      aiBtn.addEventListener('click', () => {
+        const qVal = aiInput.value.trim() || sampleQuestions[0];
+        if (!aiInput.value.trim()) aiInput.value = qVal;
+        answerRadarAI(qVal);
+      });
       aiInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          answerRadarAI(aiInput.value);
+          const qVal = aiInput.value.trim() || sampleQuestions[0];
+          if (!aiInput.value.trim()) aiInput.value = qVal;
+          answerRadarAI(qVal);
         }
       });
-      answerRadarAI(sampleQuestions[0]);
+      answerRadarAI(sampleQuestions[0], true);
     }
   }
 
-  function answerRadarAI(rawQuestion = '') {
-    const q = normQ(rawQuestion);
-    const verified = crossArtists.filter(a => a.hasCollectedMetric);
-    const top1 = verified[0] || crossArtists[0];
-    const top2 = verified[1] || crossArtists[1];
-    const currentSelected = crossArtists.find(a => a.id === artistPicker.value) || top1;
-    aiResponseBox.replaceChildren();
+  let aiReqSeq = 0;
+  async function answerRadarAI(rawQuestion = '', isInitial = false) {
+    const seq = ++aiReqSeq;
+    const questionText = String(rawQuestion || '').trim() || 'Resumo estratégico da base auditada';
+    const currentTalent = artistPicker.value || activeTalentId || '';
 
-    const addLine = (title, bodyText) => {
-      const p = el('p');
-      p.style.margin = '0 0 6px';
-      const st = el('strong', null, title + ': ');
-      st.style.color = '#67e8f9';
-      p.append(st, document.createTextNode(bodyText));
-      aiResponseBox.append(p);
-    };
+    if (!isInitial) {
+      aiBtn.disabled = true;
+      aiBtn.textContent = '⏳ Consultando…';
+      aiResponseBox.style.borderColor = '#facc15';
+      aiResponseBox.replaceChildren(
+        el('p', null, `⏳ Consultando base auditada do Radar para: "${questionText}"…`)
+      );
+    }
 
-    if (q.includes('emergente') || q.includes('90 dias') || q.includes('ascensao')) {
-      const emerging = verified.filter(a => (a.maxNumericValue || 0) > 0 && (a.maxNumericValue || 0) <= 3500000).slice(0, 5);
-      addLine(
-        '🌱 Talentos Emergentes & Em Expansão (Base Verificada)',
-        emerging.length
-          ? emerging.map(a => `${a.name} (YT: ${a.media?.YouTube?.formatted || '—'} · SP: ${a.media?.Spotify?.formatted || '—'})`).join(' | ')
-          : 'Consulte o menu Talentos Emergentes (/rising.html) para filtrar por porte até 2,5M.'
-      );
-      addLine(
-        'Metodologia & Limitação',
-        'Classificação baseada em taxa de descoberta algorítmica no Spotify (Ouvintes/Seguidores) e alcance por inscrito no YouTube Data API v3.'
-      );
-    } else if (q.includes('compare') || q.includes('curitiba') || q.includes('3 mil')) {
-      if (top1 && top2) {
-        addLine(
-          `⚖ Comparativo para Show de 3.000 lugares (Curitiba/PR · Bacia 100 km)`,
-          `${top1.name} (IG: ${top1.media?.Instagram?.formatted || '—'} · SP: ${top1.media?.Spotify?.formatted || '—'} · YT: ${top1.media?.YouTube?.formatted || '—'}) vs. ${top2.name} (IG: ${top2.media?.Instagram?.formatted || '—'} · SP: ${top2.media?.Spotify?.formatted || '—'} · YT: ${top2.media?.YouTube?.formatted || '—'}).`
-        );
-        addLine(
-          'Projeção Financeira Orientativa (Curitiba/PR · PIB/hab R$ 55.200 IBGE)',
-          'Para casa de 3.000 lugares com 75% de ocupação (2.250 pagantes) e ticket médio de R$ 135,00: Faturamento Bruto estimado de R$ 303.750,00 e Receita Líquida pós-taxas (10%) de R$ 273.375,00. Clique em "💰 Simular P&L" ao lado para ajustar cachê e ponto de equilíbrio.'
-        );
+    try {
+      const params = new URLSearchParams({ q: questionText });
+      if (currentTalent) params.set('talent', currentTalent);
+      const r = await fetch('/api/radar/ai-query?' + params.toString(), { cache: 'no-store' });
+      if (!r.ok) throw Error('HTTP ' + r.status);
+      const d = await r.json();
+      if (seq !== aiReqSeq) return;
+
+      aiResponseBox.replaceChildren();
+      aiResponseBox.style.borderColor = 'rgba(0,240,255,0.65)';
+
+      const headRow = el('div');
+      headRow.style.display = 'flex';
+      headRow.style.alignItems = 'center';
+      headRow.style.justifyContent = 'space-between';
+      headRow.style.gap = '8px';
+      headRow.style.flexWrap = 'wrap';
+      headRow.style.marginBottom = '8px';
+      headRow.style.paddingBottom = '6px';
+      headRow.style.borderBottom = '1px solid rgba(0,240,255,0.22)';
+
+      const hTitle = el('strong', null, d.headline || '🤖 Resposta Radar IA');
+      hTitle.style.color = '#00f0ff';
+      hTitle.style.fontSize = '12.5px';
+      const timeLabel = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const metaSpan = el('small', null, `Consulta: "${d.query || questionText}" · Respondido às ${timeLabel}`);
+      metaSpan.style.color = '#a1a1aa';
+      metaSpan.style.fontSize = '10.5px';
+      headRow.append(hTitle, metaSpan);
+      aiResponseBox.append(headRow);
+
+      for (const sec of d.sections || []) {
+        const block = el('div');
+        block.style.marginBottom = '8px';
+        const st = el('strong', null, sec.title + ': ');
+        st.style.color = '#67e8f9';
+        st.style.display = 'block';
+        st.style.marginBottom = '2px';
+        const bodyP = el('div', null, sec.body || '');
+        bodyP.style.whiteSpace = 'pre-line';
+        bodyP.style.color = '#e4e4e7';
+        block.append(st, bodyP);
+        aiResponseBox.append(block);
       }
-    } else if (q.includes('turne') || q.includes('estrategia')) {
-      const art = currentSelected || top1;
-      addLine(
-        `🗺 Estratégia de Turnê Regional — ${art?.name || 'Artista'}`,
-        'Roteiro recomendado em 4 praças-polo com bacia regional de 100 km (~1h40min via rodovia) e alto PIB per capita IBGE: 1ª Praça: Goiânia/GO (Bacia Centro-Oeste) → 2ª Praça: Curitiba/PR (Bacia Sul) → 3ª Praça: Campinas + Ribeirão Preto/SP (Interior SP) → 4ª Praça: Belo Horizonte/MG.'
+
+      if (Array.isArray(d.actions) && d.actions.length) {
+        const actBar = el('div');
+        actBar.style.display = 'flex';
+        actBar.style.gap = '8px';
+        actBar.style.flexWrap = 'wrap';
+        actBar.style.marginTop = '8px';
+        for (const act of d.actions) {
+          if (act.type === 'simulator') {
+            const b = el('button', 'btn-simulate-show', act.label);
+            b.type = 'button';
+            b.style.height = '26px';
+            b.style.padding = '0 10px';
+            b.style.fontSize = '11px';
+            b.addEventListener('click', () => {
+              if (typeof window.openRadarShowSimulator === 'function') {
+                window.openRadarShowSimulator(act.cityCode || null, act.talentId || null, 100);
+              }
+            });
+            actBar.append(b);
+          } else if (act.type === 'ficha360') {
+            const b = el('button', 'secondary-button', act.label);
+            b.type = 'button';
+            b.style.height = '26px';
+            b.style.padding = '0 10px';
+            b.style.fontSize = '11px';
+            b.addEventListener('click', () => {
+              if (act.talentId) {
+                artistPicker.value = act.talentId;
+                loadFicha360();
+                fichaPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            });
+            actBar.append(b);
+          } else if (act.type === 'link' && act.href) {
+            const a = el('a', 'secondary-button', act.label);
+            a.href = act.href;
+            a.style.textDecoration = 'none';
+            a.style.display = 'inline-flex';
+            a.style.alignItems = 'center';
+            a.style.height = '26px';
+            a.style.padding = '0 10px';
+            a.style.fontSize = '11px';
+            actBar.append(a);
+          }
+        }
+        aiResponseBox.append(actBar);
+      }
+    } catch {
+      if (seq !== aiReqSeq) return;
+      const verified = crossArtists.filter(a => a.hasCollectedMetric);
+      aiResponseBox.replaceChildren();
+      const p = el(
+        'p',
+        null,
+        `🏆 Base Auditada Ativa: ${verified
+          .slice(0, 5)
+          .map(a => `${a.name} (${a.media?.Instagram?.formatted || a.media?.YouTube?.formatted || a.media?.Spotify?.formatted})`)
+          .join(' · ')}.`
       );
-      addLine(
-        'Fontes & Governança',
-        `Indicadores nacionais auditados (${art?.media?.YouTube?.source || 'YouTube Data API v3'} / ${art?.media?.Spotify?.source || 'Spotify Web API'}). O Radar não inventa audiência municipal sem relatório regional verificado.`
-      );
-    } else if (q.includes('score') || q.includes('financeiro') || q.includes('explique')) {
-      addLine(
-        '📐 3 Resultados Independentes + Radar Score Territorial 2.0 (0–100)',
-        '1) Radar Score Artístico (popularidade, crescimento e tração nacional); 2) Radar Score Territorial 2.0 (Audiência regional comprovada 30% + Crescimento digital 20% + Afinidade artística regional 15% + Engajamento e tração 15% + Potencial econômico IBGE 10% + Consistência histórica 10%); 3) Contexto de Eventos (concorrência e oferta em ticketeiras, 100% isolado dos scores).'
-      );
-      addLine(
-        '🛡 Índice de Cobertura e Confiança (Qualificador de Recomendação)',
-        'Artistas com pontuação alta mas baixa cobertura verificada não recebem a mesma recomendação prioritária de artistas com ampla cobertura multi-mídia. O Simulador Financeiro calcula Ponto de Equilíbrio, Receita Líquida e Margem Operacional.'
-      );
-    } else {
-      const matchedArtist = crossArtists.find(a => q && (normQ(a.name).includes(q) || q.includes(normQ(a.name))));
-      if (matchedArtist) {
-        addLine(
-          `📊 Diagnóstico Verificado — ${matchedArtist.name}`,
-          `Instagram: ${matchedArtist.media?.Instagram?.formatted || 'Sem coleta'} · Spotify: ${matchedArtist.media?.Spotify?.formatted || 'Sem coleta'} · YouTube: ${matchedArtist.media?.YouTube?.formatted || 'Sem coleta'} · TikTok: ${matchedArtist.media?.TikTok?.formatted || 'Sem coleta'}.`
-        );
-        addLine(
-          'Recomendação Comercial',
-          `Clique em "⚡ Simular Show" para projetar local, capacidade, cachê, ponto de equilíbrio e margem operacional para ${matchedArtist.name} em qualquer cidade do Brasil.`
-        );
-      } else {
-        const leaders = verified.slice(0, 5).map(a => `${a.name} (${a.media?.Instagram?.formatted || a.media?.YouTube?.formatted || a.media?.Spotify?.formatted})`).join(' · ');
-        addLine(
-          '🏆 Líderes com Coleta Verificada no Recorte Atual',
-          leaders || 'Consultando catálogo ativo...'
-        );
-        addLine(
-          'Fontes & Rastreabilidade',
-          `${verified.length} talentos com métricas reais auditadas (YouTube Data API v3, Spotify Web API e relatórios públicos verificados) + 5.570 municípios IBGE.`
-        );
+      p.style.margin = '0';
+      aiResponseBox.append(p);
+    } finally {
+      if (seq === aiReqSeq) {
+        aiBtn.disabled = false;
+        aiBtn.textContent = '⚡ Consultar IA';
       }
     }
   }

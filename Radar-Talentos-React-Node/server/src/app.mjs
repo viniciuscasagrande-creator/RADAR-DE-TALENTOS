@@ -4,7 +4,7 @@ import { accelerationDiscoveries } from './acceleration-discoveries.mjs';
 import { distributeArtistStats } from './indicator-distribution.mjs';
 import { currentDashboard } from './discovery/current-dashboard.mjs';
 import { acquisitionStatus } from './acquisition.mjs';
-import { getCrossMenuSummary, getDemographicsSummary, getArtistMediaStats } from './menu-integration.mjs';
+import { getCrossMenuSummary, getDemographicsSummary, getArtistMediaStats, answerRadarAiQuery } from './menu-integration.mjs';
 import { handleDiscovery } from './discovery/http.mjs';
 import { handleUsersApi } from './users.mjs';
 import { openDiscovery, listCandidates } from './discovery/engine.mjs';
@@ -518,6 +518,18 @@ export function createRadarServer({
           return;
         }
         const result = getCrossMenuSummary(database, new URL(req.url, 'http://localhost').searchParams);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(
+          req.method === 'HEAD' ? undefined : JSON.stringify(result)
+        );
+        return;
+      }
+
+      if (path === '/api/radar/ai-query') {
+        if (!database) {
+          res.writeHead(503).end();
+          return;
+        }
+        const result = answerRadarAiQuery(database, new URL(req.url, 'http://localhost').searchParams);
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(
           req.method === 'HEAD' ? undefined : JSON.stringify(result)
         );

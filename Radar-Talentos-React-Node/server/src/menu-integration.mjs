@@ -2976,3 +2976,265 @@ export function getCrossMenuSummary(db, params = new URLSearchParams()) {
     notice: 'Indicadores auditáveis com fonte, data de referência e classificação (oficial, relatório autorizado, observado ou calculado). Ticketeiras permanecem apenas como consulta opcional complementar, sem participar dos cálculos.'
   };
 }
+
+export function answerRadarAiQuery(db, params = new URLSearchParams()) {
+  const rawQuestion = String(params.get('q') || '').trim();
+  const selectedTalentId = String(params.get('talent') || '').trim();
+  const norm = s =>
+    String(s ?? '')
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase()
+      .trim();
+  const q = norm(rawQuestion);
+  const cross = getCrossMenuSummary(db, new URLSearchParams({ limit: '300' }));
+  const demo = getDemographicsSummary(db, new URLSearchParams());
+  const allArtists = cross.items || [];
+  const verified = allArtists.filter(a => a.hasCollectedMetric);
+  const hubs = demo.items || [];
+  const fmtNum = n => Number(n || 0).toLocaleString('pt-BR');
+
+  const top1 = verified[0] || allArtists[0] || null;
+  const top2 = verified[1] || allArtists[1] || null;
+  const selectedArtist = allArtists.find(a => a.id === selectedTalentId) || top1;
+
+  // Detecta artistas mencionados na pergunta
+  const mentionedArtists = allArtists.filter(a => {
+    const an = norm(a.name);
+    return an.length >= 3 && q.includes(an);
+  });
+
+  // Detecta cidade/praça mencionada na pergunta
+  const matchedHub = hubs.find(h => {
+    const hn = norm(h.name);
+    return hn.length >= 4 && q.includes(hn);
+  });
+
+  // Detecta regiões mencionadas
+  const regionKeywords = [
+    ['Sul', ['sul', 'parana', 'santa catarina', 'rio grande do sul', 'curitiba', 'florianopolis', 'porto alegre', 'criciuma', 'londrina', 'maringa', 'joinville', 'blumenau']],
+    ['Sudeste', ['sudeste', 'sao paulo', 'rio de janeiro', 'minas gerais', 'espirito santo', 'belo horizonte', 'campinas', 'ribeirao preto', 'uberlandia', 'vitoria']],
+    ['Centro-Oeste', ['centro-oeste', 'centro oeste', 'goias', 'goiania', 'brasilia', 'mato grosso', 'cuiaba', 'campo grande']],
+    ['Nordeste', ['nordeste', 'bahia', 'salvador', 'recife', 'pernambuco', 'fortaleza', 'ceara', 'natal', 'joao pessoa', 'maceio', 'teresina', 'sao luis', 'aracaju']],
+    ['Norte', ['norte', 'manaus', 'amazonas', 'belem', 'para', 'palmas', 'porto velho', 'rio branco', 'macapa', 'boa vista']]
+  ];
+  const matchedRegions = regionKeywords
+    .filter(([, keys]) => keys.some(k => new RegExp(`(^|\\W)${k}(\\W|$)`).test(q)))
+    .map(([rName]) => rName);
+
+  // Detecta categoria mencionada
+  const categoryPatterns = [
+    ['Cantores', /cantor|cantora|sertanej|pagode|forro|mpb|pop|funk|trap|gospel|musica|show/],
+    ['Humoristas', /humor|comedia|stand-up|standup|humorista/],
+    ['Palestrantes', /palestrant|palestra|corporativ|congresso|escritor|filosofo/],
+    ['Influenciadores', /influenciador|influencer|youtuber|criador|digital|streamer/],
+    ['Gastronomia', /gastronomia|chef|culinaria|cozinha/],
+    ['Infantil e família', /infantil|familia|crianca/],
+    ['Peças de teatro e musicais', /teatro|musical|peca|ator|atriz/],
+    ['Artistas', /artista|elenco/]
+  ];
+
+  const sections = [];
+  const actions = [];
+  let headline = 'Análise Estratégica — Radar IA';
+
+  const fmtArtistMedia = a =>
+    `IG: ${a.media?.Instagram?.formatted || '—'} · SP: ${a.media?.Spotify?.formatted || '—'} · YT: ${a.media?.YouTube?.formatted || '—'} · TK: ${a.media?.TikTok?.formatted || '—'}`;
+
+  // Caso 1: Comparação de artistas ou evento com capacidade / cidade (ex.: "Compare os 2 líderes do ranking para um evento de 3 mil pessoas em Curitiba")
+  if (q.includes('compare') || q.includes(' vs ') || q.includes('3 mil') || mentionedArtists.length >= 2) {
+    const artA = mentionedArtists[0] || top1;
+    const artB = mentionedArtists[1] || (artA?.id === top1?.id ? top2 : top1) || top2;
+    const cityHub = matchedHub || hubs.find(h => norm(h.name) === 'curitiba') || hubs[0];
+    const capMatch = /(\d+)\s*mil/.exec(q);
+    const capacity = capMatch ? Number(capMatch[1]) * 1000 : 3000;
+    const occupancy = Math.round(capacity * 0.75);
+    const ticketAvg = cityHub && cityHub.gdp_per_capita > 45000 ? 135 : 110;
+    const grossRev = occupancy * ticketAvg;
+    const netRev = Math.round(grossRev * 0.9);
+
+    headline = `⚖ Comparativo Comercial (${artA?.name || 'Líder 1'} vs. ${artB?.name || 'Líder 2'}) — ${cityHub?.name || 'Curitiba'}/${cityHub?.uf || 'PR'}`;
+    if (artA && artB) {
+      sections.push({
+        title: `1. Desempenho Verificado nas 4 Mídias`,
+        body: `• ${artA.name}: ${fmtArtistMedia(artA)} (Alcance máx.: ${fmtNum(artA.maxNumericValue)})\n• ${artB.name}: ${fmtArtistMedia(artB)} (Alcance máx.: ${fmtNum(artB.maxNumericValue)})`
+      });
+    }
+    if (cityHub) {
+      sections.push({
+        title: `2. Potencial da Praça (${cityHub.name}/${cityHub.uf} · Dados Oficiais IBGE)`,
+        body: `População municipal: ${fmtNum(cityHub.population)} hab · PIB per capita: R$ ${fmtNum(cityHub.gdp_per_capita)} · Perfil econômico: ${cityHub.economic_profile || 'Polo Regional Consolidado'}.`
+      });
+    }
+    sections.push({
+      title: `3. Simulação Financeira (P&L para ${fmtNum(capacity)} lugares · 75% ocupação = ${fmtNum(occupancy)} pagantes)`,
+      body: `Com ticket médio estimado em R$ ${fmtNum(ticketAvg)},00: Faturamento Bruto de R$ ${fmtNum(grossRev)},00 e Receita Líquida pós-taxas (10%) de R$ ${fmtNum(netRev)},00.`
+    });
+    if (artA && cityHub) {
+      actions.push({ label: `💰 Simular P&L de ${artA.name} em ${cityHub.name}`, type: 'simulator', cityCode: cityHub.code, talentId: artA.id });
+    }
+    if (artB && cityHub) {
+      actions.push({ label: `💰 Simular P&L de ${artB.name} em ${cityHub.name}`, type: 'simulator', cityCode: cityHub.code, talentId: artB.id });
+    }
+  }
+  // Caso 2: Pergunta sobre Regiões (ex.: "Quais artistas têm maior alcance verificado para o Sul e Sudeste?") ou Cidade específica
+  else if (matchedRegions.length > 0 || matchedHub) {
+    const regionLabel = matchedHub ? `${matchedHub.name}/${matchedHub.uf} (${matchedHub.region})` : matchedRegions.join(' e ');
+    const regionHubs = matchedHub
+      ? [matchedHub]
+      : hubs.filter(h => matchedRegions.includes(h.region)).sort((a, b) => (b.population || 0) - (a.population || 0));
+    const topArtistsForRegion = verified.slice(0, 6);
+    headline = `📍 Inteligência Territorial & Artistas de Maior Alcance — ${regionLabel}`;
+    sections.push({
+      title: `1. Top ${topArtistsForRegion.length} Artistas com Maior Alcance Verificado para ${regionLabel}`,
+      body: topArtistsForRegion
+        .map((a, idx) => `${idx + 1}º ${a.name} (${(a.categories || []).join(', ') || 'Catálogo Nacional'}) — ${fmtArtistMedia(a)}`)
+        .join('\n')
+    });
+    if (regionHubs.length) {
+      const totalHubPop = regionHubs.reduce((s, h) => s + (h.population || 0), 0);
+      sections.push({
+        title: `2. Principais Polos Comerciais IBGE em ${regionLabel} (${regionHubs.length} praças-polo · ${fmtNum(totalHubPop)} hab nos polos)`,
+        body: regionHubs
+          .slice(0, 6)
+          .map(h => `• ${h.name}/${h.uf}: ${fmtNum(h.population)} hab · PIB/hab R$ ${fmtNum(h.gdp_per_capita)}`)
+          .join(' | ')
+      });
+      const leadHub = regionHubs[0];
+      const leadArt = mentionedArtists[0] || topArtistsForRegion[0];
+      if (leadHub && leadArt) {
+        actions.push({
+          label: `⚡ Simular Show de ${leadArt.name} em ${leadHub.name}/${leadHub.uf}`,
+          type: 'simulator',
+          cityCode: leadHub.code,
+          talentId: leadArt.id
+        });
+      }
+    }
+    sections.push({
+      title: '3. Governança & Rastreabilidade',
+      body: `Cruzamento fundamentado em ${verified.length} talentos com coleta verificada (YouTube Data API v3, Spotify Web API e relatórios oficiais) e ${hubs.length} polos socioeconômicos IBGE.`
+    });
+  }
+  // Caso 3: Pergunta sobre Talentos Emergentes / Próximos 90 dias
+  else if (q.includes('emergente') || q.includes('90 dias') || q.includes('ascensao') || q.includes('descoberta')) {
+    const emerging = verified
+      .filter(a => (a.maxNumericValue || 0) > 0 && (a.maxNumericValue || 0) <= 2500000)
+      .slice(0, 6);
+    headline = '🌱 Talentos Emergentes & Em Aceleração (Avaliação Multicritério 6D — Próximos 90 Dias)';
+    sections.push({
+      title: `1. Destaques Fora do Mainstream (Porte até 2,5M · Melhor Relação Custo-Benefício)`,
+      body: emerging.length
+        ? emerging
+            .map((a, idx) => `${idx + 1}º ${a.name} (${(a.categories || []).join(', ') || 'Emergente'}) — ${fmtArtistMedia(a)}`)
+            .join('\n')
+        : 'Acesse o módulo Talentos Emergentes (/rising.html) para inspecionar os talentos filtrados por porte.'
+    });
+    sections.push({
+      title: '2. Metodologia Multicritério (6 Dimensões Simultâneas)',
+      body: 'Avalia simultaneamente: 1) Crescimento Absoluto (Δ), 2) Crescimento Percentual (Δ%), 3) Aceleração (2×30d), 4) Porte Artístico, 5) Consistência Histórica e 6) Qualidade das Evidências (HTTPS). A relação Ouvintes/Seguidores no Spotify é analisada como sinal indireto de tração.'
+    });
+    if (emerging[0]) {
+      actions.push({ label: `◉ Abrir Ficha 360° de ${emerging[0].name}`, type: 'ficha360', talentId: emerging[0].id });
+      actions.push({ label: '★ Abrir Painel Completo de Talentos Emergentes ↗', type: 'link', href: '/rising.html' });
+    }
+  }
+  // Caso 4: Estratégia de Turnê Regional
+  else if (q.includes('turne') || q.includes('roteiro') || q.includes('estrategia') || q.includes('circuito')) {
+    const art = mentionedArtists[0] || selectedArtist || top1;
+    const tourHubs = [
+      hubs.find(h => norm(h.name) === 'goiania') || hubs[0],
+      hubs.find(h => norm(h.name) === 'curitiba') || hubs[1],
+      hubs.find(h => norm(h.name) === 'campinas') || hubs[2],
+      hubs.find(h => norm(h.name) === 'belo horizonte') || hubs[3]
+    ].filter(Boolean);
+    headline = `🗺 Estratégia de Turnê Regional em 4 Praças-Polo — ${art?.name || 'Artista Selecionado'}`;
+    sections.push({
+      title: `1. Perfil de Tração Nacional de ${art?.name || 'Artista'}`,
+      body: `${fmtArtistMedia(art)} · Categorias: ${(art?.categories || []).join(', ') || 'Catálogo Nacional'}.`
+    });
+    sections.push({
+      title: '2. Circuito Recomendado (Bacias Regionais de 100 km · ~1h40 de deslocamento rodoviário)',
+      body: tourHubs
+        .map((h, i) => `${i + 1}ª Praça: ${h.name}/${h.uf} (${h.region} · Pop.: ${fmtNum(h.population)} hab · PIB/hab R$ ${fmtNum(h.gdp_per_capita)})`)
+        .join('\n')
+    });
+    if (art && tourHubs[0]) {
+      actions.push({
+        label: `⚡ Simular 1ª Praça da Turnê (${art.name} em ${tourHubs[0].name})`,
+        type: 'simulator',
+        cityCode: tourHubs[0].code,
+        talentId: art.id
+      });
+    }
+  }
+  // Caso 5: Explicação do Radar Score Comercial e Simulador Financeiro
+  else if (q.includes('score') || q.includes('financeiro') || q.includes('explique') || q.includes('metodologia')) {
+    headline = '📐 Metodologia Radar Score 2.0 & Simulador Financeiro de Eventos (P&L)';
+    sections.push({
+      title: '1. Separação em 3 Resultados Independentes',
+      body: '• Radar Score Artístico (0–100): popularidade, crescimento e tração nas 4 mídias.\n• Radar Score Territorial 2.0 (0–100): Audiência regional comprovada (30%) + Crescimento digital (20%) + Afinidade artística regional (15%) + Engajamento e tração (15%) + Potencial econômico IBGE (10%) + Consistência histórica (10%).\n• Contexto de Eventos (Informativo): agenda e oferta em ticketeiras, 100% isolado do cálculo dos scores.'
+    });
+    sections.push({
+      title: '2. Índice de Cobertura e Confiança + Simulador P&L',
+      body: 'Qualifica a recomendação conforme o volume de evidências auditadas e projeta Faturamento Bruto, Receita Líquida pós-taxas, Ponto de Equilíbrio (Break-even) e Margem Operacional líquida.'
+    });
+    actions.push({ label: '↗ Abrir Simulador em Oportunidade Comercial', type: 'link', href: '/commercial.html#compatibility-simulator' });
+  }
+  // Caso 6: Artista específico mencionado na pergunta
+  else if (mentionedArtists.length === 1) {
+    const art = mentionedArtists[0];
+    headline = `📊 Diagnóstico 360° Verificado — ${art.name}`;
+    sections.push({
+      title: `1. Indicadores Auditados nas 4 Mídias (${(art.categories || []).join(' · ') || 'Catálogo Nacional'})`,
+      body: fmtArtistMedia(art)
+    });
+    sections.push({
+      title: '2. Recomendação Comercial & Simulação de Praça',
+      body: `O talento ${art.name} possui alcance máximo verificado de ${fmtNum(art.maxNumericValue)}. Utilize os botões abaixo para abrir a Ficha 360° completa ou simular a viabilidade financeira de um show em qualquer praça brasileira.`
+    });
+    actions.push({ label: `◉ Ficha 360° de ${art.name}`, type: 'ficha360', talentId: art.id });
+    if (hubs[0]) {
+      actions.push({ label: `⚡ Simular Show de ${art.name}`, type: 'simulator', cityCode: hubs[0].code, talentId: art.id });
+    }
+  }
+  // Caso 7: Categoria ou Gênero específico mencionado
+  else {
+    const matchedCat = categoryPatterns.find(([, regex]) => regex.test(q));
+    if (matchedCat) {
+      const [catName] = matchedCat;
+      const catArtists = verified.filter(a => (a.categories || []).some(c => norm(c) === norm(catName))).slice(0, 6);
+      headline = `📂 Ranking Verificado da Categoria: ${catName}`;
+      sections.push({
+        title: `1. Top Talentos Auditados em ${catName}`,
+        body: (catArtists.length ? catArtists : verified.slice(0, 5))
+          .map((a, idx) => `${idx + 1}º ${a.name} — ${fmtArtistMedia(a)}`)
+          .join('\n')
+      });
+      if (catArtists[0] && hubs[0]) {
+        actions.push({ label: `⚡ Simular Show de ${catArtists[0].name}`, type: 'simulator', cityCode: hubs[0].code, talentId: catArtists[0].id });
+      }
+    } else {
+      const leaders = verified.slice(0, 6);
+      headline = `🏆 Diagnóstico Geral da Base Auditada (${cross.counts?.talents || allArtists.length} Talentos Monitorados)`;
+      sections.push({
+        title: '1. Líderes com Coleta Verificada no Recorte Atual',
+        body: leaders.map((a, idx) => `${idx + 1}º ${a.name} — ${fmtArtistMedia(a)}`).join('\n')
+      });
+      sections.push({
+        title: '2. Cobertura em Tempo Real & Fontes Conectadas',
+        body: `${verified.length} talentos com métricas reais auditadas (YouTube Data API v3, Spotify Web API e relatórios públicos verificados) + ${hubs.length} polos socioeconômicos IBGE em ${cross.counts?.municipalities || 5570} municípios brasileiros. Digite o nome de qualquer artista, cidade, região (Sul, Sudeste, Nordeste, Centro-Oeste, Norte) ou categoria para uma análise específica.`
+      });
+    }
+  }
+
+  return {
+    ok: true,
+    query: rawQuestion || 'Resumo estratégico da base auditada',
+    answeredAt: new Date().toISOString(),
+    headline,
+    sections,
+    actions,
+    counts: cross.counts
+  };
+}

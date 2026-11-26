@@ -1251,6 +1251,13 @@ export function getDemographicsSummary(db, params = new URLSearchParams()) {
   const radiusRaw = params.get('radius');
   const radius = radiusRaw === null || radiusRaw === '' ? 0 : Number(radiusRaw);
 
+  try {
+    const countDem = db.prepare('SELECT count(*) AS n FROM municipality_demographics').get()?.n ?? 0;
+    if (countDem < 25) {
+      populateIbgeDemographics(db);
+    }
+  } catch {}
+
   const rows = db.prepare(
     `SELECT m.code, m.name, m.uf, m.region, m.lat, m.lon,
             d.population, d.gdp_per_capita, d.avg_income, d.urban_rate, d.economic_profile, d.demographic_source, d.reference_year
@@ -1260,8 +1267,33 @@ export function getDemographicsSummary(db, params = new URLSearchParams()) {
      ORDER BY COALESCE(d.population, -1) DESC, m.name ASC`
   ).all(ufParam, ufParam, regionParam, regionParam);
 
-  const withDemographics = rows.filter(r => r.population != null);
+  const withDemographics = rows
+    .filter(r => r.population != null)
+    .map(r => ({
+      ...r,
+      pib_per_capita: r.gdp_per_capita
+    }));
   const totalPopulation = withDemographics.reduce((s, r) => s + r.population, 0);
+
+  const regionAgg = new Map();
+  for (const r of withDemographics) {
+    const reg = r.region || 'Brasil';
+    if (!regionAgg.has(reg)) {
+      regionAgg.set(reg, { region: reg, population: 0, pibSum: 0, count: 0 });
+    }
+    const entry = regionAgg.get(reg);
+    entry.population += Number(r.population) || 0;
+    entry.pibSum += Number(r.gdp_per_capita) || 0;
+    entry.count += 1;
+  }
+  const byRegion = [...regionAgg.values()]
+    .map(e => ({
+      region: e.region,
+      population: e.population,
+      avg_pib_per_capita: e.count > 0 ? Math.round(e.pibSum / e.count) : 0,
+      hubs_count: e.count
+    }))
+    .sort((a, b) => b.population - a.population);
 
   let catchment = null;
   if (cityParam) {
@@ -1299,6 +1331,8 @@ export function getDemographicsSummary(db, params = new URLSearchParams()) {
     municipalitiesWithDemographics: withDemographics.length,
     knownPopulationSum: totalPopulation,
     source: 'IBGE — Censo Demográfico 2022 / Estimativas 2024 & PIB dos Municípios',
+    items: withDemographics,
+    byRegion,
     topMunicipalities: withDemographics.slice(0, 50),
     catchment
   };

@@ -1280,6 +1280,27 @@
    ========================================================================== */
 .talent-home #map {
   position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 272px;
+  gap: 10px;
+  align-items: start;
+}
+.talent-home #map > p,
+.talent-home #map > .radius-summary {
+  grid-column: 1 / -1;
+}
+.talent-home #map > svg {
+  grid-column: 1;
+  width: 100%;
+  min-height: 440px;
+  max-height: 560px;
+}
+.talent-home #map > .map-smart-dock {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
 }
 .talent-home .map-side {
   max-height: none;
@@ -1294,12 +1315,22 @@
 .talent-home .legend-concentration {
   background: #ffffff;
   border: 2px solid #22c55e;
-  box-shadow: 0 0 8px #a855f7, 0 0 12px #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.35), 0 0 10px #22c55e;
   border-radius: 50% !important;
 }
 .talent-home .legend-city {
-  background: #facc15;
-  box-shadow: 0 0 6px #facc15;
+  background: #eab308;
+  box-shadow: 0 0 6px #eab308;
+  border-radius: 50% !important;
+}
+.talent-home .legend-decline {
+  background: #ef4444;
+  box-shadow: 0 0 6px #ef4444;
+  border-radius: 50% !important;
+}
+.talent-home .legend-insufficient {
+  background: #9ca3af;
+  box-shadow: 0 0 4px rgba(156, 163, 175, 0.6);
   border-radius: 50% !important;
 }
 
@@ -1310,38 +1341,36 @@
   transition: opacity 0.18s ease, transform 0.18s ease;
 }
 .talent-home #map .map-index-marker.is-dimmed {
-  opacity: 0.16;
+  opacity: 0.14;
 }
 .talent-home #map .map-index-marker:hover .ibge-hub-point,
 .talent-home #map .map-index-marker.is-selected .ibge-hub-point {
   stroke: #ffffff;
   stroke-width: 2.4px;
-  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.85));
+  filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.9));
 }
-.talent-home #map .marker-type-growth .ibge-hub-point {
+.talent-home #map .marker-type-growth_high .ibge-hub-point,
+.talent-home #map .marker-type-growth_moderate .ibge-hub-point,
+.talent-home #map .marker-type-growth_initial .ibge-hub-point {
   filter: drop-shadow(0 0 5px rgba(34, 197, 94, 0.85));
 }
 .talent-home #map .marker-type-concentration .ibge-hub-point {
-  filter: drop-shadow(0 0 7px rgba(34, 197, 94, 0.95));
+  filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.95));
 }
-.talent-home #map .marker-type-concentration .marker-halo-outer {
-  animation: radar-pulse-halo 2.6s infinite ease-in-out;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-.talent-home #map .marker-type-growth .marker-halo-outer {
-  animation: radar-pulse-halo 3.2s infinite ease-in-out;
+.talent-home #map .marker-type-concentration .marker-halo-outer,
+.talent-home #map .marker-type-growth_high .marker-halo-outer {
+  animation: radar-pulse-halo 2.8s infinite ease-in-out;
   transform-box: fill-box;
   transform-origin: center;
 }
 @keyframes radar-pulse-halo {
   0%, 100% {
-    opacity: 0.72;
+    opacity: 0.75;
     transform: scale(0.96);
   }
   50% {
     opacity: 1;
-    transform: scale(1.12);
+    transform: scale(1.1);
   }
 }
 .talent-home #map .map-callout-badge rect {
@@ -1354,144 +1383,202 @@
   stroke-width: 1.7px;
 }
 
-/* Legenda Flutuante no Canto Superior Direito do Mapa */
+/* Legenda Inteligente do Mapa (8 Níveis da Camada Radar de Crescimento de Talentos) */
 .talent-home .map-floating-legend {
-  position: absolute;
-  top: 34px;
-  right: 12px;
-  width: 238px;
-  padding: 9px 10px;
-  border-radius: 10px;
-  background: rgba(14, 10, 24, 0.92);
-  backdrop-filter: blur(8px);
-  border: 1.5px solid rgba(192, 132, 252, 0.65);
-  box-shadow: 0 0 18px rgba(168, 85, 247, 0.32), inset 0 0 10px rgba(192, 132, 252, 0.1);
+  position: static;
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: #17171a;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 14px rgba(168, 85, 247, 0.16);
   display: flex;
   flex-direction: column;
   gap: 5px;
-  z-index: 6;
 }
 .talent-home .mfl-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid rgba(192, 132, 252, 0.25);
+  flex-direction: column;
+  gap: 1px;
+  padding-bottom: 5px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 .talent-home .mfl-head strong {
-  font-size: 11px;
-  color: #f5d0fe;
-  letter-spacing: 0.02em;
+  font-size: 12px;
+  font-weight: 750;
+  color: #ffffff;
+  letter-spacing: -0.01em;
 }
 .talent-home .mfl-head small {
   font-size: 9.5px;
-  color: #a5f3fc;
+  color: #a1a1aa;
 }
 .talent-home .mfl-item {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 9px;
   width: 100%;
   height: auto;
   padding: 4px 6px;
-  border-radius: 7px;
-  background: rgba(24, 18, 38, 0.72);
-  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
   text-align: left;
-  transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
+  transition: border-color 0.14s ease, background 0.14s ease;
 }
 .talent-home .mfl-item:hover {
-  background: rgba(45, 28, 72, 0.88);
-  border-color: #00f0ff;
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 .talent-home .mfl-item[aria-pressed="true"] {
-  background: linear-gradient(135deg, rgba(88, 28, 135, 0.85), rgba(30, 20, 56, 0.92));
+  background: rgba(34, 197, 94, 0.14);
   border-color: #22c55e;
-  box-shadow: 0 0 10px rgba(34, 197, 94, 0.45);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);
+}
+.talent-home .mfl-icon-wrap {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 .talent-home .mfl-dot {
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+/* 1. Crescimento inicial — bolinha verde pequena com halo suave */
+.talent-home .mfl-dot-growth-initial {
+  width: 7px;
+  height: 7px;
+  background: #22c55e;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.22);
+}
+/* 2. Crescimento moderado — bolinha verde média com halo */
+.talent-home .mfl-dot-growth-moderate {
   width: 11px;
   height: 11px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  display: inline-block;
-}
-.talent-home .mfl-dot-growth {
   background: #22c55e;
-  box-shadow: 0 0 8px #22c55e;
-  border: 1.5px solid #bbf7d0;
+  box-shadow: 0 0 0 4.5px rgba(34, 197, 94, 0.24);
 }
+/* 3. Alto crescimento — bolinha verde grande com halo intenso */
+.talent-home .mfl-dot-growth-high {
+  width: 15px;
+  height: 15px;
+  background: #22c55e;
+  box-shadow: 0 0 0 4.5px rgba(34, 197, 94, 0.28);
+}
+/* 4. Polo de alta concentração — anel verde externo + círculo verde + núcleo branco */
 .talent-home .mfl-dot-concentration {
+  width: 8px;
+  height: 8px;
   background: #ffffff;
-  border: 2.5px solid #22c55e;
-  box-shadow: 0 0 8px #22c55e, 0 0 12px #a855f7;
+  box-shadow: 0 0 0 5px #22c55e, 0 0 0 7px rgba(18, 18, 22, 0.95), 0 0 0 8.5px #22c55e;
 }
-.talent-home .mfl-dot-economic {
-  background: #00f0ff;
-  box-shadow: 0 0 8px #00f0ff;
-  border: 1.5px solid #e0f2fe;
+/* 5. Estabilidade — bolinha amarela/âmbar com halo */
+.talent-home .mfl-dot-stability {
+  width: 11px;
+  height: 11px;
+  background: #eab308;
+  box-shadow: 0 0 0 4.5px rgba(234, 179, 8, 0.24);
 }
-.talent-home .mfl-dot-opportunity {
-  background: #facc15;
-  box-shadow: 0 0 8px #facc15;
-  border: 1.5px solid #fef9c3;
+/* 6. Queda de popularidade — bolinha vermelha/coral com halo */
+.talent-home .mfl-dot-decline {
+  width: 11px;
+  height: 11px;
+  background: #ef4444;
+  box-shadow: 0 0 0 4.5px rgba(239, 68, 68, 0.24);
+}
+/* 7. Polo comercial — bolinha azul-ciano com halo */
+.talent-home .mfl-dot-commercial {
+  width: 11px;
+  height: 11px;
+  background: #06b6d4;
+  box-shadow: 0 0 0 4.5px rgba(6, 182, 212, 0.25);
+}
+/* 8. Dados insuficientes — bolinha cinza com halo sutil */
+.talent-home .mfl-dot-insufficient {
+  width: 11px;
+  height: 11px;
+  background: #9ca3af;
+  box-shadow: 0 0 0 4.5px rgba(156, 163, 175, 0.22);
 }
 .talent-home .mfl-txt {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1;
 }
-.talent-home .mfl-txt span {
-  font-size: 10.5px;
+.talent-home .mfl-txt-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.talent-home .mfl-txt-top span {
+  font-size: 11px;
   font-weight: 700;
   color: #ffffff;
   line-height: 1.2;
 }
+.talent-home .mfl-txt-top b {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #d4d4d8;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0 5px;
+  border-radius: 999px;
+}
 .talent-home .mfl-txt small {
-  font-size: 9px;
-  color: #cbd5e1;
+  font-size: 9.5px;
+  color: #a1a1aa;
   line-height: 1.2;
   white-space: normal;
 }
 .talent-home .mfl-reset {
   height: 22px;
   font-size: 10px;
-  background: rgba(0, 240, 255, 0.14);
-  border: 1px solid #00f0ff;
-  color: #a5f3fc;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid #22c55e;
+  color: #86efac;
   border-radius: 6px;
+  margin-top: 2px;
 }
 
 /* Ficha Técnica Popover da Bolinha Clicada no Mapa */
 .talent-home .map-marker-popover {
-  position: absolute;
-  left: 12px;
-  bottom: 42px;
-  width: min(330px, calc(100% - 24px));
+  position: static;
+  width: 100%;
   padding: 10px 12px;
-  border-radius: 11px;
-  background: rgba(13, 10, 24, 0.95);
-  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  background: #141122;
   border: 1.5px solid #22c55e;
-  box-shadow: 0 0 20px rgba(34, 197, 94, 0.35), 0 0 30px rgba(168, 85, 247, 0.25);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55), 0 0 16px rgba(34, 197, 94, 0.25);
   display: flex;
   flex-direction: column;
   gap: 6px;
-  z-index: 7;
 }
 .talent-home .map-marker-popover[data-index-type="concentration"] {
-  border-color: #c084fc;
-  box-shadow: 0 0 22px rgba(192, 132, 252, 0.45), 0 0 28px rgba(34, 197, 94, 0.25);
+  border-color: #22c55e;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7), 0 0 22px rgba(34, 197, 94, 0.45);
 }
-.talent-home .map-marker-popover[data-index-type="economic"] {
-  border-color: #00f0ff;
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.4);
+.talent-home .map-marker-popover[data-index-type="commercial"] {
+  border-color: #06b6d4;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7), 0 0 20px rgba(6, 182, 212, 0.4);
 }
-.talent-home .map-marker-popover[data-index-type="opportunity"] {
-  border-color: #facc15;
-  box-shadow: 0 0 20px rgba(250, 204, 21, 0.4);
+.talent-home .map-marker-popover[data-index-type="stability"] {
+  border-color: #eab308;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7), 0 0 20px rgba(234, 179, 8, 0.35);
+}
+.talent-home .map-marker-popover[data-index-type="decline"] {
+  border-color: #ef4444;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.7), 0 0 20px rgba(239, 68, 68, 0.35);
+}
+.talent-home .map-marker-popover[data-index-type="insufficient"] {
+  border-color: #9ca3af;
 }
 .talent-home .mmp-head {
   display: flex;
@@ -1506,25 +1593,33 @@
   border-radius: 999px;
   letter-spacing: 0.02em;
 }
-.talent-home .mmp-badge-growth {
+.talent-home .mmp-badge-growth_high,
+.talent-home .mmp-badge-growth_moderate,
+.talent-home .mmp-badge-growth_initial,
+.talent-home .mmp-badge-concentration {
   background: rgba(34, 197, 94, 0.18);
   border: 1px solid #22c55e;
   color: #4ade80;
 }
-.talent-home .mmp-badge-concentration {
-  background: rgba(192, 132, 252, 0.2);
-  border: 1px solid #c084fc;
-  color: #f0abfc;
-}
-.talent-home .mmp-badge-economic {
-  background: rgba(0, 240, 255, 0.16);
-  border: 1px solid #00f0ff;
+.talent-home .mmp-badge-commercial {
+  background: rgba(6, 182, 212, 0.18);
+  border: 1px solid #06b6d4;
   color: #67e8f9;
 }
-.talent-home .mmp-badge-opportunity {
-  background: rgba(250, 204, 21, 0.16);
-  border: 1px solid #facc15;
+.talent-home .mmp-badge-stability {
+  background: rgba(234, 179, 8, 0.18);
+  border: 1px solid #eab308;
   color: #fde047;
+}
+.talent-home .mmp-badge-decline {
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid #ef4444;
+  color: #fca5a5;
+}
+.talent-home .mmp-badge-insufficient {
+  background: rgba(156, 163, 175, 0.18);
+  border: 1px solid #9ca3af;
+  color: #e4e4e7;
 }
 .talent-home .mmp-close {
   height: 20px;
@@ -1696,16 +1791,13 @@
   transform: translateY(-1px);
 }
 
-@media (max-width: 900px) {
-  .talent-home .map-floating-legend {
-    position: static;
-    width: 100%;
-    margin-top: 6px;
+@media (max-width: 1180px) {
+  .talent-home #map {
+    grid-template-columns: 1fr;
   }
-  .talent-home .map-marker-popover {
-    position: static;
-    width: 100%;
-    margin-top: 6px;
+  .talent-home #map > svg,
+  .talent-home #map > .map-smart-dock {
+    grid-column: 1;
   }
 }
 

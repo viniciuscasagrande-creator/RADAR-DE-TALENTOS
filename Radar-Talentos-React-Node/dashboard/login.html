@@ -128,7 +128,7 @@
             </button>
           </form>
 
-          <!-- ETAPA 2: CADASTRO OBRIGATÓRIO DE NOVA SENHA FORTE (1º ACESSO OU APÓS RESET PELO ADMIN) -->
+          <!-- ETAPA 2: CADASTRO OBRIGATÓRIO DE NOVA SENHA FORTE (EXIBIDO SOMENTE APÓS LOGIN COM SENHA TEMPORÁRIA) -->
           <form id="radar-force-pwd-form" class="ri-form" hidden novalidate>
             <div class="ri-force-banner">
               <strong id="force-pwd-user-title">Primeiro Acesso — Cadastre sua Nova Senha</strong>
@@ -160,11 +160,72 @@
             </button>
           </form>
 
-          <!-- Rodapé do Card Direito (Fiel à Imagem) -->
-          <div class="ri-auth-footer">
+          <!-- ETAPA 3: FORMULÁRIO PÚBLICO "CADASTRE-SE" (ENVIADO PARA VALIDAÇÃO ADMINISTRATIVA) -->
+          <form id="radar-signup-form" class="ri-form" hidden novalidate>
+            <div class="ri-field">
+              <label for="signup-name">Nome completo *</label>
+              <input id="signup-name" type="text" autocomplete="name" placeholder="Seu nome e sobrenome" required />
+            </div>
+
+            <div class="ri-signup-grid">
+              <div class="ri-field">
+                <label for="signup-email">E-mail corporativo *</label>
+                <input id="signup-email" type="email" autocomplete="email" placeholder="voce@empresa.com.br" required />
+              </div>
+              <div class="ri-field">
+                <label for="signup-phone">Telefone / WhatsApp *</label>
+                <input id="signup-phone" type="tel" autocomplete="tel" placeholder="(11) 99999-9999" required />
+              </div>
+            </div>
+
+            <div class="ri-signup-grid">
+              <div class="ri-field">
+                <label for="signup-company">Empresa / Produtora / Órgão *</label>
+                <input id="signup-company" type="text" autocomplete="organization" placeholder="Nome da empresa ou produtora" required />
+              </div>
+              <div class="ri-field">
+                <label for="signup-job">Cargo / Perfil de atuação</label>
+                <select id="signup-job">
+                  <option value="Produtor de Eventos / Contratante">Produtor de Eventos / Contratante</option>
+                  <option value="Empresário / Escritório Artístico">Empresário / Escritório Artístico</option>
+                  <option value="Gestor Público / Prefeitura">Gestor Público / Prefeitura</option>
+                  <option value="Agência / Patrocinador / Marca">Agência / Patrocinador / Marca</option>
+                  <option value="Analista de Mercado / Consultor">Analista de Mercado / Consultor</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="ri-signup-grid">
+              <div class="ri-field">
+                <label for="signup-document">CNPJ ou CPF</label>
+                <input id="signup-document" type="text" autocomplete="off" placeholder="00.000.000/0001-00" />
+              </div>
+              <div class="ri-field">
+                <label for="signup-city">Cidade / UF *</label>
+                <input id="signup-city" type="text" autocomplete="address-level2" placeholder="Ex.: São Paulo / SP" required />
+              </div>
+            </div>
+
+            <div class="ri-field">
+              <label for="signup-purpose">Objetivo de uso no Radar de Talentos</label>
+              <input id="signup-purpose" type="text" autocomplete="off" placeholder="Ex.: Contratação de shows, análise de praças e viabilidade comercial" />
+            </div>
+
+            <p id="signup-feedback" class="ri-feedback" role="status"></p>
+
+            <button type="submit" id="signup-submit-btn" class="ri-submit-btn">
+              <span>Enviar Cadastro para Validação &rarr;</span>
+            </button>
+            <button type="button" id="back-to-login-btn" class="ri-text-link" style="align-self:center;margin-top:2px">
+              &larr; Já possui conta? Voltar para o Login
+            </button>
+          </form>
+
+          <!-- Rodapé do Card Direito -->
+          <div class="ri-auth-footer" id="ri-auth-footer">
             <p class="ri-signup-prompt">
               Não possui acesso?
-              <button type="button" id="request-access-btn" class="ri-text-link">Solicitar acesso</button>
+              <button type="button" id="request-access-btn" class="ri-text-link">Cadastre-se</button>
             </p>
             <div class="ri-footer-divider"></div>
             <div class="ri-restricted-badge">

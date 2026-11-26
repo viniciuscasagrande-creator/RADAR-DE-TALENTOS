@@ -80,7 +80,20 @@
         </article>
       </div>
 
-      <p class="query-status" id="users-status-banner" role="status">Painel de Controle de Acesso pronto. O Administrador pode criar usuários, liberar permissões em formato de check, resetar senhas e alternar para o perfil de qualquer usuário em 1 clique.</p>
+      <p class="query-status" id="users-status-banner" role="status">Painel de Controle de Acesso pronto. O Administrador pode validar os cadastros vindos do site ("Cadastre-se"), enviar a senha temporária por e-mail, liberar permissões e alternar para o perfil de qualquer usuário em 1 clique.</p>
+    </section>
+
+    <!-- 0. Solicitações de Cadastro Recebidas do Site ("Cadastre-se" na Página Inicial de Login) -->
+    <section class="rising-card neon-card" id="signup-requests-panel">
+      <div class="rising-head">
+        <div>
+          <span class="eyebrow">VALIDAÇÃO DE NOVOS CLIENTES · CADASTRE-SE NO SITE &amp; RETORNO POR E-MAIL COM SENHA TEMPORÁRIA</span>
+          <h2>📥 Solicitações de Cadastro Recebidas do Site (<span id="pending-signups-count">0</span> pendentes)</h2>
+          <p>Valide os cadastros preenchidos pelos clientes na tela inicial do Radar. Ao clicar em <b>Aprovar</b>, o sistema cria o acesso, gera uma <b>senha temporária exclusiva</b> (que o cliente será obrigado a trocar pela senha forte do padrão no 1º acesso) e prepara o retorno por e-mail.</p>
+        </div>
+      </div>
+      <div id="signup-email-dispatch-box" hidden style="margin-bottom:14px;padding:14px;border-radius:10px;border:1.5px solid #4ade80;background:rgba(20,83,45,0.28)"></div>
+      <div id="signup-requests-container" style="display:flex;flex-direction:column;gap:10px"></div>
     </section>
 
     <!-- 1. Formulário do Administrador: Criar Novo Usuário + Checkboxes de Permissões -->

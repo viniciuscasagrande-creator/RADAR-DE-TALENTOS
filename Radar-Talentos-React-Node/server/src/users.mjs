@@ -178,6 +178,27 @@ export function ensureDefaultAdminUser(db) {
       status TEXT NOT NULL,
       detail TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE IF NOT EXISTS radar_signup_requests (
+      id TEXT PRIMARY KEY,
+      full_name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      phone TEXT NOT NULL DEFAULT '',
+      company TEXT NOT NULL DEFAULT '',
+      job_title TEXT NOT NULL DEFAULT '',
+      document TEXT NOT NULL DEFAULT '',
+      city_uf TEXT NOT NULL DEFAULT '',
+      purpose TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+      assigned_username TEXT,
+      assigned_role TEXT DEFAULT 'producer',
+      temp_password_hint TEXT,
+      review_note TEXT NOT NULL DEFAULT '',
+      reviewed_by TEXT,
+      reviewed_at TEXT,
+      email_sent INTEGER NOT NULL DEFAULT 0,
+      email_delivery_mode TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL
     ) STRICT;`);
   } catch {}
   for (const alterSql of [
@@ -311,13 +332,90 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
 
     // 1. GET /api/auth/me
     if (req.method === 'GET' && url.pathname === '/api/auth/me') {
+      let pendingSignupsCount = 0;
+      try {
+        pendingSignupsCount = database.prepare("SELECT count(*) AS n FROM radar_signup_requests WHERE status = 'pending'").get().n;
+      } catch {}
       send(res, 200, {
         authenticated: ctx.authenticated,
         impersonating: ctx.impersonating,
         adminUser: ctx.user,
         user: ctx.effectiveUser,
+        pendingSignupsCount,
         permissionsCatalog: RADAR_PERMISSIONS_CATALOG,
         roleProfiles: RADAR_ROLE_PROFILES
+      });
+      return true;
+    }
+
+    // 1b. POST /api/auth/register-request (Formulário público "Cadastre-se" na página de login)
+    if (req.method === 'POST' && url.pathname === '/api/auth/register-request') {
+      const b = await readJsonBody(req);
+      const fullName = String(b.fullName || b.name || '').trim().slice(0, 140);
+      const email = String(b.email || '').trim().toLowerCase().slice(0, 160);
+      const phone = String(b.phone || '').trim().slice(0, 40);
+      const company = String(b.company || '').trim().slice(0, 140);
+      const jobTitle = String(b.jobTitle || '').trim().slice(0, 100);
+      const document = String(b.document || '').trim().slice(0, 40);
+      const cityUf = String(b.cityUf || '').trim().slice(0, 100);
+      const purpose = String(b.purpose || '').trim().slice(0, 500);
+
+      if (fullName.length < 3) {
+        send(res, 400, { error: 'Informe seu nome completo (mínimo 3 caracteres).' });
+        return true;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+        send(res, 400, { error: 'Informe um endereço de e-mail válido para receber a confirmação e a senha temporária.' });
+        return true;
+      }
+      if (phone.length < 8) {
+        send(res, 400, { error: 'Informe seu telefone / WhatsApp com DDD.' });
+        return true;
+      }
+      if (company.length < 2) {
+        send(res, 400, { error: 'Informe sua empresa, produtora, escritório ou instituição.' });
+        return true;
+      }
+
+      const existingUser = database.prepare('SELECT id FROM radar_users WHERE lower(email) = ?').get(email);
+      if (existingUser) {
+        send(res, 409, { error: 'Este e-mail já possui um cadastro ativo no Radar de Talentos. Utilize a tela de login.' });
+        return true;
+      }
+      const existingPending = database
+        .prepare("SELECT id FROM radar_signup_requests WHERE lower(email) = ? AND status = 'pending'")
+        .get(email);
+      if (existingPending) {
+        send(res, 200, {
+          ok: true,
+          requestId: existingPending.id,
+          message: 'Já recebemos sua solicitação de cadastro para este e-mail! Nossa equipe está validando seus dados e enviará o retorno com sua senha temporária por e-mail.'
+        });
+        return true;
+      }
+
+      const reqId = 'req-' + randomBytes(5).toString('hex');
+      const now = new Date().toISOString();
+      database
+        .prepare(
+          `INSERT INTO radar_signup_requests(
+             id, full_name, email, phone, company, job_title, document, city_uf, purpose, status, created_at
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`
+        )
+        .run(reqId, fullName, email, phone, company, jobTitle, document, cityUf, purpose, now);
+
+      recordAccessLog(database, {
+        username: email,
+        action: 'signup_requested',
+        ip: clientIp,
+        status: 'pending',
+        detail: `Solicitação de cadastro enviada por ${fullName} (${company}${cityUf ? ' · ' + cityUf : ''})`
+      });
+
+      send(res, 201, {
+        ok: true,
+        requestId: reqId,
+        message: 'Cadastro enviado com sucesso para validação! Você receberá um e-mail informando a aprovação junto com sua senha temporária de primeiro acesso.'
       });
       return true;
     }
@@ -621,8 +719,41 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
           expiresAt: s.expires_at
         }));
       } catch {}
+      let signupRequests = [];
+      try {
+        signupRequests = database
+          .prepare(
+            `SELECT * FROM radar_signup_requests
+             ORDER BY CASE WHEN status = 'pending' THEN 0 WHEN status = 'approved' THEN 1 ELSE 2 END, created_at DESC
+             LIMIT 100`
+          )
+          .all()
+          .map(r => ({
+            id: r.id,
+            fullName: r.full_name,
+            email: r.email,
+            phone: r.phone,
+            company: r.company,
+            jobTitle: r.job_title,
+            document: r.document,
+            cityUf: r.city_uf,
+            purpose: r.purpose,
+            status: r.status,
+            assignedUsername: r.assigned_username || '',
+            assignedRole: r.assigned_role || 'producer',
+            tempPasswordHint: r.temp_password_hint || '',
+            reviewNote: r.review_note || '',
+            reviewedBy: r.reviewed_by || '',
+            reviewedAt: r.reviewed_at || null,
+            emailSent: Boolean(r.email_sent),
+            emailDeliveryMode: r.email_delivery_mode || '',
+            createdAt: r.created_at
+          }));
+      } catch {}
       send(res, 200, {
         items: rows.map(formatUserRow),
+        signupRequests,
+        pendingSignupsCount: signupRequests.filter(r => r.status === 'pending').length,
         permissionsCatalog: RADAR_PERMISSIONS_CATALOG,
         roleProfiles: RADAR_ROLE_PROFILES,
         accessLogs,
@@ -806,6 +937,221 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
         message: 'Sessão encerrada remotamente com sucesso!'
       });
       return true;
+    }
+
+    // 13. POST /api/users/signup-requests/review (Admin aprova ou recusa solicitação de cadastro do site, gera senha temporária e retorna e-mail pronto)
+    if (req.method === 'POST' && url.pathname === '/api/users/signup-requests/review') {
+      const b = await readJsonBody(req);
+      const requestId = String(b.requestId || '').trim();
+      const decision = String(b.decision || '').trim().toLowerCase();
+      const reviewNote = String(b.reviewNote || '').trim().slice(0, 400);
+      const validRoles = new Set(RADAR_ROLE_PROFILES.map(r => r.role).concat(['user']));
+      const role = validRoles.has(b.role) ? b.role : 'producer';
+
+      const reqRow = database.prepare('SELECT * FROM radar_signup_requests WHERE id = ?').get(requestId);
+      if (!reqRow) {
+        send(res, 404, { error: 'Solicitação de cadastro não encontrada.' });
+        return true;
+      }
+      if (!['approve', 'reject'].includes(decision)) {
+        send(res, 400, { error: 'Decisão inválida. Informe approve ou reject.' });
+        return true;
+      }
+
+      const now = new Date().toISOString();
+      const reviewerName = ctx.user?.username || 'admin';
+      const portalUrl = 'https://radardetalentos.net.br/login.html';
+
+      if (decision === 'approve') {
+        const tempNum = String(Math.floor(1000 + Math.random() * 9000));
+        const tempPassword = String(b.tempPassword || '').trim() || `Radar@${tempNum}`;
+        const emailPrefix = String(reqRow.email.split('@')[0] || reqRow.full_name)
+          .normalize('NFD')
+          .replace(/\p{Diacritic}/gu, '')
+          .toLowerCase()
+          .replace(/[^a-z0-9._-]+/g, '.')
+          .replace(/^\.+|\.+$/g, '')
+          .slice(0, 32);
+        let username = String(b.username || '').trim().toLowerCase() || emailPrefix || 'cliente.radar';
+        const collision = database.prepare('SELECT id, email FROM radar_users WHERE lower(username) = ?').get(username);
+        if (collision && String(collision.email || '').toLowerCase() !== reqRow.email.toLowerCase()) {
+          username = `${username}.${tempNum.slice(0, 3)}`;
+        }
+
+        const existingByEmail = database.prepare('SELECT * FROM radar_users WHERE lower(email) = ?').get(reqRow.email.toLowerCase());
+        const { hash, salt } = hashPassword(tempPassword);
+        const perms = normalizePermissions(b.permissions || defaultPermissionsForRole(role), role);
+        let userId;
+        if (existingByEmail) {
+          userId = existingByEmail.id;
+          username = existingByEmail.username;
+          database
+            .prepare(
+              'UPDATE radar_users SET display_name = ?, role = ?, password_hash = ?, password_salt = ?, must_change_password = 1, active = 1, permissions_json = ?, updated_at = ? WHERE id = ?'
+            )
+            .run(reqRow.full_name, role, hash, salt, JSON.stringify(perms), now, userId);
+        } else {
+          userId = 'u-' + username + '-' + randomBytes(3).toString('hex');
+          database
+            .prepare(
+              `INSERT INTO radar_users(id,username,display_name,email,role,password_hash,password_salt,must_change_password,active,permissions_json,created_at,updated_at)
+               VALUES(?,?,?,?,?,?,?,1,1,?,?,?)`
+            )
+            .run(userId, username, reqRow.full_name, reqRow.email.toLowerCase(), role, hash, salt, JSON.stringify(perms), now, now);
+        }
+
+        const emailSubject = 'Radar de Talentos — Seu cadastro foi APROVADO (Acesso e Senha Temporária)';
+        const emailBody = [
+          `Olá, ${reqRow.full_name}!`,
+          '',
+          `Seu cadastro para acesso ao Radar de Talentos (${reqRow.company || 'Inteligência de Mercado'}) foi APROVADO pela nossa equipe.`,
+          '',
+          'DADOS PARA SEU PRIMEIRO ACESSO:',
+          `• Portal Oficial: ${portalUrl}`,
+          `• E-mail / Usuário: ${reqRow.email} (ou @${username})`,
+          `• Senha Temporária: ${tempPassword}`,
+          '',
+          'IMPORTANTE — TROCA OBRIGATÓRIA DE SENHA NO 1º ACESSO:',
+          'Ao acessar o site com a senha temporária acima, o sistema abrirá automaticamente a tela de Primeiro Acesso para que você cadastre sua nova senha pessoal definitiva seguindo o padrão de segurança (mínimo de 8 caracteres, letra maiúscula, letra minúscula, número e caractere especial).',
+          reviewNote ? `\nObservação da equipe: ${reviewNote}` : '',
+          '',
+          'Atenciosamente,',
+          'Equipe Radar de Talentos — https://radardetalentos.net.br'
+        ]
+          .filter((line, idx, arr) => !(line === '' && arr[idx - 1] === ''))
+          .join('\n');
+
+        let autoDelivered = false;
+        let deliveryMode = 'mailto_ready';
+        if (process.env.RESEND_API_KEY) {
+          try {
+            const rMail = await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                from: process.env.RADAR_EMAIL_FROM || 'Radar de Talentos <acesso@radardetalentos.net.br>',
+                to: [reqRow.email],
+                subject: emailSubject,
+                text: emailBody
+              })
+            });
+            if (rMail.ok) {
+              autoDelivered = true;
+              deliveryMode = 'resend_api';
+            }
+          } catch {}
+        }
+
+        database
+          .prepare(
+            `UPDATE radar_signup_requests
+             SET status = 'approved', assigned_username = ?, assigned_role = ?, temp_password_hint = ?,
+                 review_note = ?, reviewed_by = ?, reviewed_at = ?, email_sent = 1, email_delivery_mode = ?
+             WHERE id = ?`
+          )
+          .run(username, role, tempPassword, reviewNote, reviewerName, now, deliveryMode, requestId);
+
+        recordAccessLog(database, {
+          username,
+          userId,
+          action: 'signup_approved',
+          ip: clientIp,
+          status: 'approved',
+          detail: `Cadastro de ${reqRow.full_name} (${reqRow.email}) aprovado com senha temporária e troca obrigatória no 1º acesso`
+        });
+
+        const cleanPhone = String(reqRow.phone || '').replace(/\D+/g, '');
+        const waPhone = cleanPhone.length >= 10 ? (cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone) : '';
+        const mailtoUrl = `mailto:${encodeURIComponent(reqRow.email)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+        const whatsappUrl = waPhone
+          ? `https://wa.me/${waPhone}?text=${encodeURIComponent(emailBody)}`
+          : `https://wa.me/?text=${encodeURIComponent(emailBody)}`;
+
+        send(res, 200, {
+          ok: true,
+          decision: 'approved',
+          requestId,
+          username,
+          email: reqRow.email,
+          tempPassword,
+          autoDelivered,
+          emailSubject,
+          emailBody,
+          mailtoUrl,
+          whatsappUrl,
+          message: `Cadastro de "${reqRow.full_name}" (${reqRow.email}) APROVADO! Conta @${username} criada com senha temporária "${tempPassword}" (troca obrigatória no 1º acesso).`
+        });
+        return true;
+      } else {
+        const emailSubject = 'Radar de Talentos — Atualização sobre sua solicitação de cadastro';
+        const emailBody = [
+          `Olá, ${reqRow.full_name},`,
+          '',
+          'Agradecemos seu interesse no Radar de Talentos (https://radardetalentos.net.br).',
+          'Após análise dos dados enviados, informamos que sua solicitação de cadastro não pôde ser aprovada neste momento.',
+          reviewNote ? `\nMotivo / Orientação da equipe: ${reviewNote}` : '\nCaso deseje complementar as informações da sua empresa ou produtora, responda a este e-mail.',
+          '',
+          'Atenciosamente,',
+          'Equipe Radar de Talentos — https://radardetalentos.net.br'
+        ].join('\n');
+
+        let autoDelivered = false;
+        let deliveryMode = 'mailto_ready';
+        if (process.env.RESEND_API_KEY) {
+          try {
+            const rMail = await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                from: process.env.RADAR_EMAIL_FROM || 'Radar de Talentos <acesso@radardetalentos.net.br>',
+                to: [reqRow.email],
+                subject: emailSubject,
+                text: emailBody
+              })
+            });
+            if (rMail.ok) {
+              autoDelivered = true;
+              deliveryMode = 'resend_api';
+            }
+          } catch {}
+        }
+
+        database
+          .prepare(
+            `UPDATE radar_signup_requests
+             SET status = 'rejected', review_note = ?, reviewed_by = ?, reviewed_at = ?, email_sent = 1, email_delivery_mode = ?
+             WHERE id = ?`
+          )
+          .run(reviewNote, reviewerName, now, deliveryMode, requestId);
+
+        recordAccessLog(database, {
+          username: reqRow.email,
+          action: 'signup_rejected',
+          ip: clientIp,
+          status: 'rejected',
+          detail: `Cadastro de ${reqRow.full_name} (${reqRow.email}) não aprovado`
+        });
+
+        const mailtoUrl = `mailto:${encodeURIComponent(reqRow.email)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+        send(res, 200, {
+          ok: true,
+          decision: 'rejected',
+          requestId,
+          email: reqRow.email,
+          autoDelivered,
+          emailSubject,
+          emailBody,
+          mailtoUrl,
+          message: `Solicitação de "${reqRow.full_name}" (${reqRow.email}) marcada como NÃO APROVADA. E-mail de retorno pronto para envio.`
+        });
+        return true;
+      }
     }
 
     send(res, 404, { error: 'Endpoint de usuários não encontrado.' });

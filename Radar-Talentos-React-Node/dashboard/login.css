@@ -353,10 +353,27 @@ body.ri-portal-body {
   color: #a398b8;
 }
 
+[hidden],
+.ri-form[hidden] {
+  display: none !important;
+}
+
 .ri-form {
   display: flex;
   flex-direction: column;
   gap: 15px;
+}
+
+.ri-signup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 520px) {
+  .ri-signup-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ri-field {
@@ -371,7 +388,9 @@ body.ri-portal-body {
   color: #e2dcf0;
 }
 
-.ri-field input {
+.ri-field input,
+.ri-field select,
+.ri-field textarea {
   width: 100%;
   height: 44px;
   padding: 0 14px;

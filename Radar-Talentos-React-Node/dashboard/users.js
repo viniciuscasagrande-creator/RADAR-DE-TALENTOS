@@ -9,6 +9,7 @@
   };
 
   let usersList = [];
+  let signupRequests = [];
   let permsCatalog = [];
   let roleProfiles = [];
   let accessLogs = [];
@@ -410,10 +411,280 @@
     host.append(tbl);
   }
 
+  function showEmailDispatchResult(res) {
+    const box = $('signup-email-dispatch-box');
+    if (!box) return;
+    box.hidden = false;
+    box.replaceChildren();
+    const isApproved = res.decision === 'approved';
+    box.style.borderColor = isApproved ? '#4ade80' : '#f87171';
+    box.style.background = isApproved ? 'rgba(20,83,45,0.28)' : 'rgba(127,29,29,0.28)';
+
+    const top = el('div');
+    top.style.display = 'flex';
+    top.style.alignItems = 'center';
+    top.style.justifyContent = 'space-between';
+    top.style.gap = '10px';
+    top.style.flexWrap = 'wrap';
+    const title = el(
+      'strong',
+      null,
+      isApproved
+        ? `✓ Cadastro Aprovado — Retorno por E-mail com Senha Temporária (${res.tempPassword}) para ${res.email}`
+        : `✕ Cadastro Não Aprovado — Retorno por E-mail para ${res.email}`
+    );
+    title.style.color = isApproved ? '#86efac' : '#fca5a5';
+    title.style.fontSize = '13.5px';
+    const closeBtn = el('button', 'secondary-button', '✕ Fechar');
+    closeBtn.type = 'button';
+    closeBtn.style.height = '26px';
+    closeBtn.addEventListener('click', () => {
+      box.hidden = true;
+    });
+    top.append(title, closeBtn);
+    box.append(top);
+
+    const pre = el('pre', null, `Assunto: ${res.emailSubject}\n\n${res.emailBody}`);
+    pre.style.margin = '10px 0';
+    pre.style.padding = '12px';
+    pre.style.borderRadius = '8px';
+    pre.style.background = '#0d061a';
+    pre.style.border = '1px solid rgba(192,132,252,0.35)';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.fontSize = '12px';
+    pre.style.color = '#f3e8ff';
+    box.append(pre);
+
+    const actions = el('div');
+    actions.style.display = 'flex';
+    actions.style.gap = '8px';
+    actions.style.flexWrap = 'wrap';
+
+    if (res.mailtoUrl) {
+      const mailA = el('a', 'btn-simulate-show', `📧 Enviar E-mail Agora para ${res.email}`);
+      mailA.href = res.mailtoUrl;
+      mailA.style.textDecoration = 'none';
+      mailA.style.display = 'inline-flex';
+      mailA.style.alignItems = 'center';
+      mailA.style.height = '32px';
+      mailA.style.padding = '0 14px';
+      actions.append(mailA);
+    }
+
+    const copyBtn = el('button', 'secondary-button', '📋 Copiar Texto do E-mail');
+    copyBtn.type = 'button';
+    copyBtn.style.height = '32px';
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(`Assunto: ${res.emailSubject}\n\n${res.emailBody}`);
+        copyBtn.textContent = '✓ E-mail Copiado!';
+        setTimeout(() => {
+          copyBtn.textContent = '📋 Copiar Texto do E-mail';
+        }, 2500);
+      } catch {}
+    });
+    actions.append(copyBtn);
+
+    if (res.whatsappUrl) {
+      const waA = el('a', 'secondary-button', '💬 Enviar Senha Temporária via WhatsApp');
+      waA.href = res.whatsappUrl;
+      waA.target = '_blank';
+      waA.rel = 'noopener noreferrer';
+      waA.style.textDecoration = 'none';
+      waA.style.display = 'inline-flex';
+      waA.style.alignItems = 'center';
+      waA.style.height = '32px';
+      waA.style.padding = '0 12px';
+      actions.append(waA);
+    }
+
+    box.append(actions);
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function renderSignupRequestsQueue() {
+    const host = $('signup-requests-container');
+    if (!host) return;
+    host.replaceChildren();
+    const pendingCount = signupRequests.filter(r => r.status === 'pending').length;
+    if ($('pending-signups-count')) $('pending-signups-count').textContent = String(pendingCount);
+
+    if (!signupRequests.length) {
+      const p = el(
+        'p',
+        null,
+        'Nenhuma solicitação de cadastro pendente no momento. Quando um cliente preencher o formulário "Cadastre-se" na página inicial de login, os dados aparecerão aqui para validação.'
+      );
+      p.style.margin = '0';
+      p.style.fontSize = '12.5px';
+      p.style.color = '#a1a1aa';
+      host.append(p);
+      return;
+    }
+
+    for (const r of signupRequests) {
+      const card = el('div');
+      card.style.padding = '12px 14px';
+      card.style.borderRadius = '10px';
+      card.style.background = r.status === 'pending' ? 'linear-gradient(160deg,#1f1235 0%,#130f22 100%)' : '#130f22';
+      card.style.border =
+        r.status === 'pending'
+          ? '1.5px solid #facc15'
+          : r.status === 'approved'
+            ? '1px solid rgba(74,222,128,0.45)'
+            : '1px solid rgba(248,113,113,0.45)';
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.gap = '10px';
+
+      const head = el('div');
+      head.style.display = 'flex';
+      head.style.alignItems = 'center';
+      head.style.justifyContent = 'space-between';
+      head.style.flexWrap = 'wrap';
+      head.style.gap = '8px';
+
+      const left = el('div');
+      const stLabel =
+        r.status === 'pending'
+          ? '⏳ Aguardando Validação'
+          : r.status === 'approved'
+            ? `✓ Aprovado (@${r.assignedUsername} · Senha temp.: ${r.tempPasswordHint || 'Enviada'})`
+            : '✕ Não Aprovado';
+      const title = el('strong', null, `${r.fullName} — ${r.company || 'Empresa não informada'}`);
+      title.style.fontSize = '14px';
+      title.style.color = '#ffffff';
+      const badge = el(
+        'span',
+        r.status === 'pending' ? 'traction-badge consolidated' : r.status === 'approved' ? 'traction-badge emerging' : 'traction-badge viral',
+        stLabel
+      );
+      badge.style.marginLeft = '8px';
+      left.append(title, badge);
+
+      const dateSmall = el('small', null, `Recebido em: ${(r.createdAt || '').slice(0, 16).replace('T', ' ')}`);
+      dateSmall.style.color = '#a1a1aa';
+      head.append(left, dateSmall);
+      card.append(head);
+
+      const details = el(
+        'div',
+        null,
+        `📧 E-mail: ${r.email} · 📱 WhatsApp/Tel: ${r.phone || '—'} · 🏢 Cargo: ${r.jobTitle || '—'} · 🪪 CNPJ/CPF: ${r.document || '—'} · 📍 Cidade/UF: ${r.cityUf || '—'}${r.purpose ? ` · 🎯 Objetivo: ${r.purpose}` : ''}`
+      );
+      details.style.fontSize = '12px';
+      details.style.color = '#e2dcf0';
+      card.append(details);
+
+      const controls = el('div');
+      controls.style.display = 'flex';
+      controls.style.alignItems = 'center';
+      controls.style.gap = '8px';
+      controls.style.flexWrap = 'wrap';
+
+      const roleSel = el('select');
+      roleSel.style.height = '30px';
+      roleSel.style.borderRadius = '6px';
+      roleSel.style.background = '#0d061a';
+      roleSel.style.color = '#ffffff';
+      roleSel.style.border = '1px solid rgba(192,132,252,0.4)';
+      roleSel.style.fontSize = '11.5px';
+      for (const [val, lbl] of [
+        ['producer', '🎫 Perfil: Produtor'],
+        ['entrepreneur', '💼 Perfil: Empresário'],
+        ['consultant', '📊 Perfil: Consultor'],
+        ['visitor', '👁 Perfil: Visitante'],
+        ['analyst', '🔬 Perfil: Analista']
+      ]) {
+        const opt = new Option(lbl, val);
+        if (val === (r.assignedRole || 'producer')) opt.selected = true;
+        roleSel.append(opt);
+      }
+
+      const tempPwdInp = el('input');
+      tempPwdInp.type = 'text';
+      tempPwdInp.value = r.tempPasswordHint || `Radar@${Math.floor(1000 + Math.random() * 9000)}`;
+      tempPwdInp.title = 'Senha temporária que será enviada por e-mail (troca obrigatória no 1º acesso)';
+      tempPwdInp.style.height = '30px';
+      tempPwdInp.style.width = '135px';
+      tempPwdInp.style.padding = '0 8px';
+      tempPwdInp.style.borderRadius = '6px';
+      tempPwdInp.style.background = '#0d061a';
+      tempPwdInp.style.color = '#86efac';
+      tempPwdInp.style.border = '1px solid rgba(74,222,128,0.45)';
+      tempPwdInp.style.fontSize = '11.5px';
+
+      const noteInp = el('input');
+      noteInp.type = 'text';
+      noteInp.value = r.reviewNote || '';
+      noteInp.placeholder = 'Observação p/ o e-mail do cliente (opcional)';
+      noteInp.style.height = '30px';
+      noteInp.style.flex = '1';
+      noteInp.style.minWidth = '180px';
+      noteInp.style.padding = '0 8px';
+      noteInp.style.borderRadius = '6px';
+      noteInp.style.background = '#0d061a';
+      noteInp.style.color = '#ffffff';
+      noteInp.style.border = '1px solid rgba(192,132,252,0.35)';
+      noteInp.style.fontSize = '11.5px';
+
+      const approveBtn = el('button', 'btn-simulate-show', '✓ Aprovar e Gerar E-mail c/ Senha Temporária');
+      approveBtn.type = 'button';
+      approveBtn.style.height = '30px';
+      approveBtn.addEventListener('click', async () => {
+        approveBtn.disabled = true;
+        try {
+          const res = await api('/api/users/signup-requests/review', 'POST', {
+            requestId: r.id,
+            decision: 'approve',
+            role: roleSel.value,
+            tempPassword: tempPwdInp.value.trim(),
+            reviewNote: noteInp.value.trim()
+          });
+          if ($('users-status-banner')) $('users-status-banner').textContent = res.message;
+          showEmailDispatchResult(res);
+          await loadUsers();
+        } catch (err) {
+          if ($('users-status-banner')) $('users-status-banner').textContent = 'Erro ao aprovar cadastro: ' + err.message;
+        } finally {
+          approveBtn.disabled = false;
+        }
+      });
+
+      const rejectBtn = el('button', 'secondary-button', '✕ Não Aprovar e Retornar E-mail');
+      rejectBtn.type = 'button';
+      rejectBtn.style.height = '30px';
+      rejectBtn.style.borderColor = 'rgba(248,113,113,0.5)';
+      rejectBtn.style.color = '#fca5a5';
+      rejectBtn.addEventListener('click', async () => {
+        rejectBtn.disabled = true;
+        try {
+          const res = await api('/api/users/signup-requests/review', 'POST', {
+            requestId: r.id,
+            decision: 'reject',
+            reviewNote: noteInp.value.trim()
+          });
+          if ($('users-status-banner')) $('users-status-banner').textContent = res.message;
+          showEmailDispatchResult(res);
+          await loadUsers();
+        } catch (err) {
+          if ($('users-status-banner')) $('users-status-banner').textContent = 'Erro ao recusar cadastro: ' + err.message;
+        } finally {
+          rejectBtn.disabled = false;
+        }
+      });
+
+      controls.append(roleSel, tempPwdInp, noteInp, approveBtn, rejectBtn);
+      card.append(controls);
+      host.append(card);
+    }
+  }
+
   async function loadUsers() {
     try {
       const d = await api('/api/users');
       usersList = d.items || [];
+      signupRequests = d.signupRequests || [];
       permsCatalog = d.permissionsCatalog || [];
       roleProfiles = d.roleProfiles || [];
       accessLogs = d.accessLogs || [];
@@ -422,6 +693,7 @@
       if (!$('new-user-permissions-grid')?.children.length) {
         renderNewUserPermissionsCheckboxes();
       }
+      renderSignupRequestsQueue();
       renderUsersMatrix();
       renderActiveSessionsTable();
       renderAccessLogsTable();

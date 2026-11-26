@@ -134,10 +134,7 @@
     el('h3', null, '🚀 OPORTUNIDADES — 5 Pilares Estratégicos de Atuação do Radar'),
     el('span', 'studio-source', 'Clique em qualquer pilar para acionar o fluxo executivo correspondente')
   );
-  const oppPillarsGrid = el('div');
-  oppPillarsGrid.style.display = 'grid';
-  oppPillarsGrid.style.gridTemplateColumns = 'repeat(5,minmax(0,1fr))';
-  oppPillarsGrid.style.gap = '10px';
+  const oppPillarsGrid = el('div', 'opp-pillars-grid');
   for (const [pTitle, pBadge, pDesc, pAction] of [
     ['1. Inteligência artística nacional', '4 Mídias Auditadas', 'Monitoramento nacional multi-mídia (Instagram, Spotify, YouTube e TikTok) com Ficha 360° e séries datadas.', 'national'],
     ['2. Planejamento de turnês', 'Bacia Regional & Rodovia', 'Seleção de praças-polo IBGE, raio de 100 km, tempo de deslocamento rodoviário e PEA regional.', 'tour'],
@@ -145,7 +142,8 @@
     ['4. Talentos regionais', '6 Estágios & Emergentes', 'Descoberta de talentos em aceleração, equilíbrio multi-mídia e penetração municipal comprovada.', 'regional'],
     ['5. Inteligência artificial', 'Radar IA Integrado', 'Consultoria imediata em linguagem natural sobre artistas, comparação para shows e roteiros de turnê.', 'ai']
   ]) {
-    const pc = el('button', 'studio-stat studio-stat-clickable');
+    const pc = el('button', 'studio-stat studio-stat-clickable opp-pillar-card');
+    pc.style.whiteSpace = 'normal';
     pc.type = 'button';
     pc.style.minHeight = '98px';
     pc.style.padding = '10px 12px';
@@ -208,7 +206,7 @@
   );
   const alertsStrip = el('div');
   alertsStrip.style.display = 'grid';
-  alertsStrip.style.gridTemplateColumns = 'repeat(auto-fit,minmax(170px,1fr))';
+  alertsStrip.style.gridTemplateColumns = 'repeat(auto-fit,minmax(min(100%,170px),1fr))';
   alertsStrip.style.gap = '8px';
   alertsStrip.style.marginBottom = '10px';
 

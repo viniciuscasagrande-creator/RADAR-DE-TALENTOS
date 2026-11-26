@@ -587,14 +587,103 @@ main > section:not(.overview) {
 }
 
 /* ==========================================================================
-   EDGE-TO-EDGE (ANDROID 15/16 WINDOWCOMPAT + SAFE AREA INSETS) & RESPONSIVIDADE
-   PARA MOBILE E TABLET EM TODOS OS 8 MÓDULOS DO RADAR
+   EDGE-TO-EDGE (ANDROID 15/16 WINDOWCOMPAT + SAFE AREA INSETS) & SISTEMA
+   PADRONIZADO DE CARDS E LAYOUT RESPONSIVO PARA TODOS OS 8 MÃ“DULOS DO RADAR
    ========================================================================== */
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
+}
+
+html,
+body {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
+/* Grades padronizadas (Desktop 5 colunas / 2 colunas) sem estilos inline rÃ­gidos */
+.opp-pillars-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.opp-pillars-grid > .kpi,
+.opp-pillars-grid > .studio-stat,
+.opp-pillar-card {
+  height: auto !important;
+  max-height: none !important;
+  min-height: 98px;
+  min-width: 0;
+  white-space: normal !important;
+}
+
+.opp-pillars-grid > .kpi span,
+.opp-pillars-grid > .kpi strong,
+.opp-pillars-grid > .kpi small,
+.opp-pillar-card span,
+.opp-pillar-card strong,
+.opp-pillar-card small {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  word-break: break-word;
+}
+
+.ac-two-col-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
+  gap: 14px;
+  margin-top: 10px;
+}
+
+.ac-two-col-grid > div {
+  min-width: 0;
+}
+
+/* Estilo padronizado do botÃ£o de download do App Android na barra lateral */
+#radar-sidebar-apk-download {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border-radius: 9px;
+  text-decoration: none;
+  color: #f3e8ff;
+  font-size: 11px;
+  line-height: 1.25;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+#radar-sidebar-apk-download:hover {
+  border-color: #38bdf8 !important;
+  background: rgba(56, 189, 248, 0.16) !important;
+}
+
+#radar-sidebar-apk-download .nav-link-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+#radar-sidebar-apk-download .nav-link-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+#radar-sidebar-apk-download .nav-link-copy strong {
+  font-size: 11px;
+  color: #ffffff;
+}
+
+#radar-sidebar-apk-download .nav-link-copy small {
+  font-size: 9.5px;
+  color: #c4b5fd;
 }
 
 .radar-mobile-menu-btn,
@@ -618,38 +707,79 @@ body > main {
   padding-bottom: calc(24px + var(--safe-bottom));
 }
 
-/* Tablet Portrait & Mobile Landscape (<= 1024px) */
+@media (max-width: 1180px) {
+  .opp-pillars-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .opp-pillars-grid > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ==========================================================================
+   TABLET PORTRAIT & MOBILE LANDSCAPE (<= 1024px)
+   ========================================================================== */
 @media (max-width: 1024px) {
   .dashboard,
-  .talent-home {
+  .talent-home,
+  body.acquisition,
+  body.discovery-page,
+  body.commercial-page {
+    display: block !important;
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
   .commercial-page main,
   .acquisition main,
-  .discovery-page main {
-    margin-left: 0 !important;
-    padding: calc(12px + var(--safe-top)) calc(14px + var(--safe-right)) calc(82px + var(--safe-bottom)) calc(14px + var(--safe-left)) !important;
-  }
-
+  .discovery-page main,
   .dashboard-main,
   .dashboard > main,
   .talent-home > main {
-    padding: calc(12px + var(--safe-top)) calc(14px + var(--safe-right)) calc(82px + var(--safe-bottom)) calc(14px + var(--safe-left)) !important;
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding: calc(12px + var(--safe-top)) calc(14px + var(--safe-right)) calc(86px + var(--safe-bottom)) calc(14px + var(--safe-left)) !important;
   }
 
+  /* Gaveta Lateral Unificada (corrige conflito com commercial.css) */
   .sidebar {
     position: fixed !important;
     top: 0 !important;
     bottom: 0 !important;
     left: 0 !important;
-    width: 260px !important;
-    max-width: 82vw !important;
+    width: 268px !important;
+    max-width: 84vw !important;
     height: 100dvh !important;
-    transform: translateX(-104%) !important;
+    transform: translateX(-106%) !important;
     transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1) !important;
     z-index: 1000 !important;
     display: flex !important;
+    flex-direction: column !important;
+    overflow-y: auto !important;
+  }
+
+  .sidebar nav {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: nowrap !important;
+    gap: 3px !important;
+  }
+
+  .sidebar .nav-label {
+    display: block !important;
+  }
+
+  .sidebar nav a {
+    display: flex !important;
+    align-items: center !important;
+    padding: 8px 10px !important;
+    font-size: 12.5px !important;
+  }
+
+  body.radar-mobile-nav-open {
+    overflow: hidden;
   }
 
   body.radar-mobile-nav-open .sidebar {
@@ -660,7 +790,7 @@ body > main {
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(5, 3, 12, 0.72);
+    background: rgba(5, 3, 12, 0.74);
     backdrop-filter: blur(4px);
     opacity: 0;
     pointer-events: none;
@@ -677,45 +807,259 @@ body > main {
     display: inline-flex !important;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 34px;
+    width: 38px;
+    height: 38px;
     padding: 0;
     border-radius: 9px;
     background: linear-gradient(145deg, #2a163d, #150e22);
-    border: 1px solid #a855f7;
+    border: 1.5px solid #a855f7;
     color: #ffffff;
     font-size: 18px;
     flex-shrink: 0;
   }
 
+  /* CabeÃ§alho Superior sem Estouro Horizontal (resolve conflito de especificidade) */
   .topline,
   .commercial-topbar,
   .ac-top-header,
   .disc-top-header {
+    display: flex !important;
     flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
     gap: 10px !important;
     padding: 12px 14px !important;
+    max-width: 100% !important;
   }
 
+  .topline > .topline-brand,
+  .commercial-topbar > div:first-of-type,
+  .ac-top-header > div:first-of-type,
+  .disc-top-header > div:first-of-type {
+    flex: 1 1 calc(100% - 54px) !important;
+    min-width: 0 !important;
+  }
+
+  .topline h1,
+  .commercial-topbar h1,
+  .ac-top-header h1,
+  .disc-top-header h1,
+  main h1 {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    font-size: clamp(16px, 4.2vw, 21px) !important;
+    line-height: 1.2 !important;
+  }
+
+  .talent-home .top-search-bar,
   .top-search-bar,
   .compat-topbar-actions,
-  .ac-actions {
-    width: 100%;
-    flex-wrap: wrap;
+  .ac-actions,
+  .topbar-actions,
+  .disc-fast-actions {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
     justify-content: flex-start !important;
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    max-width: none !important;
+    gap: 8px !important;
   }
 
-  .talent-home #filters .filters {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  .compat-topbar-actions > p {
+    flex: 1 1 100%;
+    margin-bottom: 2px;
+  }
+
+  .talent-home #artist-quick-search,
+  .rising-page #rising-quick-search {
+    flex: 1 1 200px !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 36px !important;
+    font-size: 13.5px !important;
+  }
+
+  .search-trigger kbd {
+    display: none !important;
+  }
+
+  /* Desbloqueio de Alturas Fixas e PadronizaÃ§Ã£o Total de Cards */
+  .exec-kpi-card,
+  .kpis .kpi,
+  .kpi-card,
+  .talent-home #kpis .kpi,
+  .talent-home #audience-kpis .kpi,
+  .home3-enabled .exec-kpi-card,
+  .home3-enabled .home3-categories-bar .kpi,
+  .rising-page #rising-category-kpis .kpi,
+  .ac-exec-card,
+  .ac-kpi,
+  .disc-funnel-card,
+  .talent-home .studio-stat,
+  .talent-home .studio-stat-clickable {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 92px !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    padding: 12px 13px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: space-between !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+    overflow: visible !important;
+    white-space: normal !important;
+    text-align: left !important;
+    box-sizing: border-box !important;
+  }
+
+  .exec-kpi-card span,
+  .exec-kpi-card small,
+  .kpis .kpi span,
+  .kpis .kpi small,
+  .kpi span,
+  .kpi small,
+  .ac-exec-card span,
+  .ac-exec-card small,
+  .ac-kpi small,
+  .disc-funnel-card span,
+  .disc-funnel-card small,
+  .talent-home .studio-stat span,
+  .talent-home .studio-stat small {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.3 !important;
+    word-break: break-word !important;
+    max-width: 100% !important;
+  }
+
+  .exec-kpi-card strong,
+  .kpis .kpi strong,
+  .kpi strong,
+  .ac-exec-card strong,
+  .ac-kpi strong,
+  .disc-funnel-card strong,
+  .talent-home .studio-stat strong {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    word-break: break-word !important;
+    font-size: clamp(16px, 3.6vw, 21px) !important;
+    line-height: 1.15 !important;
+    max-width: 100% !important;
+  }
+
+  /* Desbloqueio de Filter Cards para toque confortÃ¡vel */
+  .talent-home #filters .filter-card,
+  .rising-page .rising-filters-grid .filter-card,
+  .rising-page .acceleration-controls .filter-card {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 68px !important;
+    overflow: visible !important;
+    padding: 9px 11px !important;
+  }
+
+  .talent-home #filters .filter-card select,
+  .talent-home #filters .filter-card input:not([type="range"]),
+  .talent-home #filters .filter-card button,
+  .rising-page .rising-filters-grid select,
+  .rising-page .rising-filters-grid button,
+  .rising-page .acceleration-controls select {
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: none !important;
+    font-size: 13px !important;
+  }
+
+  /* Banners de status nunca cortam texto */
+  #message,
+  #data-scope,
+  .query-status,
+  #compat-status,
+  #city-status,
+  #ac-status,
+  #status {
+    max-height: none !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.4 !important;
+    padding: 8px 12px !important;
+  }
+
+  /* Grades padronizadas no Tablet (641px - 1024px) */
+  .exec-kpi-grid,
+  .ac-exec-kpis,
+  .disc-funnel,
+  .talent-home .studio-stats,
+  .ac-connectors-grid,
+  .ac-cv-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    align-items: stretch !important;
   }
 
   .home3-enabled .home3-categories-bar #kpis,
   .talent-home #kpis,
   .rising-page #rising-category-kpis {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    align-items: stretch !important;
   }
 
-  /* Barra Inferior Rápida Edge-to-Edge (Bottom Navigation Bar) */
+  .talent-home #filters .filters,
+  .rising-page .rising-filters-grid,
+  .commercial-page .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  .commercial-page .filters {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+  }
+
+  .commercial-page .commercial-grid,
+  .geo-grid,
+  .detail-grid,
+  .overview-20-grid,
+  .discovery-page .discovery-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .commercial-page #ranking {
+    min-height: auto !important;
+    height: auto !important;
+  }
+
+  .commercial-page #ranking .scroll {
+    min-height: 240px !important;
+    max-height: 440px !important;
+  }
+
+  .talent-home .map-side {
+    max-height: none !important;
+  }
+
+  .scroll,
+  .studio-table-scroll,
+  .rising-table-wrap,
+  .ac-scroll,
+  .exec-modal-table-wrap,
+  #acceleration-results {
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* Barra Inferior RÃ¡pida Edge-to-Edge (Bottom Navigation Bar) */
   .radar-mobile-bottom-nav {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -724,10 +1068,10 @@ body > main {
     right: 0;
     bottom: 0;
     padding: 6px calc(8px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(8px + var(--safe-left));
-    background: rgba(14, 10, 24, 0.94);
+    background: rgba(14, 10, 24, 0.96);
     backdrop-filter: blur(14px);
-    border-top: 1px solid rgba(192, 132, 252, 0.38);
-    box-shadow: 0 -8px 26px rgba(0, 0, 0, 0.65);
+    border-top: 1px solid rgba(192, 132, 252, 0.42);
+    box-shadow: 0 -8px 26px rgba(0, 0, 0, 0.7);
     z-index: 950;
   }
 
@@ -756,32 +1100,413 @@ body > main {
 
   .radar-mobile-bottom-nav a[aria-current="page"] {
     color: #38bdf8;
-    background: rgba(56, 189, 248, 0.12);
+    background: rgba(56, 189, 248, 0.14);
   }
 }
 
-/* Smartphones (<= 640px) */
+/* ==========================================================================
+   SMARTPHONES (<= 640px) â€” CARDS PADRONIZADOS, LIMPOS E ZERO OVERFLOW
+   ========================================================================== */
 @media (max-width: 640px) {
-  .talent-home #filters .filters,
-  .rising-page .rising-filters-grid,
-  .commercial-page .filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  .commercial-page main,
+  .acquisition main,
+  .discovery-page main,
+  .dashboard-main,
+  .dashboard > main,
+  .talent-home > main {
+    padding: calc(10px + var(--safe-top)) calc(10px + var(--safe-right)) calc(84px + var(--safe-bottom)) calc(10px + var(--safe-left)) !important;
+    gap: 10px !important;
   }
 
-  .home3-enabled .home3-categories-bar #kpis,
-  .talent-home #kpis,
-  .rising-page #rising-category-kpis,
+  /* PadronizaÃ§Ã£o uniforme de seÃ§Ãµes e containers */
+  main > section:not(.overview),
+  .rising-page .rising-card.neon-card,
+  .home3-enabled .radar-studio,
+  .home3-enabled .home3-categories-bar,
+  .filter-panel,
+  .commercial-page section,
+  .acquisition section,
+  .discovery-page section,
+  .talent-home .studio-panel,
+  .talent-home .media-evolution-card,
+  .talent-home .artist-360-card {
+    padding: 12px !important;
+    border-radius: 12px !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Barra Superior Mobile Ergonomicamente Organizada */
+  .topline,
+  .commercial-topbar,
+  .ac-top-header,
+  .disc-top-header {
+    padding: 11px 12px !important;
+    gap: 8px !important;
+    border-radius: 12px !important;
+  }
+
+  .talent-home #artist-quick-search,
+  .rising-page #rising-quick-search {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    height: 38px !important;
+    font-size: 14px !important;
+  }
+
+  .top-search-bar > button,
+  .top-search-bar > a,
+  .compat-topbar-actions > button,
+  .ac-actions > button,
+  .disc-fast-actions > button {
+    min-height: 36px !important;
+    height: auto !important;
+    padding: 6px 10px !important;
+    font-size: 11.5px !important;
+    white-space: normal !important;
+    line-height: 1.25 !important;
+    text-align: center !important;
+  }
+
+  .ac-actions > span {
+    flex: 1 1 100%;
+    margin: 0 !important;
+  }
+
+  #radar-user-session-chip {
+    flex: 1 1 auto !important;
+    max-width: 100% !important;
+    height: 36px !important;
+    line-height: 34px !important;
+  }
+
+  #radar-user-logout-btn {
+    height: 36px !important;
+    padding: 0 12px !important;
+  }
+
+  .radar-notify > button {
+    width: 38px !important;
+    height: 36px !important;
+  }
+
+  .radar-notify-panel {
+    position: fixed !important;
+    left: 10px !important;
+    right: 10px !important;
+    top: calc(64px + var(--safe-top)) !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: 65dvh !important;
+  }
+
+  /* Home 3.0 Hero Banner e Atalhos em Grade 2x3 Uniforme */
+  .home3-enabled .home3-hero-banner {
+    padding: 12px !important;
+    gap: 12px !important;
+    border-radius: 12px !important;
+  }
+
+  .home3-enabled .home3-hero-left {
+    flex: 1 1 100% !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .home3-enabled .home3-hero-art {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 92px !important;
+    object-fit: cover !important;
+  }
+
+  .home3-enabled .home3-quick {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .home3-enabled .home3-quick a {
+    justify-content: flex-start !important;
+    min-height: 40px !important;
+    padding: 8px 10px !important;
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+    white-space: normal !important;
+  }
+
+  /* KPIs e Categorias: Grade 2xN SimÃ©trica com Cards de Altura Igualada */
   .exec-kpi-grid,
   .ac-exec-kpis,
   .disc-funnel,
-  .kpis {
+  .acquisition .ac-grid,
+  .talent-home .studio-stats,
+  .home3-enabled .home3-categories-bar #kpis,
+  .talent-home #kpis,
+  .talent-home #audience-kpis,
+  .rising-page #rising-category-kpis,
+  .kpis:not(.opp-pillars-grid),
+  .talent-home .inspector-metrics-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    align-items: stretch !important;
   }
 
-  .commercial-page .commercial-grid,
-  .geo-grid,
-  .detail-grid,
-  .discovery-grid {
-    grid-template-columns: 1fr !important;
+  .exec-kpi-card,
+  .kpis .kpi,
+  .kpi-card,
+  .talent-home #kpis .kpi,
+  .talent-home #audience-kpis .kpi,
+  .home3-enabled .exec-kpi-card,
+  .home3-enabled .home3-categories-bar .kpi,
+  .rising-page #rising-category-kpis .kpi,
+  .ac-exec-card,
+  .ac-kpi,
+  .disc-funnel-card,
+  .talent-home .studio-stat,
+  .talent-home .studio-stat-clickable {
+    min-height: 88px !important;
+    padding: 11px 11px !important;
+    gap: 5px !important;
+    border-radius: 10px !important;
+  }
+
+  .exec-kpi-card strong,
+  .kpis .kpi strong,
+  .kpi strong,
+  .ac-exec-card strong,
+  .ac-kpi strong,
+  .disc-funnel-card strong,
+  .talent-home .studio-stat strong {
+    font-size: clamp(16px, 4.8vw, 20px) !important;
+  }
+
+  /* Card Ã­mpar final ocupa largura inteira para fechar o grid com simetria */
+  .home3-enabled .home3-categories-bar #kpis > .kpi:last-child:nth-child(odd),
+  .talent-home #kpis > .kpi:last-child:nth-child(odd),
+  .rising-page #rising-category-kpis > .kpi:last-child:nth-child(odd),
+  .acquisition .ac-grid > .ac-kpi:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    min-height: 74px !important;
+  }
+
+  /* Cards Ricos (5 Pilares, Ficha 360Â°, Redes, Cidades, Conectores): 1 Coluna Limpa */
+  .opp-pillars-grid,
+  .talent-home .studio-ficha-grid,
+  .talent-home .artist-360-grid,
+  .commercial-page .insight-grid,
+  .commercial-page .city-grid,
+  .commercial-page #commercial-other,
+  .acquisition .ac-connectors-grid,
+  .acquisition .ac-cv-grid,
+  .rising-page .rising-discover-grid,
+  .talent-home .cat-drawer-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .opp-pillars-grid > .kpi,
+  .opp-pillars-grid > .studio-stat,
+  .opp-pillar-card {
+    min-height: auto !important;
+    padding: 12px 13px !important;
+    gap: 6px !important;
+  }
+
+  /* Filtros em 1 Coluna ConfortÃ¡vel para Smartphone (sem selects esmagados) */
+  .talent-home #filters .filters,
+  .rising-page .rising-filters-grid,
+  .rising-page .acceleration-controls,
+  .commercial-page .filters,
+  .commercial-page .compat-form,
+  .dashboard .filters {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .commercial-page .filter-panel {
+    padding: 12px !important;
+  }
+
+  .commercial-page .filter-panel > button[type="submit"],
+  .commercial-page .compat-form > button[type="submit"] {
+    width: 100% !important;
+    height: 40px !important;
+  }
+
+  /* Oportunidade Comercial â€” Cards EstratÃ©gicos & Simulador */
+  .commercial-page .strategic-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .commercial-page .strategic-pill {
+    padding: 8px 10px !important;
+  }
+
+  .commercial-page .strategic-pill span,
+  .commercial-page .strategic-pill strong {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+
+  .commercial-page .profile-header-box,
+  .commercial-page .compat-verdict-banner {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    padding: 12px !important;
+  }
+
+  .commercial-page .compat-score-badge {
+    width: 100% !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 10px 14px !important;
+  }
+
+  .commercial-page .city-filters {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .commercial-page .city-filters label {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 4px !important;
+  }
+
+  .commercial-page .city-filters select {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 36px !important;
+  }
+
+  .commercial-page .compat-panel-box {
+    overflow-x: auto;
+    padding: 10px !important;
+  }
+
+  /* Intelligence Studio Toolbar & Barras */
+  .talent-home .studio-toolbar {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .talent-home .studio-toolbar select,
+  .talent-home .studio-toolbar button {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    height: 36px !important;
+  }
+
+  .talent-home .studio-barrow {
+    grid-template-columns: minmax(82px, 1.1fr) minmax(56px, 1fr) minmax(58px, auto) !important;
+    gap: 6px !important;
+  }
+
+  /* Mapa Territorial & Controles */
+  .talent-home .map-mode-switch {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    width: 100% !important;
+    gap: 6px !important;
+  }
+
+  .talent-home .map-mode-btn {
+    flex: 1 1 135px !important;
+    height: auto !important;
+    min-height: 34px !important;
+    padding: 6px 8px !important;
+    white-space: normal !important;
+    text-align: center !important;
+  }
+
+  #map svg {
+    min-height: 240px !important;
+    max-height: 340px !important;
+  }
+
+  /* FormulÃ¡rios de Descoberta, ProspecÃ§Ã£o e Motor de Dados */
+  .rising-page .rising-discover-bar input,
+  .rising-page .rising-discover-bar button,
+  .acquisition .ac-search-form label,
+  .acquisition .ac-search-form input[type="search"],
+  .acquisition .ac-search-form button,
+  .discovery-page form label,
+  .discovery-page form button {
+    flex: 1 1 100% !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .rising-page .rising-discover-bar input,
+  .acquisition .ac-search-form input[type="search"],
+  .discovery-page form input,
+  .discovery-page form select {
+    height: 38px !important;
+    font-size: 14px !important;
+  }
+
+  /* Modais & Command Palette Responsivos */
+  dialog.palette,
+  .talent-home .show-sim-modal {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px) !important;
+    max-height: 88dvh !important;
+    padding: 14px !important;
+    border-radius: 12px !important;
+  }
+
+  .talent-home .show-sim-head {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .talent-home .show-sim-score-pill {
+    width: 100% !important;
+    min-width: 0 !important;
+    align-items: flex-start !important;
+  }
+}
+
+/* ==========================================================================
+   SMARTPHONES COMPACTOS (<= 380px)
+   ========================================================================== */
+@media (max-width: 380px) {
+  .exec-kpi-card,
+  .kpis .kpi,
+  .kpi-card,
+  .talent-home #kpis .kpi,
+  .home3-enabled .home3-categories-bar .kpi,
+  .rising-page #rising-category-kpis .kpi,
+  .ac-exec-card,
+  .disc-funnel-card,
+  .talent-home .studio-stat {
+    padding: 9px 10px !important;
+    min-height: 82px !important;
+  }
+
+  .exec-kpi-card strong,
+  .kpis .kpi strong,
+  .kpi strong,
+  .ac-exec-card strong,
+  .disc-funnel-card strong,
+  .talent-home .studio-stat strong {
+    font-size: 16px !important;
+  }
+
+  .home3-enabled .home3-quick {
+    grid-template-columns: minmax(0, 1fr) !important;
   }
 }

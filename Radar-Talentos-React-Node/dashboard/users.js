@@ -216,7 +216,7 @@
 
       const permsGrid = el('div');
       permsGrid.style.display = 'grid';
-      permsGrid.style.gridTemplateColumns = 'repeat(auto-fit,minmax(225px,1fr))';
+      permsGrid.style.gridTemplateColumns = 'repeat(auto-fit,minmax(min(100%,225px),1fr))';
       permsGrid.style.gap = '7px';
 
       const currentPerms = { ...(u.permissions || {}) };

@@ -798,7 +798,7 @@ function renderCompatibilityResult(d){
   if(d.threeIndependentResults){
     const triadGrid=el('div',null,compatResult);
     triadGrid.style.display='grid';
-    triadGrid.style.gridTemplateColumns='repeat(auto-fit,minmax(230px,1fr))';
+    triadGrid.style.gridTemplateColumns='repeat(auto-fit,minmax(min(100%,230px),1fr))';
     triadGrid.style.gap='10px';
     triadGrid.style.margin='12px 0';
     const artR=d.threeIndependentResults.artisticScore;
@@ -933,7 +933,7 @@ function renderCompatibilityResult(d){
 
   const finControls=el('div',null,finBox);
   finControls.style.display='grid';
-  finControls.style.gridTemplateColumns='repeat(auto-fit,minmax(150px,1fr))';
+  finControls.style.gridTemplateColumns='repeat(auto-fit,minmax(min(100%,150px),1fr))';
   finControls.style.gap='10px';
   finControls.style.margin='10px 0';
 
@@ -956,7 +956,7 @@ function renderCompatibilityResult(d){
 
   const finResults=el('div',null,finBox);
   finResults.style.display='grid';
-  finResults.style.gridTemplateColumns='repeat(auto-fit,minmax(170px,1fr))';
+  finResults.style.gridTemplateColumns='repeat(auto-fit,minmax(min(100%,170px),1fr))';
   finResults.style.gap='10px';
 
   function updateFinProjection(){

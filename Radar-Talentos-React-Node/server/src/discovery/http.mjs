@@ -685,15 +685,18 @@ export async function autoDiscoverApproveAndSyncCycle(db, radar, { limit = 6, ca
   const refreshedNames = [];
 
   // Etapa 1: Aprova e distribui automaticamente todos os candidatos pendentes na fila do Discovery (incorporando novos talentos ao Radar)
-  const pendingCands = db
-    .prepare(
-      `SELECT c.id, c.name, c.radar_id
-       FROM candidates c
-       WHERE c.status IN ('pending', 'approved')
-       ORDER BY c.created_at DESC
-       LIMIT ?`
-    )
-    .all(Math.max(1, Number(limit) || 6));
+  const talentFilter = typeof talentId === 'string' ? talentId.trim() : '';
+  const pendingCands = talentFilter
+    ? []
+    : db
+        .prepare(
+          `SELECT c.id, c.name, c.radar_id
+           FROM candidates c
+           WHERE c.status IN ('pending', 'approved')
+           ORDER BY c.created_at DESC
+           LIMIT ?`
+        )
+        .all(Math.max(1, Number(limit) || 6));
 
   for (const pc of pendingCands) {
     try {
@@ -712,7 +715,6 @@ export async function autoDiscoverApproveAndSyncCycle(db, radar, { limit = 6, ca
 
   // Etapa 2: Prospecção automática dos talentos do catálogo sem métrica verificada
   const catFilter = typeof category === 'string' ? category.trim() : '';
-  const talentFilter = typeof talentId === 'string' ? talentId.trim() : '';
   const candidatesToEnrich = radar
     .prepare(
       `SELECT t.id, t.name
@@ -742,7 +744,9 @@ export async function autoDiscoverApproveAndSyncCycle(db, radar, { limit = 6, ca
       const ext = gSearch?.external?.[0] || null;
       const extraProfiles = [];
       if (process.env.YOUTUBE_API_KEY) {
-        const ytChans = await searchYoutube(tal.name, { fetcher }).catch(() => []);
+        const ytChans = Array.isArray(gSearch?.youtubeChannels) && gSearch.youtubeChannels.length
+          ? gSearch.youtubeChannels
+          : await searchYoutube(tal.name, { fetcher }).catch(() => []);
         if (ytChans?.[0]?.url) {
           extraProfiles.push({ network: 'YouTube', url: ytChans[0].url });
         }

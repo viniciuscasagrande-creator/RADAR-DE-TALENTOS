@@ -313,7 +313,7 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
     }
     c = detail(db, candidateId);
     targetRadarId = c.radar_id || pubResult?.radarId || resolvedRadarId;
-    if (c.status !== 'published') {
+    if (c.status !== 'published' || !c.radar_id) {
       const stamp = new Date().toISOString();
       db.prepare("UPDATE candidates SET status='published', reviewer=?, identity_evidence=?, reviewed_at=?, radar_id=? WHERE id=?").run(
         reviewer,
@@ -760,7 +760,10 @@ export async function autoDiscoverApproveAndSyncCycle(db, radar, { limit = 6, ca
   for (const tal of candidatesToEnrich) {
     try {
       const gSearch = await globalSearch(db, radar, tal.name, { includeMusicBrainzLive: false, fetcher }).catch(() => null);
-      const ext = gSearch?.external?.[0] || null;
+      const ext =
+        (gSearch?.external || []).find(e => e?.name && e.name.toLowerCase().trim() === tal.name.toLowerCase().trim()) ||
+        (gSearch?.external || []).find(e => e?.profiles?.length > 0 && e.name?.toLowerCase().includes(tal.name.toLowerCase().split(' ')[0])) ||
+        null;
       const extraProfiles = [];
       if (process.env.YOUTUBE_API_KEY) {
         const ytChans = Array.isArray(gSearch?.youtubeChannels) && gSearch.youtubeChannels.length
@@ -782,6 +785,7 @@ export async function autoDiscoverApproveAndSyncCycle(db, radar, { limit = 6, ca
             source: ext.source || 'wikidata',
             external_id: ext.external_id,
             radarId: tal.id,
+            evidence: extraProfiles[0]?.url || ext.evidence_url || null,
             extraProfiles
           },
           { reviewer: 'auto-engine', fetcher }
@@ -852,7 +856,7 @@ export async function autoDiscoverApproveAndSyncCycle(db, radar, { limit = 6, ca
                 source: 'wikidata',
                 external_id: bestExt.external_id,
                 description: bestExt.description || newItem.description,
-                evidence: bestExt.evidence_url,
+                evidence: extraProfiles[0]?.url || bestExt.evidence_url,
                 extraProfiles
               }
             : {

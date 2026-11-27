@@ -43,45 +43,19 @@
     grid.replaceChildren();
     for (const item of catalog) {
       const isSelected = item.id === activeType;
-      const btn = el('button', 'kpi');
+      const btn = el('button', 'report-catalog-card');
       btn.type = 'button';
       btn.setAttribute('aria-pressed', String(isSelected));
-      btn.style.textAlign = 'left';
-      btn.style.padding = '12px 14px';
-      btn.style.borderRadius = '10px';
-      btn.style.cursor = 'pointer';
-      btn.style.background = isSelected
-        ? 'linear-gradient(160deg, #2d1a47 0%, #161029 100%)'
-        : 'linear-gradient(160deg, #1b142c 0%, #100c1b 100%)';
-      btn.style.border = isSelected ? '1.5px solid #00f0ff' : '1.5px solid rgba(192,132,252,0.55)';
-      btn.style.display = 'flex';
-      btn.style.flexDirection = 'column';
-      btn.style.justifyContent = 'space-between';
-      btn.style.gap = '6px';
 
-      const topRow = el('div');
-      topRow.style.display = 'flex';
-      topRow.style.alignItems = 'center';
-      topRow.style.justifyContent = 'space-between';
-      topRow.style.width = '100%';
-      topRow.style.gap = '6px';
-      const badge = el('span', null, item.badge);
-      badge.style.fontSize = '10px';
-      badge.style.fontWeight = '800';
-      badge.style.color = isSelected ? '#00f0ff' : '#e9d5ff';
-      badge.style.textTransform = 'uppercase';
+      const topRow = el('div', 'report-catalog-top');
+      const badge = el('span', 'report-catalog-badge', item.badge);
       const countPill = el('span', 'studio-badge-pill', `${item.rowsCount} reg.`);
       countPill.style.fontSize = '10px';
+      countPill.style.flexShrink = '0';
       topRow.append(badge, countPill);
 
-      const title = el('strong', null, item.title);
-      title.style.fontSize = '13.5px';
-      title.style.color = '#ffffff';
-
-      const desc = el('small', null, item.description);
-      desc.style.fontSize = '11px';
-      desc.style.color = '#cbd5e1';
-      desc.style.lineHeight = '1.35';
+      const title = el('strong', 'report-catalog-title', item.title);
+      const desc = el('small', 'report-catalog-desc', item.description);
 
       btn.append(topRow, title, desc);
       btn.addEventListener('click', () => {

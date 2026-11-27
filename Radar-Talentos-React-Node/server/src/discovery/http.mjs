@@ -313,6 +313,20 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
     }
     c = detail(db, candidateId);
     targetRadarId = c.radar_id || pubResult?.radarId || resolvedRadarId;
+    if (c.status !== 'published') {
+      const stamp = new Date().toISOString();
+      db.prepare("UPDATE candidates SET status='published', reviewer=?, identity_evidence=?, reviewed_at=?, radar_id=? WHERE id=?").run(
+        reviewer,
+        autoEv,
+        stamp,
+        targetRadarId,
+        candidateId
+      );
+      db.prepare(
+        'INSERT INTO approved_imports VALUES(?,?,?,0) ON CONFLICT(candidate_id) DO UPDATE SET published_at=excluded.published_at, radar_id=excluded.radar_id'
+      ).run(candidateId, targetRadarId, stamp);
+      c = detail(db, candidateId);
+    }
   } else {
     // Mesmo que ainda não haja URL de rede social no Wikidata, incorpora o artista aprovado ao Radar e atualiza os contadores
     const stamp = new Date().toISOString();
@@ -332,8 +346,13 @@ export async function approveAndSendToRadar(db, radar, payload = {}, { reviewer 
   // Confirma perfis (respeitando seleção individual por plataforma quando informada em confirmNetworks)
   for (const p of c.profiles) {
     if (allowedConfirmNetworks && !allowedConfirmNetworks.has(p.network)) continue;
-    if (p.network === 'YouTube' && /^https:\/\/youtube\.com\/channel\/UC[A-Za-z0-9_-]{22}$/.test(p.url)) {
+    if (p.network === 'YouTube' && /^https:\/\/(www\.)?youtube\.com\/channel\/UC[A-Za-z0-9_-]{22}$/.test(p.url)) {
       try {
+        const cleanYt = p.url.replace('https://www.', 'https://');
+        if (cleanYt !== p.url) {
+          db.prepare('UPDATE profiles SET url=? WHERE id=?').run(cleanYt, p.id);
+          p.url = cleanYt;
+        }
         confirmYoutube(db, candidateId, p.id, { evidence: autoEv, reviewer });
       } catch {}
     } else if (['Instagram', 'Spotify', 'TikTok'].includes(p.network)) {

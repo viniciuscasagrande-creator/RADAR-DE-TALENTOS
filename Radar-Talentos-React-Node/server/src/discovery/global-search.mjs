@@ -247,7 +247,7 @@ export async function globalSearch(db,radar,query,{fetcher=fetch,includeMusicBra
    }
   }catch{}
  }
- result.crossValidation=crossValidateIdentity({name:q,wikidata:result.external,musicbrainz:result.musicbrainz,braveProfiles:result.brave.profiles,localProfiles});
+   if(!result.youtubeChannels?.length&&fetcher===fetch){try{const ytHtml=await fetcher(`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}&sp=EgIQAg%253D%253D`,{headers:{'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},signal:AbortSignal.timeout(8000)}).then(r=>r.ok?r.text():'');const mUc=/"channelId":"(UC[A-Za-z0-9_-]{22})"/i.exec(ytHtml);if(mUc?.[1]){const url=`https://youtube.com/channel/${mUc[1]}`;result.youtubeChannels=[{network:'YouTube',id:mUc[1],title:q,url,source:'youtube-web-channel'}];localProfiles.push({network:'YouTube',url,source:'youtube-web-channel'});}}catch{}}result.crossValidation=crossValidateIdentity({name:q,wikidata:result.external,musicbrainz:result.musicbrainz,braveProfiles:result.brave.profiles,localProfiles});
  return result;
 }
 export async function saveWikidata(db,id,{fetcher=fetch}={}){if(!qid(id))throw Error('Identificador Wikidata inválido');const [row]=await entities([id],fetcher);if(!row)throw Error('Entidade não elegível');source(db,WIKI);const candidateId=hash(WIKI,id);const prior=db.prepare('SELECT id FROM candidates WHERE id=?').get(candidateId);if(prior)return detail(db,candidateId); // não alterar perfil anterior sem revisão

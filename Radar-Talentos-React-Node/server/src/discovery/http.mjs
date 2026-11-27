@@ -766,9 +766,24 @@ export async function autoDiscoverApproveAndSyncCycle(db, radar, { limit = 6, ca
         null;
       const extraProfiles = [];
       if (process.env.YOUTUBE_API_KEY) {
-        const ytChans = Array.isArray(gSearch?.youtubeChannels) && gSearch.youtubeChannels.length
+        let ytChans = Array.isArray(gSearch?.youtubeChannels) && gSearch.youtubeChannels.length
           ? gSearch.youtubeChannels
           : await searchYoutube(tal.name, { fetcher }).catch(() => []);
+        if (!ytChans?.length) {
+          try {
+            const ytHtml = await fetcher(
+              `https://www.youtube.com/results?search_query=${encodeURIComponent(tal.name)}&sp=EgIQAg%253D%253D`,
+              {
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+                signal: AbortSignal.timeout(8000)
+              }
+            ).then(r => (r.ok ? r.text() : ''));
+            const mUc = /"channelId":"(UC[A-Za-z0-9_-]{22})"/i.exec(ytHtml);
+            if (mUc?.[1]) {
+              ytChans = [{ id: mUc[1], url: `https://youtube.com/channel/${mUc[1]}` }];
+            }
+          } catch {}
+        }
         if (ytChans?.[0]?.url) {
           extraProfiles.push({ network: 'YouTube', url: ytChans[0].url });
         }

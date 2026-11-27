@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { authenticate } from './security.mjs';
 import { risingDiscoveries } from './rising-discoveries.mjs';
+import { resolveSessionContext } from './users.mjs';
 
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
@@ -206,6 +207,9 @@ export function attachEdgeToEdgeSocketHub(server, { database, security = null, r
       activeEdges.push({
         clientId: c.clientId,
         edgeNode: c.edgeNode,
+        userAgent: c.userAgent || '',
+        username: c.username || '',
+        displayName: c.displayName || '',
         ip: c.ip,
         connectedAt: c.connectedAt,
         lastHeartbeatAt: new Date(c.lastPongAt).toISOString(),
@@ -372,9 +376,16 @@ export function attachEdgeToEdgeSocketHub(server, { database, security = null, r
 
       const clientId = `edge_${randomUUID().slice(0, 8)}`;
       const edgeParam = parsedUrl.searchParams.get('edge') || req.headers['x-radar-edge'] || 'web-dashboard';
+      let wsUser = null;
+      try {
+        wsUser = resolveSessionContext(database, req)?.effectiveUser || null;
+      } catch {}
       const client = {
         clientId,
         edgeNode: String(edgeParam).slice(0, 64),
+        userAgent: String(req.headers['user-agent'] || '').slice(0, 240),
+        username: wsUser?.username || '',
+        displayName: wsUser?.displayName || '',
         ip: resolveClientIp(req),
         socket,
         connectedAt: new Date().toISOString(),

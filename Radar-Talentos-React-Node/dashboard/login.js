@@ -185,6 +185,32 @@
     }, 380);
   }
 
+  function detectClientDeviceHint() {
+    try {
+      const ua = navigator.userAgent || '';
+      const isNative =
+        Boolean(window.RadarNative) ||
+        document.documentElement.hasAttribute('data-radar-native-app') ||
+        /RadarDeTalentosApp/i.test(ua) ||
+        (/; wv\)/i.test(ua) && /Android/i.test(ua));
+      const uaMobile = Boolean(navigator.userAgentData?.mobile);
+      const isTouch = (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
+      const w = Math.min(window.innerWidth || 1280, window.screen?.width || 1280);
+      const formFactor =
+        document.documentElement.getAttribute('data-radar-form-factor') ||
+        (uaMobile || (isTouch && w <= 768)
+          ? 'mobile'
+          : isTouch && w <= 1180
+            ? 'tablet'
+            : w <= 640
+              ? 'mobile'
+              : 'desktop');
+      return (isNative ? 'android-apk-' : 'web-') + formFactor;
+    } catch {
+      return 'web-desktop';
+    }
+  }
+
   loginForm?.addEventListener('submit', async e => {
     e.preventDefault();
     const username = userInp?.value?.trim() || '';
@@ -210,10 +236,11 @@
     speedMultiplier = 2.8;
 
     try {
+      const deviceHint = detectClientDeviceHint();
       const r = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, remember })
+        headers: { 'Content-Type': 'application/json', 'X-Radar-Device': deviceHint },
+        body: JSON.stringify({ username, password, remember, deviceHint })
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw Error(d.error || 'Usuário ou senha inválidos.');
@@ -442,10 +469,11 @@
     }
 
     try {
+      const deviceHint = detectClientDeviceHint();
       const r = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, remember })
+        headers: { 'Content-Type': 'application/json', 'X-Radar-Device': deviceHint },
+        body: JSON.stringify({ username, password, remember, deviceHint })
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw Error(d.error || 'Usuário ou senha inválidos.');

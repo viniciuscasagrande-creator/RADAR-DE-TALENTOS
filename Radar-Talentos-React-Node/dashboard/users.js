@@ -406,9 +406,13 @@
       const tr = tbody.insertRow();
       tr.insertCell().textContent = `${s.displayName} (@${s.username})`;
       const tdDev = tr.insertCell();
-      tdDev.textContent = s.deviceType + (s.isCurrent ? ' (Sessão Atual)' : '');
-      tdDev.style.color = s.isCurrent ? '#38bdf8' : '#e4e4e7';
-      tdDev.style.fontWeight = s.isCurrent ? '700' : '400';
+      const isAppOrMobile = /App Android|Celular|Tablet|Mobile/i.test(s.deviceType || '');
+      const devBadge = el('span', isAppOrMobile ? 'traction-badge emerging' : 'studio-badge-pill', s.deviceType + (s.isCurrent ? ' (Sessão Atual)' : ''));
+      if (isAppOrMobile) {
+        devBadge.style.borderColor = '#38bdf8';
+        devBadge.style.color = '#7dd3fc';
+      }
+      tdDev.append(devBadge);
       tr.insertCell().textContent = s.ip || '127.0.0.1';
       tr.insertCell().textContent = (s.createdAt || '').slice(0, 19).replace('T', ' ');
       tr.insertCell().textContent = (s.expiresAt || '').slice(0, 10);
@@ -934,5 +938,10 @@
   });
 
   window.addEventListener('radar:auth-updated', loadUsers);
+  window.addEventListener('radar:socket-event', ev => {
+    if (ev.detail?.topic === 'users.updated') {
+      loadUsers();
+    }
+  });
   loadUsers();
 })();

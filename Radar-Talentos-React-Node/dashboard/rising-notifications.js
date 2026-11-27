@@ -393,10 +393,16 @@
    subBtn.disabled=true;
    msg.textContent='Autenticando...';
    try{
+    const ua=navigator.userAgent||'';
+    const isNative=Boolean(window.RadarNative)||document.documentElement.hasAttribute('data-radar-native-app')||/RadarDeTalentosApp/i.test(ua)||(/; wv\)/i.test(ua)&&/Android/i.test(ua));
+    const isTouch=(navigator.maxTouchPoints||0)>0||'ontouchstart' in window;
+    const w=Math.min(window.innerWidth||1280,window.screen?.width||1280);
+    const ff=document.documentElement.getAttribute('data-radar-form-factor')||(navigator.userAgentData?.mobile||(isTouch&&w<=768)?'mobile':(isTouch&&w<=1180)?'tablet':w<=640?'mobile':'desktop');
+    const deviceHint=(isNative?'android-apk-':'web-')+ff;
     const r=await fetch('/api/auth/login',{
      method:'POST',
-     headers:{'Content-Type':'application/json'},
-     body:JSON.stringify({username:inpU.value.trim(),password:inpP.value})
+     headers:{'Content-Type':'application/json','X-Radar-Device':deviceHint},
+     body:JSON.stringify({username:inpU.value.trim(),password:inpP.value,deviceHint})
     });
     const d=await r.json().catch(()=>({}));
     if(!r.ok)throw Error(d.error||'Falha no login');
@@ -510,7 +516,7 @@
  let latestAuthData=null;
  async function checkAuthSession(){
   try{
-   const r=await fetch('/api/auth/me',{cache:'no-store'});
+   const r=await fetch('/api/auth/me',{cache:'no-store',headers:{'X-Radar-Device':(Boolean(window.RadarNative)||document.documentElement.hasAttribute('data-radar-native-app')||/RadarDeTalentosApp|; wv\)/i.test(navigator.userAgent||'')?'android-apk-':'web-')+(document.documentElement.getAttribute('data-radar-form-factor')||(navigator.userAgentData?.mobile||(((navigator.maxTouchPoints||0)>0||'ontouchstart' in window)&&Math.min(window.innerWidth||1280,window.screen?.width||1280)<=768)?'mobile':(((navigator.maxTouchPoints||0)>0||'ontouchstart' in window)&&Math.min(window.innerWidth||1280,window.screen?.width||1280)<=1180)?'tablet':window.innerWidth<=640?'mobile':'desktop'))}});
    if(!r.ok)return;
    latestAuthData=await r.json();
    const p=location.pathname||'/';
@@ -592,8 +598,8 @@
     return;
    }
    const proto=location.protocol==='https:'?'wss:':'ws:';
-   const isNativeApp=document.documentElement.hasAttribute('data-radar-native-app');
-   const formFactor=document.documentElement.getAttribute('data-radar-form-factor')||(window.innerWidth<=640?'mobile':window.innerWidth<=1024?'tablet':'desktop');
+   const isNativeApp=Boolean(window.RadarNative)||document.documentElement.hasAttribute('data-radar-native-app')||/RadarDeTalentosApp|; wv\)/i.test(navigator.userAgent||'');
+   const formFactor=document.documentElement.getAttribute('data-radar-form-factor')||(navigator.userAgentData?.mobile||(((navigator.maxTouchPoints||0)>0||'ontouchstart' in window)&&Math.min(window.innerWidth||1280,window.screen?.width||1280)<=768)?'mobile':window.innerWidth<=640?'mobile':window.innerWidth<=1024?'tablet':'desktop');
    const edgeName=(isNativeApp?'android-apk-':'web-')+formFactor;
    const wsUrl=`${proto}//${location.host}/ws?edge=${encodeURIComponent(edgeName)}`;
    wsInstance=new WebSocket(wsUrl);

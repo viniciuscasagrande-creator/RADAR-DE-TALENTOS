@@ -293,6 +293,36 @@ function parseCookies(req) {
   return out;
 }
 
+export function classifyClientDevice({ userAgent = '', secChUaMobile = '', secChUaPlatform = '', clientHint = '' } = {}) {
+  const ua = String(userAgent || '');
+  const hint = String(clientHint || '');
+  const chMobile = String(secChUaMobile || '');
+  const chPlat = String(secChUaPlatform || '').replace(/"/g, '');
+  const combined = `${ua} ${hint}`;
+
+  if (/RadarDeTalentosApp|android-apk/i.test(combined)) {
+    return /Tablet|iPad/i.test(combined) ? '📱 App Android (.APK · Tablet)' : '📱 App Android (.APK)';
+  }
+  if (/; wv\)|Version\/\d+\.\d+\s+Chrome\//i.test(ua) && /Android/i.test(ua)) {
+    return '📱 App Android (.APK)';
+  }
+  if (/iPad|Tablet|PlayBook|Silk/i.test(combined) || (/Android/i.test(combined) && !/Mobile/i.test(ua) && /tablet/i.test(hint))) {
+    return '📟 Tablet';
+  }
+  if (
+    chMobile === '?1' ||
+    /Android|iPhone|iPod|Mobile|IEMobile|Opera Mini|BlackBerry|web-mobile/i.test(combined) ||
+    /Android|iOS/i.test(chPlat)
+  ) {
+    return /iPhone|iOS/i.test(combined) || /iOS/i.test(chPlat)
+      ? '📱 Celular (iPhone / iOS)'
+      : /Android/i.test(combined) || /Android/i.test(chPlat)
+        ? '📱 Celular (Android)'
+        : '📱 Celular (Mobile Web)';
+  }
+  return '💻 Desktop';
+}
+
 export function resolveSessionContext(db, req) {
   if (!db) return { authenticated: false, user: null, effectiveUser: null, impersonating: false };
   ensureDefaultAdminUser(db);
@@ -304,9 +334,21 @@ export function resolveSessionContext(db, req) {
     db.prepare('DELETE FROM radar_sessions WHERE expires_at <= ?').run(now);
   } catch {}
 
+  const reqUa = String(req.headers?.['user-agent'] || '').slice(0, 240);
+  const reqHint = String(req.headers?.['x-radar-device'] || '').slice(0, 80);
+  const reqChMobile = String(req.headers?.['sec-ch-ua-mobile'] || '');
+  const reqChPlat = String(req.headers?.['sec-ch-ua-platform'] || '');
+  const reqDeviceTag = [reqUa, reqHint, reqChMobile === '?1' ? 'MobileHint' : '', reqChPlat].filter(Boolean).join(' ').slice(0, 240);
+
   if (token) {
     const sess = db.prepare('SELECT * FROM radar_sessions WHERE token = ? AND expires_at > ?').get(token, now);
     if (sess) {
+      if (reqDeviceTag && (!sess.user_agent || sess.user_agent === 'Navegador / Dispositivo Web' || (!/RadarDeTalentosApp|MobileHint|android-apk|web-mobile/i.test(sess.user_agent) && /RadarDeTalentosApp|MobileHint|android-apk|web-mobile/i.test(reqDeviceTag)))) {
+        try {
+          db.prepare('UPDATE radar_sessions SET user_agent = ? WHERE token = ?').run(reqDeviceTag, token);
+          sess.user_agent = reqDeviceTag;
+        } catch {}
+      }
       const baseUserRow = db.prepare('SELECT * FROM radar_users WHERE id = ? AND active = 1').get(sess.user_id);
       if (baseUserRow) {
         const baseUser = formatUserRow(baseUserRow);
@@ -366,7 +408,7 @@ async function readJsonBody(req, maxBytes = 32768) {
   return JSON.parse(Buffer.concat(parts).toString('utf8'));
 }
 
-export async function handleUsersApi(req, res, { database, security, resolveClientIp } = {}) {
+export async function handleUsersApi(req, res, { database, security, resolveClientIp, socketHub = null } = {}) {
   const url = new URL(req.url, 'http://localhost');
   if (!url.pathname.startsWith('/api/auth/') && !url.pathname.startsWith('/api/users')) return false;
   if (!database) {
@@ -534,7 +576,14 @@ export async function handleUsersApi(req, res, { database, security, resolveClie
       const now = new Date().toISOString();
       const maxAgeSec = remember ? 14 * 86400 : 86400;
       const expires = new Date(Date.now() + maxAgeSec * 1000).toISOString();
-      const ua = String(req.headers?.['user-agent'] || '').slice(0, 240);
+      const rawUa = String(req.headers?.['user-agent'] || '');
+      const clientDeviceHint = String(b.deviceHint || req.headers?.['x-radar-device'] || '');
+      const chMobile = String(req.headers?.['sec-ch-ua-mobile'] || '');
+      const chPlat = String(req.headers?.['sec-ch-ua-platform'] || '');
+      const ua = [rawUa, clientDeviceHint, chMobile === '?1' ? 'MobileHint' : '', chPlat]
+        .filter(Boolean)
+        .join(' ')
+        .slice(0, 240);
       try {
         database
           .prepare('INSERT INTO radar_sessions(token,user_id,impersonated_user_id,created_at,expires_at,ip,user_agent) VALUES(?,?,NULL,?,?,?,?)')
@@ -698,9 +747,24 @@ export async function handleUsersApi(req, res, { database, security, resolveClie
         }
         if (!token) {
           token = randomBytes(32).toString('hex');
-          database
-            .prepare('INSERT INTO radar_sessions(token,user_id,impersonated_user_id,created_at,expires_at) VALUES(?,?,?,?,?)')
-            .run(token, ctx.user.id, targetRow.id, now, expires);
+          const impUa = [
+            String(req.headers?.['user-agent'] || ''),
+            String(req.headers?.['x-radar-device'] || ''),
+            req.headers?.['sec-ch-ua-mobile'] === '?1' ? 'MobileHint' : '',
+            String(req.headers?.['sec-ch-ua-platform'] || '')
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .slice(0, 240);
+          try {
+            database
+              .prepare('INSERT INTO radar_sessions(token,user_id,impersonated_user_id,created_at,expires_at,ip,user_agent) VALUES(?,?,?,?,?,?,?)')
+              .run(token, ctx.user.id, targetRow.id, now, expires, clientIp, impUa);
+          } catch {
+            database
+              .prepare('INSERT INTO radar_sessions(token,user_id,impersonated_user_id,created_at,expires_at) VALUES(?,?,?,?,?)')
+              .run(token, ctx.user.id, targetRow.id, now, expires);
+          }
         } else {
           database.prepare('UPDATE radar_sessions SET impersonated_user_id = ? WHERE token = ?').run(targetRow.id, token);
         }
@@ -780,16 +844,35 @@ export async function handleUsersApi(req, res, { database, security, resolveClie
             role: s.role,
             ip: s.ip || '127.0.0.1',
             userAgent: s.user_agent || 'Navegador / Dispositivo Web',
-            deviceType: /RadarDeTalentosApp/i.test(s.user_agent || '')
-              ? '📱 App Android (.APK)'
-              : /Mobile|Android|iPhone/i.test(s.user_agent || '')
-                ? '📱 Mobile Web'
-                : /iPad|Tablet/i.test(s.user_agent || '')
-                  ? '📟 Tablet'
-                  : '💻 Desktop',
+            deviceType: classifyClientDevice({ userAgent: s.user_agent || '' }),
             createdAt: s.created_at,
             expiresAt: s.expires_at
           }));
+          if (socketHub && typeof socketHub.getHubStatus === 'function') {
+            const wsEdges = socketHub.getHubStatus()?.activeEdges || [];
+            for (const edge of wsEdges) {
+              const edgeDevice = classifyClientDevice({ userAgent: edge.userAgent || '', clientHint: edge.edgeNode || '' });
+              const alreadyListed = activeSessions.some(
+                s => s.ip === edge.ip && s.deviceType === edgeDevice
+              );
+              if (!alreadyListed && /App Android|Celular|Tablet/i.test(edgeDevice)) {
+                activeSessions.unshift({
+                  sessionId: edge.clientId || 'ws-edge',
+                  isCurrent: false,
+                  userId: ctx.user?.id || 'u-admin',
+                  username: edge.username || ctx.user?.username || 'mobile.edge',
+                  displayName: edge.displayName || `${ctx.user?.displayName || 'Dispositivo Conectado'} (Tempo Real)`,
+                  role: 'admin',
+                  ip: edge.ip || '127.0.0.1',
+                  userAgent: edge.edgeNode || 'WebSocket E2E',
+                  deviceType: edgeDevice,
+                  createdAt: edge.connectedAt || nowIso,
+                  expiresAt: new Date(Date.now() + 86400000).toISOString(),
+                  isRealtimeEdge: true
+                });
+              }
+            }
+          }
         } catch {}
       }
       let signupRequests = [];

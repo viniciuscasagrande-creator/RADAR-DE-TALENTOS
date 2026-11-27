@@ -312,7 +312,7 @@
     const banner = $('reports-status-banner');
     if (btn) {
       btn.disabled = true;
-      btn.textContent = '⏳ Extraindo dados nas APIs e atualizando relatórios…';
+      btn.textContent = '⏳ Extraindo…';
     }
     if (banner) {
       banner.textContent = 'Motor de Dados em execução: consultando Wikidata, MusicBrainz, YouTube Data API v3 e Spotify Web…';
@@ -340,7 +340,7 @@
     } finally {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = '⚡ Executar Extração do Motor Agora';
+        btn.textContent = '⚡ Extrair Agora';
       }
     }
   });

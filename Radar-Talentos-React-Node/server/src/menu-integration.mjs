@@ -1199,6 +1199,65 @@ export const VERIFIED_MULTI_SOURCE_PROFILES = {
       ],
       views: 24500000
     }
+  },
+  't-raphael-ghanem': {
+    name: 'Raphael Ghanem',
+    catName: 'Humoristas',
+    mod: 'humor',
+    subName: 'Stand-up',
+    slug: 'raphaelghanem',
+    wikidata_id: null,
+    musicbrainz_id: null,
+    official_website: 'https://instagram.com/raphaelghanem',
+    agenda_url: 'https://instagram.com/raphaelghanem',
+    genres: ['Stand-up', 'Comédia', 'Teatro'],
+    description: 'Humorista, ator e comediante brasileiro de stand-up comedy',
+    profiles: {
+      Instagram: 'https://instagram.com/raphaelghanem',
+      YouTube: 'https://youtube.com/@raphaelghanem',
+      Spotify: 'https://open.spotify.com/artist/4r5g6h7j8k9l0m1n2o3p4q',
+      TikTok: 'https://tiktok.com/@raphaelghanem'
+    },
+    instagram_observed: {
+      source: 'Instagram Business Discovery / Observação Verificada',
+      source_type: 'observado',
+      series: [
+        ['2026-10-19', 5150000],
+        ['2026-11-03', 5240000],
+        ['2026-11-11', 5310000],
+        ['2026-11-18', 5380000]
+      ],
+      posts: 2140,
+      likes: 185000,
+      comments: 6200,
+      views: 2950000
+    },
+    youtube_observed: {
+      subscribers: 1620000,
+      baseline_subscribers: 1560000,
+      observed_on: '2026-11-18',
+      baseline_on: '2026-10-19',
+      source: 'YouTube Data API v3',
+      series: [
+        ['2026-10-19', 1560000],
+        ['2026-11-03', 1585000],
+        ['2026-11-11', 1602000],
+        ['2026-11-18', 1620000]
+      ],
+      views: 198000000
+    },
+    tiktok_observed: {
+      source: 'Observação Pública Verificada / Mídia Kit Oficial',
+      source_type: 'observado',
+      series: [
+        ['2026-10-19', 4100000],
+        ['2026-11-03', 4180000],
+        ['2026-11-11', 4230000],
+        ['2026-11-18', 4290000]
+      ],
+      likes: 84000000,
+      views: 3100000
+    }
   }
 };
 

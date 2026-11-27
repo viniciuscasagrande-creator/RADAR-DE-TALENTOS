@@ -273,7 +273,7 @@ async function applyQuickArtistSearch(){
      return;
     }
    }
-   $('message').textContent=`Artista "${input.value.trim()}" não encontrado no cadastro do Radar.`;
+   $('message').textContent=`⏳ Pesquisando "${input.value.trim()}" no Motor Global (Wikidata, MusicBrainz e YouTube API v3)...`;try{const discRes=await fetch('/api/discovery/global-search',{method:'POST',headers:{'Content-Type':'application/json','X-Radar-Action':'discovery'},body:JSON.stringify({query:input.value.trim(),includeMusicBrainzLive:true,autoApprove:true})});if(discRes.ok){const discData=await discRes.json().catch(()=>({}));const pub=discData.autoPublished;if(pub?.radarId){if(![...field('talent').options].some(o=>o.value===pub.radarId))field('talent').add(new Option(pub.name||input.value.trim(),pub.radarId));field('talent').value=pub.radarId;input.value=pub.name||input.value.trim();useArtistMapAutoMode();$('message').textContent=`✓ Talento "${pub.name||input.value.trim()}" prospectado, incorporado ao Radar (${pub.radarId}) e coletado via Motor de Dados!`;window.dispatchEvent(new CustomEvent('radar:socket-event',{detail:{topic:'discovery.updated'}}));search();return;}}}catch{}$('message').textContent=`Artista "${input.value.trim()}" não encontrado no cadastro do Radar.`;
    return;
   }
   if(![...field('talent').options].some(o=>o.value===artist.id)){

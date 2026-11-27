@@ -252,9 +252,29 @@
     }
 
     if (!list.length) {
-      const p = el('p', null, 'Nenhum talento encontrado neste filtro. Limpe o filtro ou pesquise um novo talento abaixo.');
-      p.style.padding = '14px';
-      host.append(p);
+      const qRaw = ($('rising-quick-search')?.value || '').trim();
+      const wrap = el('div');
+      wrap.style.padding = '14px';
+      const p = el(
+        'p',
+        null,
+        qRaw
+          ? `O talento "${qRaw}" ainda não está neste recorte do catálogo. Clique abaixo para prospectar e incorporar "${qRaw}" automaticamente via Wikidata, MusicBrainz e YouTube Data API v3:`
+          : 'Nenhum talento encontrado neste filtro. Limpe o filtro ou pesquise um novo talento abaixo.'
+      );
+      wrap.append(p);
+      if (qRaw.length >= 2) {
+        const autoBtn = el('button', 'btn-simulate-show', `🚀 Prospectar e Incorporar "${qRaw}" Agora`);
+        autoBtn.type = 'button';
+        autoBtn.style.marginTop = '8px';
+        autoBtn.addEventListener('click', () => {
+          if ($('rising-discover-query')) $('rising-discover-query').value = qRaw;
+          $('rising-new-discovery-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          $('rising-discover-form')?.requestSubmit();
+        });
+        wrap.append(autoBtn);
+      }
+      host.append(wrap);
       return;
     }
 

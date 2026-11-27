@@ -980,7 +980,24 @@ body.ri-portal-body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   font-size: 12px;
+}
+
+.neutral-text-link {
+  border: 0;
+  background: transparent;
+  color: #38bdf8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s ease;
+}
+
+.neutral-text-link:hover {
+  color: #7dd3fc;
+  text-decoration: underline;
 }
 
 .neutral-remember-label {

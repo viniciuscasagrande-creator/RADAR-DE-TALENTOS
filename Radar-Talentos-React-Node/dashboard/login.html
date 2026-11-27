@@ -61,12 +61,41 @@
             <input type="checkbox" id="neutral-remember" />
             <span>Lembrar acesso neste dispositivo</span>
           </label>
+          <button type="button" id="neutral-forgot-btn" class="neutral-text-link">Esqueci minha senha</button>
         </div>
 
         <p id="neutral-login-feedback" class="neutral-feedback" role="status"></p>
 
         <button type="submit" id="neutral-login-submit" class="neutral-submit-btn">
           <span>Entrar</span>
+        </button>
+      </form>
+
+      <!-- Formulário 1B: Recuperação de Senha ("Esqueci minha senha") na Camada Neutra -->
+      <form id="neutral-recover-form" class="neutral-form" hidden novalidate>
+        <div class="neutral-force-banner">
+          <strong>Recuperação de Acesso</strong>
+          <p>Informe seu e-mail ou usuário cadastrado. Uma solicitação de redefinição de senha temporária será registrada para o Administrador.</p>
+        </div>
+
+        <div class="neutral-field">
+          <label for="neutral-recover-identifier">E-mail ou usuário cadastrado</label>
+          <input
+            id="neutral-recover-identifier"
+            type="text"
+            autocomplete="username"
+            placeholder="Digite seu e-mail ou usuário"
+            required
+          />
+        </div>
+
+        <p id="neutral-recover-feedback" class="neutral-feedback" role="status"></p>
+
+        <button type="submit" id="neutral-recover-submit" class="neutral-submit-btn">
+          <span>Solicitar Redefinição de Senha</span>
+        </button>
+        <button type="button" id="neutral-back-login-btn" class="neutral-text-link" style="align-self:center;margin-top:2px">
+          &larr; Voltar para o Login
         </button>
       </form>
 

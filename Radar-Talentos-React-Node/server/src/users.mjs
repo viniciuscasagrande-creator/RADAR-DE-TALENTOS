@@ -299,6 +299,10 @@ export function resolveSessionContext(db, req) {
   const token = cookies.radar_session || req.headers?.['x-radar-session'] || '';
   const now = new Date().toISOString();
 
+  try {
+    db.prepare('DELETE FROM radar_sessions WHERE expires_at <= ?').run(now);
+  } catch {}
+
   if (token) {
     const sess = db.prepare('SELECT * FROM radar_sessions WHERE token = ? AND expires_at > ?').get(token, now);
     if (sess) {
@@ -325,9 +329,12 @@ export function resolveSessionContext(db, req) {
     }
   }
 
-  const defaultAdmin = formatUserRow(
-    db.prepare("SELECT * FROM radar_users WHERE role IN ('admin','superadmin') ORDER BY created_at ASC LIMIT 1").get()
-  );
+  const requireSession = process.env.RADAR_REQUIRE_SESSION === '1';
+  const defaultAdmin = requireSession
+    ? null
+    : formatUserRow(
+        db.prepare("SELECT * FROM radar_users WHERE role IN ('admin','superadmin') ORDER BY created_at ASC LIMIT 1").get()
+      );
   return {
     authenticated: false,
     token: null,
@@ -358,7 +365,7 @@ async function readJsonBody(req, maxBytes = 32768) {
   return JSON.parse(Buffer.concat(parts).toString('utf8'));
 }
 
-export async function handleUsersApi(req, res, { database, security } = {}) {
+export async function handleUsersApi(req, res, { database, security, resolveClientIp } = {}) {
   const url = new URL(req.url, 'http://localhost');
   if (!url.pathname.startsWith('/api/auth/') && !url.pathname.startsWith('/api/users')) return false;
   if (!database) {
@@ -370,7 +377,17 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
     return true;
   }
 
-  const clientIp = req.socket?.remoteAddress || '127.0.0.1';
+  const clientIp =
+    typeof resolveClientIp === 'function'
+      ? resolveClientIp(req)
+      : req.socket?.remoteAddress || '127.0.0.1';
+
+  const nowMs = Date.now();
+  if (loginAttempts.size > 500) {
+    for (const [k, v] of loginAttempts) {
+      if (nowMs - v.lastAt >= 10 * 60000) loginAttempts.delete(k);
+    }
+  }
 
   try {
     ensureDefaultAdminUser(database);
@@ -727,75 +744,86 @@ export async function handleUsersApi(req, res, { database, security } = {}) {
 
     // 7. GET /api/users (Lista todos os usuários, perfis, sessões ativas, logs de acesso e permissões)
     if (req.method === 'GET' && url.pathname === '/api/users') {
-      const rows = database
-        .prepare("SELECT * FROM radar_users ORDER BY CASE WHEN role IN ('superadmin','admin') THEN 0 ELSE 1 END, display_name ASC")
-        .all();
-      const accessLogs = database.prepare('SELECT * FROM radar_access_logs ORDER BY created_at DESC LIMIT 30').all();
+      const canSeeAdminData = hasUsersAdminPower(ctx.user) || hasUsersAdminPower(ctx.effectiveUser);
+      const rows = canSeeAdminData
+        ? database
+            .prepare("SELECT * FROM radar_users ORDER BY CASE WHEN role IN ('superadmin','admin') THEN 0 ELSE 1 END, display_name ASC")
+            .all()
+        : ctx.effectiveUser
+          ? database.prepare('SELECT * FROM radar_users WHERE id = ?').all(ctx.effectiveUser.id)
+          : [];
+      const accessLogs = canSeeAdminData
+        ? database.prepare('SELECT * FROM radar_access_logs ORDER BY created_at DESC LIMIT 30').all()
+        : [];
       const nowIso = new Date().toISOString();
       let activeSessions = [];
-      try {
-        const rawSessions = database
-          .prepare(
-            `SELECT s.token, s.user_id, s.impersonated_user_id, s.created_at, s.expires_at,
-                    s.ip, s.user_agent, u.username, u.display_name, u.role
-             FROM radar_sessions s
-             JOIN radar_users u ON u.id = s.user_id
-             WHERE s.expires_at > ?
-             ORDER BY s.created_at DESC
-             LIMIT 30`
-          )
-          .all(nowIso);
-        activeSessions = rawSessions.map(s => ({
-          sessionId: s.token.slice(0, 12),
-          isCurrent: Boolean(ctx.token && s.token === ctx.token),
-          userId: s.user_id,
-          username: s.username,
-          displayName: s.display_name,
-          role: s.role,
-          ip: s.ip || '127.0.0.1',
-          userAgent: s.user_agent || 'Navegador / Dispositivo Web',
-          deviceType: /RadarDeTalentosApp/i.test(s.user_agent || '')
-            ? '📱 App Android (.APK)'
-            : /Mobile|Android|iPhone/i.test(s.user_agent || '')
-              ? '📱 Mobile Web'
-              : /iPad|Tablet/i.test(s.user_agent || '')
-                ? '📟 Tablet'
-                : '💻 Desktop',
-          createdAt: s.created_at,
-          expiresAt: s.expires_at
-        }));
-      } catch {}
-      let signupRequests = [];
-      try {
-        signupRequests = database
-          .prepare(
-            `SELECT * FROM radar_signup_requests
-             ORDER BY CASE WHEN status = 'pending' THEN 0 WHEN status = 'approved' THEN 1 ELSE 2 END, created_at DESC
-             LIMIT 100`
-          )
-          .all()
-          .map(r => ({
-            id: r.id,
-            fullName: r.full_name,
-            email: r.email,
-            phone: r.phone,
-            company: r.company,
-            jobTitle: r.job_title,
-            document: r.document,
-            cityUf: r.city_uf,
-            purpose: r.purpose,
-            status: r.status,
-            assignedUsername: r.assigned_username || '',
-            assignedRole: r.assigned_role || 'producer',
-            tempPasswordHint: r.temp_password_hint || '',
-            reviewNote: r.review_note || '',
-            reviewedBy: r.reviewed_by || '',
-            reviewedAt: r.reviewed_at || null,
-            emailSent: Boolean(r.email_sent),
-            emailDeliveryMode: r.email_delivery_mode || '',
-            createdAt: r.created_at
+      if (canSeeAdminData) {
+        try {
+          const rawSessions = database
+            .prepare(
+              `SELECT s.token, s.user_id, s.impersonated_user_id, s.created_at, s.expires_at,
+                      s.ip, s.user_agent, u.username, u.display_name, u.role
+               FROM radar_sessions s
+               JOIN radar_users u ON u.id = s.user_id
+               WHERE s.expires_at > ?
+               ORDER BY s.created_at DESC
+               LIMIT 30`
+            )
+            .all(nowIso);
+          activeSessions = rawSessions.map(s => ({
+            sessionId: s.token.slice(0, 12),
+            isCurrent: Boolean(ctx.token && s.token === ctx.token),
+            userId: s.user_id,
+            username: s.username,
+            displayName: s.display_name,
+            role: s.role,
+            ip: s.ip || '127.0.0.1',
+            userAgent: s.user_agent || 'Navegador / Dispositivo Web',
+            deviceType: /RadarDeTalentosApp/i.test(s.user_agent || '')
+              ? '📱 App Android (.APK)'
+              : /Mobile|Android|iPhone/i.test(s.user_agent || '')
+                ? '📱 Mobile Web'
+                : /iPad|Tablet/i.test(s.user_agent || '')
+                  ? '📟 Tablet'
+                  : '💻 Desktop',
+            createdAt: s.created_at,
+            expiresAt: s.expires_at
           }));
-      } catch {}
+        } catch {}
+      }
+      let signupRequests = [];
+      if (canSeeAdminData) {
+        try {
+          signupRequests = database
+            .prepare(
+              `SELECT * FROM radar_signup_requests
+               ORDER BY CASE WHEN status = 'pending' THEN 0 WHEN status = 'approved' THEN 1 ELSE 2 END, created_at DESC
+               LIMIT 100`
+            )
+            .all()
+            .map(r => ({
+              id: r.id,
+              fullName: r.full_name,
+              email: r.email,
+              phone: r.phone,
+              company: r.company,
+              jobTitle: r.job_title,
+              document: r.document,
+              cityUf: r.city_uf,
+              purpose: r.purpose,
+              status: r.status,
+              assignedUsername: r.assigned_username || '',
+              assignedRole: r.assigned_role || 'producer',
+              tempPasswordHint: r.temp_password_hint || '',
+              reviewNote: r.review_note || '',
+              reviewedBy: r.reviewed_by || '',
+              reviewedAt: r.reviewed_at || null,
+              emailSent: Boolean(r.email_sent),
+              emailDeliveryMode: r.email_delivery_mode || '',
+              createdAt: r.created_at
+            }));
+        } catch {}
+      }
       send(res, 200, {
         items: rows.map(formatUserRow),
         signupRequests,

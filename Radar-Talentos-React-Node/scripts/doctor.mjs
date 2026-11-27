@@ -4,7 +4,8 @@ import {openDatabase,databasePath} from '../server/src/database/index.mjs';
 import {operationsStatus} from '../server/src/operations.mjs';
 import {dashboardConfig} from '../server/src/event-config.mjs';
 import {productionSecurity} from '../server/src/security.mjs';
-const checks=[];const add=(status,name,detail)=>checks.push({status,name,detail});const file=process.argv[2]??process.env.RADAR_OPERATIONS_CONFIG??'config/operations.json';
+const checks=[];const add=(status,name,detail)=>checks.push({status,name,detail});const rawFile=process.argv[2]??process.env.RADAR_OPERATIONS_CONFIG??'config/operations.json';
+const file=existsSync(rawFile)?rawFile:(rawFile==='config/operations.json'&&existsSync('config/operations.example.json')?'config/operations.example.json':rawFile);
 try{const c=dashboardConfig(JSON.parse(readFileSync(file,'utf8')));add('ok','Configuração',`${c.jobs.filter(x=>x.enabled&&x.kind!=='alerts').length} fontes habilitadas`);if(!c.jobs.some(x=>x.enabled&&x.kind==='events'))add('warning','Eventos','Nenhuma fonte habilitada');
  for(const j of c.jobs.filter(x=>x.enabled&&x.kind!=='alerts')){const required=j.adapter==='youtube'&&j.refreshTokenEnv?[j.refreshTokenEnv,j.clientIdEnv,j.clientSecretEnv]:j.tokenFile?[]:j.tokenEnv?[j.tokenEnv]:[];if(required.some(k=>!process.env[k]))add('error',j.id,'Credencial de ambiente ausente');if(j.tokenFile&&!existsSync(resolve(process.env.RADAR_SECRETS_DIR??'data/secrets',j.tokenFile)))add('error',j.id,'Arquivo de credencial ausente');if(j.adapter==='file'&&!existsSync(resolve(process.env.RADAR_INBOX??'data/inbox',j.file)))add('warning',j.id,'Arquivo de entrada ausente');}
 }catch{add('error','Configuração','Arquivo ausente ou inválido');}

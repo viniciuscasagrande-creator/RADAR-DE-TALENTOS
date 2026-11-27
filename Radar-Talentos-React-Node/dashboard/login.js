@@ -305,6 +305,9 @@
   // =========================================================================
   const nLoginForm = $('neutral-login-form');
   const nForceForm = $('neutral-force-pwd-form');
+  const nRecoverForm = $('neutral-recover-form');
+  if (nForceForm) nForceForm.hidden = true;
+  if (nRecoverForm) nRecoverForm.hidden = true;
   const nUserInp = $('neutral-username');
   const nPwdInp = $('neutral-password');
   const nToggleBtn = $('neutral-toggle-pwd');
@@ -314,6 +317,79 @@
   const nConfPwdInp = $('neutral-confirm-password');
   const nForceFeedback = $('neutral-force-feedback');
   const nForceSubmit = $('neutral-force-submit');
+  const nRecoverInp = $('neutral-recover-identifier');
+  const nRecoverFeedback = $('neutral-recover-feedback');
+  const nRecoverSubmit = $('neutral-recover-submit');
+
+  $('neutral-forgot-btn')?.addEventListener('click', () => {
+    if (nLoginForm) nLoginForm.hidden = true;
+    if (nForceForm) nForceForm.hidden = true;
+    if (nRecoverForm) nRecoverForm.hidden = false;
+    if ($('neutral-title')) $('neutral-title').textContent = 'Esqueci Minha Senha';
+    if ($('neutral-subtitle')) {
+      $('neutral-subtitle').textContent = 'Solicite a redefinição de sua senha de acesso.';
+    }
+    if (nRecoverInp && nUserInp?.value?.trim()) {
+      nRecoverInp.value = nUserInp.value.trim();
+    }
+    if (nRecoverFeedback) nRecoverFeedback.textContent = '';
+    nRecoverInp?.focus();
+  });
+
+  $('neutral-back-login-btn')?.addEventListener('click', () => {
+    if (nRecoverForm) nRecoverForm.hidden = true;
+    if (nForceForm) nForceForm.hidden = true;
+    if (nLoginForm) nLoginForm.hidden = false;
+    if ($('neutral-title')) $('neutral-title').textContent = 'Autenticação de Usuário';
+    if ($('neutral-subtitle')) {
+      $('neutral-subtitle').textContent = 'Informe suas credenciais autorizadas para continuar.';
+    }
+    nUserInp?.focus();
+  });
+
+  nRecoverForm?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const identifier = nRecoverInp?.value?.trim() || '';
+    if (!identifier) {
+      if (nRecoverFeedback) {
+        nRecoverFeedback.style.color = '#fca5a5';
+        nRecoverFeedback.textContent = 'Informe seu e-mail ou usuário cadastrado.';
+      }
+      return;
+    }
+    if (nRecoverSubmit) {
+      nRecoverSubmit.disabled = true;
+      nRecoverSubmit.textContent = 'Enviando solicitação…';
+    }
+    if (nRecoverFeedback) {
+      nRecoverFeedback.style.color = '#93c5fd';
+      nRecoverFeedback.textContent = 'Registrando solicitação de redefinição…';
+    }
+    try {
+      const r = await fetch('/api/auth/request-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'recover', identifier, email: identifier })
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw Error(d.error || 'Não foi possível enviar a solicitação.');
+      if (nRecoverFeedback) {
+        nRecoverFeedback.style.color = '#4ade80';
+        nRecoverFeedback.textContent =
+          '✓ Solicitação registrada! O Administrador foi notificado para enviar sua nova senha temporária.';
+      }
+    } catch (err) {
+      if (nRecoverFeedback) {
+        nRecoverFeedback.style.color = '#fca5a5';
+        nRecoverFeedback.textContent = err.message;
+      }
+    } finally {
+      if (nRecoverSubmit) {
+        nRecoverSubmit.disabled = false;
+        nRecoverSubmit.innerHTML = '<span>Solicitar Redefinição de Senha</span>';
+      }
+    }
+  });
 
   nToggleBtn?.addEventListener('click', () => {
     if (!nPwdInp) return;

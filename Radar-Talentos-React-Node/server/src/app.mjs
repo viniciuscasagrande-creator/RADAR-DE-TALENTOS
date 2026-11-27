@@ -119,7 +119,7 @@ export function createRadarServer({
       return;
     }
 
-    if (await handleUsersApi(req, res, { database, security })) {
+    if (await handleUsersApi(req, res, { database, security, resolveClientIp })) {
       if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && socketHub) {
         socketHub.broadcastEvent('users.updated', { url: req.url, method: req.method, updatedAt: new Date().toISOString() }, { sourceEdge: 'iam-gateway' });
       }

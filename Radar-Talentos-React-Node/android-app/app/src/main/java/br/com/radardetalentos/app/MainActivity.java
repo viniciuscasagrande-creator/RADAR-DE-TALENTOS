@@ -217,7 +217,7 @@ public class MainActivity extends Activity {
         settings.setDisplayZoomControls(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
 
         boolean isTablet = isTabletDevice();
         String baseUa = settings.getUserAgentString();
@@ -261,9 +261,8 @@ public class MainActivity extends Activity {
 
             @Override
             public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-                String url = error != null ? error.getUrl() : "";
-                if (url != null && (url.contains("34.70.140.94") || url.contains("sslip.io"))) {
-                    handler.proceed();
+                if (handler != null) {
+                    handler.cancel();
                 } else {
                     super.onReceivedSslError(view, handler, error);
                 }

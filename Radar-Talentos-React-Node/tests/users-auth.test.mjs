@@ -111,6 +111,49 @@ test('Usuários e Permissões: Admin cria usuário com checkboxes, força cadast
     const impBody = await impRes.json();
     assert.equal(impBody.impersonating, true);
     assert.equal(impBody.user.username, 'carlos.produtor');
+
+    // 7. Usuário comum autenticado sem permissão 'users' não enxerga sessões/logs/solicitações de outros usuários e registra X-Forwarded-For
+    const loginProxyRes = await fetch(base + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Forwarded-For': '189.45.10.22, 10.0.0.1' },
+      body: JSON.stringify({ username: 'carlos.produtor', password: 'Reset@123' })
+    });
+    assert.equal(loginProxyRes.status, 200);
+    const proxyToken = (await loginProxyRes.json()).token;
+
+    const nonAdminListRes = await fetch(base + '/api/users', {
+      headers: { 'X-Radar-Session': proxyToken }
+    });
+    assert.equal(nonAdminListRes.status, 200);
+    const nonAdminList = await nonAdminListRes.json();
+    assert.equal(nonAdminList.items.length, 1);
+    assert.equal(nonAdminList.items[0].username, 'carlos.produtor');
+    assert.equal(nonAdminList.accessLogs.length, 0);
+    assert.equal(nonAdminList.activeSessions.length, 0);
+    assert.equal(nonAdminList.signupRequests.length, 0);
+
+    // 8. Admin vê o IP real resolvido pelo proxy reverso na tabela de sessões ativas
+    const adminListRes = await fetch(base + '/api/users');
+    const adminList = await adminListRes.json();
+    const carlosSession = adminList.activeSessions.find(s => s.username === 'carlos.produtor' && s.ip === '189.45.10.22');
+    assert.ok(carlosSession);
+
+    // 9. Camada neutra pré-inauguração possui "Esqueci minha senha" integrado ao endpoint /api/auth/request-access
+    const loginHtmlRes = await fetch(base + '/login.html');
+    assert.equal(loginHtmlRes.status, 200);
+    const loginHtml = await loginHtmlRes.text();
+    assert.match(loginHtml, /id="neutral-forgot-btn"/);
+    assert.match(loginHtml, /Esqueci minha senha/);
+    assert.match(loginHtml, /id="neutral-recover-form"/);
+
+    const recoverRes = await fetch(base + '/api/auth/request-access', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'recover', identifier: 'carlos.produtor', email: 'carlos.produtor' })
+    });
+    assert.equal(recoverRes.status, 200);
+    const recoverBody = await recoverRes.json();
+    assert.equal(recoverBody.ok, true);
   } finally {
     await new Promise(r => server.close(r));
     db.close();

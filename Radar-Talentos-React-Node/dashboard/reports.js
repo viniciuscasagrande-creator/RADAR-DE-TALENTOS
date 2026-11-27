@@ -96,9 +96,56 @@
     }
   }
 
+  function syncPdfPrintHeader(activeReport, catalogItem) {
+    if (!activeReport) return;
+    document.body.setAttribute('data-active-report', activeReport.id || 'master_talents');
+
+    if ($('pdf-doc-title')) {
+      $('pdf-doc-title').textContent = activeReport.title || 'Relatório Executivo Radar de Talentos';
+    }
+    if ($('pdf-doc-subtitle')) {
+      $('pdf-doc-subtitle').textContent =
+        catalogItem?.description || 'Extração oficial auditada do Motor de Dados 24/7 com procedência verificada.';
+    }
+    if ($('pdf-generated-at')) {
+      const nowStr = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'medium' });
+      $('pdf-generated-at').textContent = `Emitido em ${nowStr} · ${activeReport.rows?.length || 0} registros`;
+    }
+
+    const strip = $('pdf-filters-strip');
+    if (strip) {
+      strip.replaceChildren();
+      const cat = $('rep-category-select')?.value || 'Todas as categorias';
+      const net = $('rep-network-select')?.value || '4 Mídias';
+      const region = $('rep-region-select')?.value || 'Brasil';
+      const citySel = $('rep-city-select');
+      const cityLabel = citySel?.selectedOptions?.[0]?.textContent || '';
+      const talSel = $('rep-talent-select');
+      const talentLabel = talSel?.selectedOptions?.[0]?.textContent || '';
+      const q = $('reports-quick-search')?.value?.trim() || '';
+
+      const chips = [`Categoria: ${cat}`, `Mídia: ${net}`];
+      if (activeReport.id === 'artist_dossier' && talentLabel) {
+        chips.push(`Artista: ${talentLabel}`);
+      }
+      if ((activeReport.id === 'commercial_score' || activeReport.id === 'geo_ibge') && (region || cityLabel)) {
+        chips.push(`Região/Praça: ${region}${cityLabel ? ' · ' + cityLabel : ''}`);
+      }
+      if (q) {
+        chips.push(`Filtro: "${q}"`);
+      }
+      chips.push(`Total: ${activeReport.rows?.length || 0} reg.`);
+
+      for (const text of chips) {
+        strip.append(el('span', 'pdf-filter-chip', text));
+      }
+    }
+  }
+
   function renderActiveReportTable(activeReport, catalogItem) {
     if ($('active-report-title')) $('active-report-title').textContent = `📄 ${activeReport.title}`;
     if ($('active-report-desc') && catalogItem) $('active-report-desc').textContent = catalogItem.description;
+    syncPdfPrintHeader(activeReport, catalogItem);
 
     const dossierBanner = $('dossier-highlight-banner');
     if (dossierBanner) {
@@ -181,6 +228,16 @@
           a.style.textDecoration = 'none';
           a.title = 'Abrir Ficha 360° na Visão Geral';
           td.append(a);
+        } else if (c.key === 'governance' || c.key === 'classification' || c.key === 'status' || c.key === 'recommendation') {
+          const valStr = rawVal != null ? String(rawVal) : '—';
+          const lower = valStr.toLowerCase();
+          let badgeCls = 'pdf-badge-neutral';
+          if (lower.includes('verificado') || lower.includes('alta') || lower.includes('confirmed') || lower.includes('ok')) {
+            badgeCls = 'pdf-badge-verified';
+          } else if (lower.includes('calculado') || lower.includes('média') || lower.includes('observado')) {
+            badgeCls = 'pdf-badge-calculated';
+          }
+          td.append(el('span', badgeCls, valStr));
         } else if (typeof rawVal === 'number') {
           td.textContent = rawVal.toLocaleString('pt-BR');
         } else {
@@ -362,7 +419,18 @@
 
   // Botão: Imprimir / Salvar PDF Executivo
   $('print-pdf-btn')?.addEventListener('click', () => {
+    if (hubData?.activeReport) {
+      const catItem = (hubData.catalog || []).find(c => c.id === hubData.reportType);
+      syncPdfPrintHeader(hubData.activeReport, catItem);
+    }
+    const prevTitle = document.title;
+    const slug = (hubData?.reportType || 'relatorio').replace(/[^a-z0-9_-]/gi, '_');
+    const dateIso = new Date().toISOString().slice(0, 10);
+    document.title = `Radar_de_Talentos_${slug}_${dateIso}`;
     window.print();
+    setTimeout(() => {
+      document.title = prevTitle;
+    }, 800);
   });
 
   for (const id of ['rep-type-select', 'rep-category-select', 'rep-network-select', 'rep-talent-select', 'rep-region-select', 'rep-city-select']) {

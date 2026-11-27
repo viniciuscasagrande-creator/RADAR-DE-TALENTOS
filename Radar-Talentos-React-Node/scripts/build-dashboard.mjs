@@ -15,6 +15,7 @@ const jsFiles = [
   'dashboard/rising.js',
   'dashboard/rising-notifications.js',
   'dashboard/acceleration.js',
+  'dashboard/reports.js',
   'dashboard/users.js',
   'dashboard/login.js'
 ];

@@ -6,6 +6,7 @@ export const RADAR_PERMISSIONS_CATALOG = [
   { key: 'audience', label: 'Audiência Geográfica & Mapa IBGE', path: '/audience.html', defaultUser: true },
   { key: 'commercial', label: 'Oportunidade Comercial & Radar Score 2.0', path: '/commercial.html', defaultUser: true },
   { key: 'rising', label: 'Talentos Emergentes & Tração Digital', path: '/rising.html', defaultUser: true },
+  { key: 'reports', label: 'Relatórios & Extrações do Motor (CSV/PDF/JSON)', path: '/reports.html', defaultUser: true },
   { key: 'simulator_pl', label: 'Simulador Financeiro de Eventos (P&L)', path: '#simulator', defaultUser: true },
   { key: 'radar_ai', label: 'Radar IA — Assistente de Inteligência', path: '#radar-ai', defaultUser: true },
   { key: 'events', label: 'Eventos e Ticketeiras (Consulta Opcional)', path: '/events.html', defaultUser: true },
@@ -20,49 +21,49 @@ export const RADAR_ROLE_PROFILES = [
     label: 'Superadministrador',
     description: 'Controle integral da plataforma',
     defaultRoute: '/',
-    permissions: ['overview', 'audience', 'commercial', 'rising', 'simulator_pl', 'radar_ai', 'events', 'acquisition', 'discovery', 'users']
+    permissions: ['overview', 'audience', 'commercial', 'rising', 'reports', 'simulator_pl', 'radar_ai', 'events', 'acquisition', 'discovery', 'users']
   },
   {
     role: 'admin',
     label: 'Administrador',
     description: 'Usuários, integrações e configurações',
     defaultRoute: '/',
-    permissions: ['overview', 'audience', 'commercial', 'rising', 'simulator_pl', 'radar_ai', 'events', 'acquisition', 'discovery', 'users']
+    permissions: ['overview', 'audience', 'commercial', 'rising', 'reports', 'simulator_pl', 'radar_ai', 'events', 'acquisition', 'discovery', 'users']
   },
   {
     role: 'analyst',
     label: 'Analista',
     description: 'Motor de Dados, prospecção e validação',
     defaultRoute: '/acquisition.html',
-    permissions: ['overview', 'audience', 'commercial', 'rising', 'events', 'acquisition', 'discovery']
+    permissions: ['overview', 'audience', 'commercial', 'rising', 'reports', 'events', 'acquisition', 'discovery']
   },
   {
     role: 'entrepreneur',
     label: 'Empresário',
     description: 'Inteligência comercial e artística',
     defaultRoute: '/commercial.html',
-    permissions: ['overview', 'audience', 'commercial', 'rising', 'simulator_pl', 'radar_ai']
+    permissions: ['overview', 'audience', 'commercial', 'rising', 'reports', 'simulator_pl', 'radar_ai']
   },
   {
     role: 'producer',
     label: 'Produtor',
     description: 'Audiência, eventos e oportunidades',
     defaultRoute: '/audience.html',
-    permissions: ['overview', 'audience', 'commercial', 'rising', 'simulator_pl', 'radar_ai', 'events']
+    permissions: ['overview', 'audience', 'commercial', 'rising', 'reports', 'simulator_pl', 'radar_ai', 'events']
   },
   {
     role: 'consultant',
     label: 'Consultor',
     description: 'Consulta a módulos autorizados',
     defaultRoute: '/',
-    permissions: ['overview', 'audience', 'commercial', 'rising', 'radar_ai']
+    permissions: ['overview', 'audience', 'commercial', 'rising', 'reports', 'radar_ai']
   },
   {
     role: 'visitor',
     label: 'Visitante',
     description: 'Acesso demonstrativo restrito',
     defaultRoute: '/',
-    permissions: ['overview', 'rising']
+    permissions: ['overview', 'rising', 'reports']
   }
 ];
 

@@ -823,7 +823,7 @@
   });
 
   $('chk-exec-new-perms')?.addEventListener('click', () => {
-    const execKeys = new Set(['overview', 'audience', 'commercial', 'rising', 'simulator_pl', 'radar_ai', 'events']);
+    const execKeys = new Set(['overview', 'audience', 'commercial', 'rising', 'reports', 'simulator_pl', 'radar_ai', 'events']);
     document.querySelectorAll('#new-user-permissions-grid input[type="checkbox"]').forEach(c => {
       c.checked = execKeys.has(c.dataset.permKey);
     });

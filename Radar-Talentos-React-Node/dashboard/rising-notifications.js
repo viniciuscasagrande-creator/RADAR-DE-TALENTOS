@@ -266,6 +266,7 @@
   '/audience.html':'audience',
   '/commercial.html':'commercial',
   '/rising.html':'rising',
+  '/reports.html':'reports',
   '/events.html':'events',
   '/acquisition.html':'acquisition',
   '/discovery.html':'discovery',

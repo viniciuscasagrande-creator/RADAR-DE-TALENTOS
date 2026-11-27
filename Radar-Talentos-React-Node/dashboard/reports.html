@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Relatórios &amp; Extrações | Radar de Talentos</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/talent-home.css" />
+  <link rel="stylesheet" href="/rising.css" />
+  <script defer src="/reports.js"></script>
+  <script defer src="/rising-notifications.js"></script>
+  <style>
+    @media print {
+      .sidebar,
+      .top-search-bar,
+      .rising-filter-panel,
+      .report-export-toolbar,
+      .radar-mobile-bottom-nav,
+      #reports-catalog-grid {
+        display: none !important;
+      }
+      body,
+      main.dashboard-main {
+        background: #ffffff !important;
+        color: #111827 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      .rising-card,
+      .exec-kpi-card {
+        border: 1px solid #cbd5e1 !important;
+        background: #ffffff !important;
+        color: #111827 !important;
+        box-shadow: none !important;
+      }
+      .rising-table th,
+      .rising-table td {
+        color: #111827 !important;
+        border-color: #cbd5e1 !important;
+      }
+    }
+  </style>
+</head>
+<body class="dashboard talent-home rising-page reports-page">
+  <a class="skip-link" href="#reports-overview">Ir para o conteúdo</a>
+  <header class="sidebar">
+    <a class="brand" href="/">
+      <span aria-hidden="true" class="radar-mark"><img src="/radar-logo-mark.svg" alt="" class="brand-logo-img" /></span>
+      <span>RADAR DE<br /><b>TALENTOS</b></span>
+    </a>
+    <p class="brand-sub">Inteligência de mercado</p>
+    <nav aria-label="Navegação principal">
+      <span class="nav-label">AMBIENTE EXECUTIVO</span>
+      <a href="/">◉ &nbsp; Visão Geral</a>
+      <a href="/audience.html">⌖ &nbsp; Audiência Geográfica</a>
+      <a href="/commercial.html">↗ &nbsp; Oportunidade Comercial</a>
+      <a href="/rising.html">★ &nbsp; Talentos Emergentes</a>
+      <a aria-current="page" href="/reports.html">📄 &nbsp; Relatórios &amp; Extrações</a>
+      <span class="nav-label">NESTE PAINEL</span>
+      <a href="#reports-overview">Resumo &amp; Catálogo de Relatórios</a>
+      <a href="#active-report-panel">Tabela de Extração &amp; Download</a>
+      <a href="#engine-audit-extra-panel">Logs do Motor &amp; Quarentena</a>
+      <span class="nav-label">AMBIENTE ADMINISTRATIVO</span>
+      <a href="/acquisition.html">⚙ &nbsp; Motor de Dados</a>
+      <a href="/discovery.html">✓ &nbsp; Prospecção e Aprovação</a>
+      <a href="/users.html">👥 &nbsp; Usuários</a>
+      <span class="nav-label">CONSULTAS OPCIONAIS</span>
+      <a href="/events.html">▥ &nbsp; Eventos e Ticketeiras</a>
+    </nav>
+    <div class="side-status" data-state="online">
+      <span class="status-dot"></span>
+      <span id="connection-status" role="status">Motor de Extração Ativo</span>
+      <small>CSV, JSON &amp; PDF Executivo</small>
+    </div>
+  </header>
+
+  <main class="dashboard-main">
+    <section class="overview" id="reports-overview">
+      <div class="topline">
+        <div class="topline-brand">
+          <span class="eyebrow">CENTRAL DE RELATÓRIOS &amp; EXTRAÇÕES AUTOMATIZADAS DO MOTOR DE DADOS <b class="env-badge">Produção</b></span>
+          <h1>Relatórios &amp; Extrações de Inteligência</h1>
+        </div>
+        <div class="top-search-bar">
+          <input aria-label="Pesquisar nos relatórios extraídos" autocomplete="off" id="reports-quick-search" type="search" placeholder="Filtrar artista, cidade ou fonte…" value="" />
+          <button id="reports-filter-btn" type="button">Filtrar</button>
+          <button id="reports-extract-now-btn" class="btn-simulate-show" type="button" title="Acionar ciclo imediato de coleta e extração do Motor de Dados">⚡ Executar Extração do Motor Agora</button>
+        </div>
+      </div>
+
+      <!-- 4 KPIs Executivos das Extrações do Motor -->
+      <div class="exec-kpi-grid rising-kpis" aria-label="Indicadores de extrações do Motor">
+        <article class="exec-kpi-card">
+          <span class="exec-kpi-label">Talentos com Extração Ativa</span>
+          <strong id="rep-kpi-extracted">64</strong>
+          <small id="rep-kpi-extracted-sub">Indicadores verificados nas 4 mídias</small>
+        </article>
+        <article class="exec-kpi-card">
+          <span class="exec-kpi-label">Perfis Oficiais Auditados</span>
+          <strong id="rep-kpi-profiles">128</strong>
+          <small id="rep-kpi-profiles-sub">Instagram, Spotify, YouTube e TikTok</small>
+        </article>
+        <article class="exec-kpi-card">
+          <span class="exec-kpi-label">Séries Históricas Extraídas</span>
+          <strong id="rep-kpi-series">250+</strong>
+          <small id="rep-kpi-series-sub">Com evidência HTTPS e data</small>
+        </article>
+        <article class="exec-kpi-card">
+          <span class="exec-kpi-label">Polos IBGE &amp; Praças Regionais</span>
+          <strong id="rep-kpi-geo">85</strong>
+          <small id="rep-kpi-geo-sub">Cruzamento Audiência × Demografia</small>
+        </article>
+      </div>
+
+      <!-- 5 Tipos de Relatórios Prontos (Cards Selecionáveis) -->
+      <p class="rising-section-label">SELECIONE O RELATÓRIO DE EXTRAÇÃO DO MOTOR · CLIQUE PARA VISUALIZAR E EXPORTAR</p>
+      <div id="reports-catalog-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px;margin-bottom:10px"></div>
+
+      <!-- Barra de Filtros e Parâmetros de Extração -->
+      <div class="filter-panel rising-filter-panel">
+        <div class="rising-filters-grid">
+          <label class="filter-card">
+            <span class="filter-label">Tipo de Relatório</span>
+            <select id="rep-type-select">
+              <option value="master_talents" selected>1. Quadro Geral de Talentos &amp; 4 Mídias</option>
+              <option value="artist_dossier">2. Dossiê Executivo 360° do Artista</option>
+              <option value="geo_ibge">3. Inteligência Geográfica &amp; Polos IBGE</option>
+              <option value="commercial_score">4. Viabilidade Comercial &amp; Radar Score 2.0</option>
+              <option value="engine_audit">5. Auditoria de Extrações do Motor 24/7</option>
+            </select>
+          </label>
+          <label class="filter-card">
+            <span class="filter-label">Categoria Artística</span>
+            <select id="rep-category-select">
+              <option value="">Todas as categorias</option>
+            </select>
+          </label>
+          <label class="filter-card">
+            <span class="filter-label">Mídia / Conector</span>
+            <select id="rep-network-select">
+              <option value="">Todas as 4 mídias</option>
+              <option value="Instagram">Instagram</option>
+              <option value="Spotify">Spotify</option>
+              <option value="YouTube">YouTube</option>
+              <option value="TikTok">TikTok</option>
+            </select>
+          </label>
+          <label class="filter-card" id="rep-artist-picker-card">
+            <span class="filter-label">Artista (p/ Dossiê 360°)</span>
+            <select id="rep-talent-select"></select>
+          </label>
+          <label class="filter-card" id="rep-city-picker-card">
+            <span class="filter-label">Praça / Região (p/ Comercial &amp; IBGE)</span>
+            <div class="filter-dual">
+              <select id="rep-region-select" aria-label="Filtrar região">
+                <option value="">Brasil</option>
+                <option value="Sudeste">Sudeste</option>
+                <option value="Sul">Sul</option>
+                <option value="Nordeste">Nordeste</option>
+                <option value="Centro-Oeste">Centro-Oeste</option>
+                <option value="Norte">Norte</option>
+              </select>
+              <select id="rep-city-select" aria-label="Selecionar praça de simulação"></select>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <p class="query-status" id="reports-status-banner" role="status">Central de Relatórios sincronizada com o Motor de Dados. Escolha qualquer relatório acima para inspecionar os dados verificados ou exportar em CSV (Excel), JSON ou PDF.</p>
+    </section>
+
+    <!-- Painel Principal: Relatório Ativo + Botões de Exportação (CSV / JSON / Copiar / PDF) -->
+    <section class="rising-card neon-card cyan-card" id="active-report-panel">
+      <div class="rising-head">
+        <div>
+          <span class="eyebrow" id="active-report-eyebrow">EXTRAÇÃO VERIFICADA EM TEMPO REAL · ZERO DADOS FICTÍCIOS</span>
+          <h2 id="active-report-title">📄 1. Quadro Geral de Talentos &amp; 4 Mídias</h2>
+          <p id="active-report-desc">Todos os talentos monitorados com métricas de Instagram, Spotify, YouTube e TikTok, porte, variação e procedência.</p>
+        </div>
+        <div class="report-export-toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <a id="export-csv-btn" href="/api/reports/export.csv?type=master_talents" download class="btn-simulate-show" style="text-decoration:none;display:inline-flex;align-items:center;height:34px;padding:0 14px;border-radius:8px;font-size:12px">⬇ Baixar CSV (Excel)</a>
+          <button id="export-json-btn" type="button" class="secondary-button" style="height:34px;padding:0 12px;font-size:12px">{ } Baixar JSON Auditado</button>
+          <button id="copy-table-btn" type="button" class="secondary-button" style="height:34px;padding:0 12px;font-size:12px">📋 Copiar p/ Planilha</button>
+          <button id="print-pdf-btn" type="button" class="secondary-button" style="height:34px;padding:0 12px;font-size:12px">🖨 Imprimir / Salvar PDF</button>
+        </div>
+      </div>
+
+      <div id="dossier-highlight-banner" hidden style="margin-bottom:12px;padding:12px 14px;border-radius:10px;background:rgba(15,23,42,0.75);border:1px solid rgba(56,189,248,0.45)"></div>
+      <div class="rising-table-wrap" id="active-report-table-wrap"></div>
+    </section>
+
+    <!-- Painel Complementar: Logs de Coleta do Motor & Quarentena Auditável -->
+    <section class="rising-card neon-card" id="engine-audit-extra-panel">
+      <div class="rising-head">
+        <div>
+          <span class="eyebrow">RASTREABILIDADE DO MOTOR DE DADOS 24/7 · LOGS DE EXECUÇÃO &amp; QUARENTENA</span>
+          <h2>⚙ Últimas Extrações do Motor &amp; Governança de Procedência</h2>
+          <p>Histórico auditável das execuções do Motor de Dados (Wikidata CC0, MusicBrainz, YouTube Data API v3 e Spotify Web) e registros retidos em quarentena por falta de evidência.</p>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));gap:14px">
+        <div>
+          <h3 style="font-size:13px;color:#67e8f9;margin:0 0 8px">📥 Logs de Coleta do Motor (Discovery &amp; APIs)</h3>
+          <div class="rising-table-wrap" id="engine-logs-table-wrap"></div>
+        </div>
+        <div>
+          <h3 style="font-size:13px;color:#facc15;margin:0 0 8px">🛡 Quarentena Auditável de Indicadores (`metric_review_quarantine`)</h3>
+          <div class="rising-table-wrap" id="engine-quarantine-table-wrap"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

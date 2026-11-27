@@ -5,6 +5,7 @@ import { distributeArtistStats } from './indicator-distribution.mjs';
 import { currentDashboard } from './discovery/current-dashboard.mjs';
 import { acquisitionStatus } from './acquisition.mjs';
 import { getCrossMenuSummary, getDemographicsSummary, getArtistMediaStats, answerRadarAiQuery } from './menu-integration.mjs';
+import { buildReportsHub, buildCsvDocument, runEngineExtractionForReports } from './reports.mjs';
 import { handleDiscovery } from './discovery/http.mjs';
 import { handleUsersApi } from './users.mjs';
 import { openDiscovery, listCandidates } from './discovery/engine.mjs';
@@ -126,7 +127,12 @@ export function createRadarServer({
       return;
     }
 
-    if (!['GET', 'HEAD'].includes(req.method) && !(eventsOnly && req.method === 'POST' && req.url === '/api/operations/sync') && !(req.method === 'POST' && req.url === '/api/realtime/publish')) {
+    if (
+      !['GET', 'HEAD'].includes(req.method) &&
+      !(eventsOnly && req.method === 'POST' && req.url === '/api/operations/sync') &&
+      !(req.method === 'POST' && req.url === '/api/realtime/publish') &&
+      !(req.method === 'POST' && req.url === '/api/reports/extract-now')
+    ) {
       res.writeHead(405, { Allow: 'GET, HEAD' }).end();
       return;
     }
@@ -508,6 +514,71 @@ export function createRadarServer({
         const result = commercialQuery(database, new URL(req.url, 'http://localhost').searchParams);
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' }).end(
           req.method === 'HEAD' ? undefined : JSON.stringify(result)
+        );
+        return;
+      }
+
+      if (path === '/api/reports/extract-now' && req.method === 'POST') {
+        if (!database) {
+          res.writeHead(503).end();
+          return;
+        }
+        const chunks = [];
+        let totalBytes = 0;
+        for await (const chunk of req) {
+          totalBytes += chunk.length;
+          if (totalBytes > 32768) {
+            res.writeHead(413, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Payload muito grande' }));
+            return;
+          }
+          chunks.push(chunk);
+        }
+        let body = {};
+        try {
+          body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+        } catch {}
+        const result = await runEngineExtractionForReports(database, {
+          limit: body.limit || 6,
+          category: body.category || '',
+          talentId: body.talentId || ''
+        });
+        socketHub?.broadcastEvent(
+          'reports.extracted',
+          { totalWithMetrics: result.kpis?.talentsWithExtractions || 0, finishedAt: new Date().toISOString() },
+          { sourceEdge: 'reports-engine' }
+        );
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(
+          JSON.stringify(result)
+        );
+        return;
+      }
+
+      if (path === '/api/reports/export.csv') {
+        if (!database) {
+          res.writeHead(503).end();
+          return;
+        }
+        const sp = new URL(req.url, 'http://localhost').searchParams;
+        const hub = buildReportsHub(database, sp);
+        const csv = buildCsvDocument(hub.activeReport.columns, hub.activeReport.rows);
+        const fileName = `radar-relatorio-${hub.reportType}-${new Date().toISOString().slice(0, 10)}.csv`;
+        res.writeHead(200, {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${fileName}"`,
+          'Cache-Control': 'no-store'
+        }).end(req.method === 'HEAD' ? undefined : csv);
+        return;
+      }
+
+      if (path === '/api/reports/hub') {
+        if (!database) {
+          res.writeHead(503).end();
+          return;
+        }
+        const sp = new URL(req.url, 'http://localhost').searchParams;
+        const hub = buildReportsHub(database, sp);
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(
+          req.method === 'HEAD' ? undefined : JSON.stringify(hub)
         );
         return;
       }
